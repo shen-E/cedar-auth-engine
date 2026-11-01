@@ -1,0 +1,44 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "department": "security",
+      "suspended": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "department": "security",
+      "suspended": true
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "eve"
+    },
+    "attrs": {
+      "department": "security"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Report",
+      "id": "review"
+    },
+    "attrs": {
+      "department": "security"
+    },
+    "parents": []
+  }
+]
