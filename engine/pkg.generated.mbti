@@ -22,6 +22,8 @@ pub fn response_to_json(Response) -> Json
 
 pub fn tagged_entities_from_json(Json) -> Array[TaggedEntity] raise PolicyError
 
+pub fn validate_entities(Array[TaggedEntity]) -> Unit raise PolicyError
+
 // Errors
 pub suberror PolicyError {
   PolicyError(String)

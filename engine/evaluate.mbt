@@ -31,23 +31,22 @@ fn same_value(a : Value, b : Value) -> Bool {
 }
 
 ///|
-fn find_entity(entities : Array[TaggedEntity], uid : EntityId) -> TaggedEntity? {
-  for entity in entities {
-    if entity.entity.uid == uid {
-      return Some(entity)
-    }
+fn find_entity(graph : EntityGraph, uid : EntityId) -> TaggedEntity? {
+  match graph.index.get(entity_key(uid)) {
+    Some(i) => Some(graph.entities[i])
+    None => None
   }
-  None
 }
 
 ///|
 fn is_descendant(
-  entities : Array[TaggedEntity],
+  graph : EntityGraph,
   child : EntityId,
   ancestor : EntityId,
 ) -> Bool {
   let pending = [child]
-  let visited : Array[EntityId] = []
+  let visited : Map[String, Bool] = Map([])
+  visited[entity_key(child)] = true
   let mut i = 0
   while i < pending.length() {
     let current = pending[i]
@@ -55,14 +54,12 @@ fn is_descendant(
     if current == ancestor {
       return true
     }
-    if visited.contains(current) {
-      continue
-    }
-    visited.push(current)
-    match find_entity(entities, current) {
+    match find_entity(graph, current) {
       Some(entity) =>
         for parent in entity.entity.parents {
-          if !pending.contains(parent) {
+          let key = entity_key(parent)
+          if !visited.contains(key) {
+            visited[key] = true
             pending.push(parent)
           }
         }
@@ -76,7 +73,7 @@ fn is_descendant(
 fn attribute(
   value : Value,
   name : String,
-  entities : Array[TaggedEntity],
+  entities : EntityGraph,
 ) -> Value? raise PolicyError {
   match value {
     RecordValue(fields) => fields.get(name)
@@ -101,7 +98,7 @@ fn boolean(value : Value) -> Bool raise PolicyError {
 fn evaluate(
   expr : Expr,
   request : Request,
-  entities : Array[TaggedEntity],
+  entities : EntityGraph,
 ) -> Value raise PolicyError {
   match expr {
     Literal(value) => value
@@ -328,26 +325,12 @@ pub fn authorize_with_tags(
   request : Request,
   entities : Array[TaggedEntity],
 ) -> Response raise PolicyError {
-  if entities.length() > 4096 {
-    raise PolicyError("entity limit exceeded")
-  }
-  let mut edges = 0
-  let seen : Array[EntityId] = []
-  for entity in entities {
-    if seen.contains(entity.entity.uid) {
-      raise PolicyError("duplicate entity")
-    }
-    seen.push(entity.entity.uid)
-    edges += entity.entity.parents.length()
-    if edges > 65536 {
-      raise PolicyError("entity parent limit exceeded")
-    }
-  }
+  let graph = build_entity_graph(entities)
   let permits = []
   let forbids = []
   let errors = []
   for policy in policies.policies {
-    let matched = boolean(evaluate(policy.condition, request, entities)) catch {
+    let matched = boolean(evaluate(policy.condition, request, graph)) catch {
       PolicyError(message) => {
         errors.push({ policy_id: policy.id, message, })
         false

@@ -65,3 +65,45 @@ test "authorize typed entities with tags through the public library" {
   let response = @engine.authorize_with_tags(policy, request, entities)
   assert_true(response.decision == @engine.Allow && response.errors.is_empty())
 }
+
+///|
+test "public authorization rejects cyclic entity hierarchies" {
+  let policy = @engine.parse_policies("permit(principal, action, resource);")
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let entities : Array[@engine.Entity] = [
+    {
+      uid: { kind: "Group", id: "a", },
+      attrs: {},
+      parents: [{ kind: "Group", id: "b", }],
+    },
+    {
+      uid: { kind: "Group", id: "b", },
+      attrs: {},
+      parents: [{ kind: "Group", id: "a", }],
+    },
+  ]
+  let rejected = try {
+    let _ = @engine.authorize(policy, request, entities)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  let tagged = []
+  for entity in entities {
+    tagged.push(@engine.TaggedEntity::{ entity, tags: {}, })
+  }
+  let rejected = try {
+    @engine.validate_entities(tagged)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  @engine.validate_entities([])
+}
