@@ -8,6 +8,8 @@ import {
 // Values
 pub fn authorize(PolicySet, Request, Array[Entity]) -> Response raise PolicyError
 
+pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
+
 pub fn entities_from_json(Json) -> Array[Entity] raise PolicyError
 
 pub fn parse_json(String) -> Json raise PolicyError
@@ -17,6 +19,8 @@ pub fn parse_policies(String) -> PolicySet raise PolicyError
 pub fn request_from_json(Json) -> Request raise PolicyError
 
 pub fn response_to_json(Response) -> Json
+
+pub fn tagged_entities_from_json(Json) -> Array[TaggedEntity] raise PolicyError
 
 // Errors
 pub suberror PolicyError {
@@ -91,6 +95,12 @@ pub(all) struct Response {
   errors : Array[Diagnostic]
 } derive(@debug.Debug)
 pub fn Response::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TaggedEntity {
+  entity : Entity
+  tags : Map[String, Value]
+} derive(@debug.Debug)
+pub fn TaggedEntity::to_repr(Self) -> @debug.Repr
 
 pub(all) enum Value {
   BoolValue(Bool)

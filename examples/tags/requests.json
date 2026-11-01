@@ -1,0 +1,128 @@
+[
+  {
+    "decision": "Allow",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "design"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "design"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "design"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Allow",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "finance"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "quarantined"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "untagged"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "write"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "design"
+      },
+      "context": {}
+    }
+  }
+]

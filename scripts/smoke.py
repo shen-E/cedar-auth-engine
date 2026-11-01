@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -51,6 +51,12 @@ def main():
         request.write_text('{}', encoding="utf-8")
         result = run("authorize", policy, entities, request, "--format", "json")
         assert result.returncode == 2 and "duplicate JSON key" in result.stderr
+        checks += 1
+        invalid_tags = path / "invalid-tags.json"
+        invalid_tags.write_text('[{"uid":{"type":"File","id":"r"},"attrs":{},"parents":[],"tags":null}]', encoding="utf-8")
+        valid_request = path / "valid-request.json"
+        valid_request.write_text(json.dumps({"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}), encoding="utf-8")
+        assert run("authorize", policy, invalid_tags, valid_request).returncode == 2
         checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}

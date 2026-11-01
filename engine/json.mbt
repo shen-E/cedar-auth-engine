@@ -202,7 +202,10 @@ pub fn request_from_json(value : Json) -> Request raise PolicyError {
 }
 
 ///|
-pub fn entities_from_json(value : Json) -> Array[Entity] raise PolicyError {
+/// Parse Cedar entities, retaining their optional tags.
+pub fn tagged_entities_from_json(
+  value : Json,
+) -> Array[TaggedEntity] raise PolicyError {
   let items = match value {
     Array(items) => items
     _ => raise PolicyError("entities must be an array")
@@ -220,11 +223,31 @@ pub fn entities_from_json(value : Json) -> Array[Entity] raise PolicyError {
       }
       _ => raise PolicyError("entity parents must be an array")
     }
+    let tags = match fields.get("tags") {
+      Some(tags) => value_map(tags, "entity tags")
+      None => Map([])
+    }
     result.push({
-      uid: entity_id(required(fields, "uid")),
-      attrs: value_map(required(fields, "attrs"), "entity attrs"),
-      parents,
+      entity: {
+        uid: entity_id(required(fields, "uid")),
+        attrs: value_map(required(fields, "attrs"), "entity attrs"),
+        parents,
+      },
+      tags,
     })
+  }
+  result
+}
+
+///|
+/// Parse entities without tags. Nonempty tags are rejected to avoid data loss.
+pub fn entities_from_json(value : Json) -> Array[Entity] raise PolicyError {
+  let result = []
+  for tagged in tagged_entities_from_json(value) {
+    if !tagged.tags.is_empty() {
+      raise PolicyError("entity tags require tagged_entities_from_json")
+    }
+    result.push(tagged.entity)
   }
   result
 }

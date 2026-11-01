@@ -55,6 +55,16 @@ pub(all) struct Entity {
 pub extend Entity with Debug::{to_repr}
 
 ///|
+/// An entity and its dynamic Cedar tags.
+pub(all) struct TaggedEntity {
+  entity : Entity
+  tags : Map[String, Value]
+} derive(Debug)
+
+///|
+pub extend TaggedEntity with Debug::{to_repr}
+
+///|
 pub(all) struct Request {
   principal : EntityId
   action : EntityId
@@ -114,6 +124,7 @@ priv enum Expr {
   Like(Expr, Array[PatternPart])
   Compare(Expr, CompareOp, Expr)
   SetCall(Expr, SetOp, Expr?)
+  TagCall(Expr, Bool, Expr)
   IpConstructor(Expr)
   IpCall(Expr, IpOp, Expr?)
   SetExpr(Array[Expr])

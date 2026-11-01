@@ -92,10 +92,10 @@ fn run(args : Array[String]) -> Int32 raise {
     }
     return 0
   }
-  let entities = @engine.entities_from_json(load_json(args[3]))
+  let entities = @engine.tagged_entities_from_json(load_json(args[3]))
   let input = load_json(args[4])
   if command == "authorize" {
-    let response = @engine.authorize(
+    let response = @engine.authorize_with_tags(
       policies,
       @engine.request_from_json(input),
       entities,
@@ -137,7 +137,7 @@ fn run(args : Array[String]) -> Int32 raise {
     if expected != "Allow" && expected != "Deny" {
       raise CliError("expected decision must be Allow or Deny")
     }
-    let response = @engine.authorize(
+    let response = @engine.authorize_with_tags(
       policies,
       @engine.request_from_json(request),
       entities,
