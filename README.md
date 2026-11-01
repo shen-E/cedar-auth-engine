@@ -81,7 +81,8 @@ let response = @engine.authorize(policies, request, [])
 
 `parse_json`, `request_from_json`, `tagged_entities_from_json` and
 `response_to_json` provide the JSON boundary. Pass tagged entities to
-`authorize_with_tags`. The original `authorize` and `entities_from_json`
+`authorize_with_tags`. `validate_entities` checks graph limits, duplicate IDs
+and cycles independently of policy evaluation. The original `authorize` and `entities_from_json`
 accept entities without tags; `entities_from_json` rejects nonempty tags to
 prevent silently discarding them. Use `parse_json` for text input to detect
 duplicate keys; duplicate keys are already lost if a caller supplies an
@@ -100,8 +101,10 @@ let response = @engine.authorize_with_tags(policies, request, entities)
 
 - Static `permit` and `forbid` policies, scope equality and entity ancestry,
   principal and resource type restrictions (`is`, optionally with `in`),
-  `when` and `unless`. Annotations appear before the policy effect. As in the
-  Cedar CLI, `@id("name")` sets the policy ID; otherwise IDs are `policy0`,
+  `when` and `unless`. Entity hierarchies must be acyclic; missing parent
+  entities and repeated parent links are allowed. Duplicate entity IDs are
+  rejected even for identical entries, a stricter rule than Cedar.
+  Annotations appear before the policy effect. As in the Cedar CLI, `@id("name")` sets the policy ID; otherwise IDs are `policy0`,
   `policy1`, and so on. Duplicate annotations or policy IDs are rejected.
   Annotations are metadata and do not change authorization decisions.
 - Principal, action, resource and context; entity attributes and parent links;
@@ -162,11 +165,14 @@ decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
+Hierarchy cases are checked against an independent reachability walk, and
+cyclic inputs are checked against Cedar. The MoonBit tests also compare all
+512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 485 requests and 24 invalid-syntax cases with no
-mismatches. This is evidence for the selected cases, not a claim of full Cedar
-conformance.
+the current comparison ran 513 requests, 24 invalid-syntax cases and 5 invalid
+entity-graph cases with no mismatches. This is evidence for the selected cases,
+not a claim of full Cedar conformance.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
