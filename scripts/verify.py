@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compare the native engine with Cedar CLI 4.13.0 and pinned integration cases."""
 import argparse
+import datetime
 import json
 import ipaddress
 import pathlib
@@ -72,7 +73,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session", "access-window"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -123,6 +124,65 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "skip-on-error", "reference": ref, "actual": got})
+        # Compare datetime parsing and operations with Cedar 4.13.0.
+        datetime_values = [
+            "1970-01-01", "0000-01-01", "9999-12-31", "2000-02-29", "1900-02-28",
+            "1900-02-29", "2023-02-29", "2024-04-31", "2024-13-01", "2024-01-00",
+            "2024-01-01T00:00:00Z", "2024-01-01T00:00:00.123Z", "2024-01-01T00:00:00+2359",
+            "2024-01-01T00:00:00.123-0500", "2024-01-01T00:00:00-0000", "2024-01-01Z",
+            "2024-01-01 ", "2024-01-01T00:00:00", "2024-01-01t00:00:00z", "2024-01-01T24:00:00Z",
+            "2024-01-01T00:60:00Z", "2016-12-31T23:59:60Z", "2024-01-01T00:00:00.1Z",
+            "2024-01-01T00:00:00.01Z", "2024-01-01T00:00:00.0000Z", "2024-01-01T00:00:00+00:00",
+            "2024-01-01T00:00:00+2400", "2024-01-01T00:00:00+0060", "2024-01-01T00:00:00ZZ", "00011-12-13", "",
+        ]
+        datetime_expressions = [
+            'datetime("1970-01-01") == datetime("1969-12-31T19:00:00-0500")',
+            'datetime("1970-01-01") < datetime("1970-01-02")',
+            'datetime("1970-01-01") <= datetime("1970-01-01")',
+            'datetime("1970-01-02") > datetime("1970-01-01")',
+            'datetime("1970-01-01") >= datetime("1970-01-01")',
+            'datetime("1970-01-01") == 0', 'datetime("1970-01-01") < 0',
+            'datetime("2024-10-15").offset(duration("1h")) == datetime("2024-10-15T01:00:00Z")',
+            'datetime("2024-10-15T01:00:00Z").durationSince(datetime("2024-10-15")) == duration("1h")',
+            'datetime("1969-12-31T23:59:59.999Z").toDate() == datetime("1969-12-31")',
+            'datetime("1969-12-31T23:59:59.999Z").toTime() == duration("23h59m59s999ms")',
+            'datetime("2025-02-20T22:00:00-0500").toDate() == datetime("2025-02-21")',
+            'datetime("2025-02-20T22:00:00-0500").toTime() == duration("3h")',
+            'datetime("1970-01-01").offset(duration("9223372036854775807ms")).offset(duration("1ms")) == datetime("1970-01-01")',
+            'datetime("1970-01-01").offset(duration("-9223372036854775808ms")).toDate() == datetime("1970-01-01")',
+            'datetime("1970-01-01").offset(duration("-9223372036854775808ms")).toTime() >= duration("0ms")',
+            'datetime("1970-01-01").durationSince(datetime("1970-01-01").offset(duration("-9223372036854775808ms"))) == duration("0ms")',
+            'datetime(1) == datetime("1970-01-01")',
+            'datetime("1970-01-01").offset(1) == datetime("1970-01-01")',
+            'duration("1h").toDate() == datetime("1970-01-01")',
+            'true || datetime("bad") == datetime("1970-01-01")',
+        ]
+        datetime_cases = [(expression, {}, None) for expression in datetime_expressions]
+        datetime_cases += [('datetime(context.input) == datetime("1970-01-01")', {"input": value}, None) for value in datetime_values]
+        # Python's calendar arithmetic is an independent oracle for generated UTC offsets.
+        time_rng = random.Random(4096)
+        epoch = datetime.datetime(1970, 1, 1)
+        for _ in range(20):
+            year = time_rng.randint(1900, 2100)
+            month = time_rng.randint(1, 12)
+            day = time_rng.randint(1, 28)
+            hour, minute, second, milli = time_rng.randrange(24), time_rng.randrange(60), time_rng.randrange(60), time_rng.randrange(1000)
+            offset_minutes = time_rng.randint(-1439, 1439)
+            sign = "+" if offset_minutes >= 0 else "-"
+            zone_hour, zone_minute = divmod(abs(offset_minutes), 60)
+            stamp = f"{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{milli:03}{sign}{zone_hour:02}{zone_minute:02}"
+            local_time = datetime.datetime(year, month, day, hour, minute, second, milli * 1000)
+            delta = local_time - datetime.timedelta(minutes=offset_minutes) - epoch
+            expected_millis = delta.days * 86400000 + delta.seconds * 1000 + delta.microseconds // 1000
+            datetime_cases.append(('datetime(context.input).durationSince(datetime("1970-01-01")).toMilliseconds() == context.expected', {"input": stamp, "expected": expected_millis}, "Allow"))
+        for expression, context, expected in datetime_cases:
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            candidate = {**request, "context": context}
+            ref = reference(args.cedar, policy, entities, candidate, temp)
+            got = actual(args.engine, policy, entities, candidate, temp)
+            count += 1
+            if ref != got or (expected is not None and (ref["decision"] != expected or got["decision"] != expected)):
+                mismatches.append({"case": "datetime: " + expression, "context": context, "reference": ref, "actual": got})
         # Check ordered duration units, bounds, comparison and conversions.
         duration_values = [
             "", "-", "0", "0ms", "-0ms", "1ms", "-1ms", "1s", "1m", "1h", "1d",
