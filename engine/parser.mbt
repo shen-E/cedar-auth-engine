@@ -61,13 +61,7 @@ fn tokenize(text : String) -> Array[String] raise PolicyError {
         }
       }
       out.push(b.to_string())
-    } else if (c >= '0' && c <= '9') ||
-      (
-        c == '-' &&
-        i + 1 < chars.length() &&
-        chars[i + 1] >= '0' &&
-        chars[i + 1] <= '9'
-      ) {
+    } else if c >= '0' && c <= '9' {
       let b = StringBuilder()
       b.write_char(c)
       i += 1
@@ -312,35 +306,75 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
 
 ///|
 fn Parser::unary(self : Parser) -> Expr raise PolicyError {
+  let operator = self.peek()
+  if operator != "!" && operator != "-" {
+    return self.postfix()
+  }
   let mut count = 0
-  while self.accept("!") {
+  while self.accept(operator) {
     count += 1
-    if count > 128 {
-      raise PolicyError("expression nesting limit exceeded")
+    if count > 4 {
+      raise PolicyError("too many unary operators")
     }
   }
-  let mut expr = self.postfix()
+  let mut expr = if operator == "-" && self.peek() == "9223372036854775808" {
+    self.pos += 1
+    count -= 1
+    Literal(LongValue(-9223372036854775808L))
+  } else {
+    self.postfix()
+  }
   for _ in 0..<count {
-    expr = Not(expr)
+    expr = if operator == "!" { Not(expr) } else { Negate(expr) }
   }
   expr
 }
 
 ///|
+fn Parser::multiplication(self : Parser) -> Expr raise PolicyError {
+  let mut result = self.unary()
+  let mut count = 0
+  while self.accept("*") {
+    count += 1
+    if count > 128 {
+      raise PolicyError("arithmetic chain limit exceeded")
+    }
+    result = Arithmetic(result, Multiply, self.unary())
+  }
+  result
+}
+
+///|
+fn Parser::addition(self : Parser) -> Expr raise PolicyError {
+  let mut result = self.multiplication()
+  let mut count = 0
+  while self.peek() == "+" || self.peek() == "-" {
+    let operator = self.take()
+    count += 1
+    if count > 128 {
+      raise PolicyError("arithmetic chain limit exceeded")
+    }
+    let kind = if operator == "+" { Add } else { Subtract }
+    result = Arithmetic(result, kind, self.multiplication())
+  }
+  result
+}
+
+///|
 fn Parser::relation(self : Parser) -> Expr raise PolicyError {
-  let left = self.unary()
+  let left = self.addition()
   match self.peek() {
     "==" => {
       self.pos += 1
-      Equal(left, self.unary())
+      Equal(left, self.addition())
     }
     "!=" => {
       self.pos += 1
-      Not(Equal(left, self.unary()))
+      Not(Equal(left, self.addition()))
     }
     "in" => {
       self.pos += 1
-      In(left, self.unary())
+      In(left, self.addition())
     }
     "<" | "<=" | ">" | ">=" as op => {
       self.pos += 1
@@ -350,7 +384,7 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
         ">" => Greater
         _ => GreaterEqual
       }
-      Compare(left, kind, self.unary())
+      Compare(left, kind, self.addition())
     }
     "has" => {
       self.pos += 1
@@ -368,7 +402,7 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
       let kind = self.type_path()
       let type_test = IsType(left, kind)
       if self.accept("in") {
-        And(type_test, In(left, self.unary()))
+        And(type_test, In(left, self.addition()))
       } else {
         type_test
       }

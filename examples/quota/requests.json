@@ -1,0 +1,82 @@
+[
+  {
+    "decision": "Allow",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "download"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "used": 800
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "download"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "used": 801
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "download"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "used": -1
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "download"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "used": 100
+      }
+    }
+  }
+]

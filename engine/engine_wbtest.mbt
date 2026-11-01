@@ -70,7 +70,7 @@ test "set equality and int64 values" {
 ///|
 test "reject invalid syntax and unsupported operator" {
   let invalid = [
-    "permit(principal, action, resource) when { context.x + 1 > 1 };", "permit(principal, action, resource)",
+    "permit(principal, action, resource) when { context.x / 1 > 1 };", "permit(principal, action, resource)",
     "permit(principal, action, resource) when { context.x == };", "permit(principal, action, resource) when { 9223372036854775808 == 1 };",
   ]
   for text in invalid {
