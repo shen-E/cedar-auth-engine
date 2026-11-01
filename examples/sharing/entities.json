@@ -1,0 +1,6 @@
+[
+  {"uid":{"type":"User","id":"alice"},"attrs":{},"parents":[{"type":"Group","id":"editors"}]},
+  {"uid":{"type":"User","id":"bob"},"attrs":{},"parents":[]},
+  {"uid":{"type":"Document","id":"roadmap"},"attrs":{},"parents":[{"type":"Folder","id":"projects"}]},
+  {"uid":{"type":"Folder","id":"projects"},"attrs":{},"parents":[{"type":"Folder","id":"team"}]}
+]
