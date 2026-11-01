@@ -198,3 +198,19 @@ test "entity snapshots isolate nested attributes, tags and hierarchy" {
   let plain = @engine.EntityStore::new([])
   assert_true(plain.authorize(policy, request).decision == @engine.Deny)
 }
+
+///|
+test "construct decimal values through the public library" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "approve", },
+    resource: { kind: "Invoice", id: "1", },
+    context: {
+      "amount": @engine.DecimalValue(@engine.Decimal::parse("99.9999")),
+    },
+  }
+  assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
+}

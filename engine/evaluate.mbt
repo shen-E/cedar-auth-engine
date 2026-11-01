@@ -212,6 +212,27 @@ fn evaluate(
         _ => raise PolicyError("tag access requires an entity and a string key")
       }
     }
+    DecimalConstructor(argument) =>
+      match evaluate(argument, request, entities) {
+        StringValue(text) => DecimalValue(Decimal::parse(text))
+        _ => raise PolicyError("decimal requires a string value")
+      }
+    DecimalCall(receiver, operation, argument) => {
+      let left = evaluate(receiver, request, entities)
+      let right = evaluate(argument, request, entities)
+      match (left, right) {
+        (DecimalValue(a), DecimalValue(b)) =>
+          BoolValue(
+            match operation {
+              Less => a.scaled < b.scaled
+              LessEqual => a.scaled <= b.scaled
+              Greater => a.scaled > b.scaled
+              GreaterEqual => a.scaled >= b.scaled
+            },
+          )
+        _ => raise PolicyError("decimal comparison requires decimal values")
+      }
+    }
     IpConstructor(argument) =>
       match evaluate(argument, request, entities) {
         StringValue(text) => IpValue(IpAddress::parse(text))

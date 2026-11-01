@@ -229,10 +229,14 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       }
       RecordExpr(fields)
     }
-    "ip" if self.accept("(") => {
+    "ip" | "decimal" as function_name if self.accept("(") => {
       let argument = self.expression()
       self.expect(")")
-      IpConstructor(argument)
+      if function_name == "ip" {
+        IpConstructor(argument)
+      } else {
+        DecimalConstructor(argument)
+      }
     }
     "true" => Literal(BoolValue(true))
     "false" => Literal(BoolValue(false))
@@ -323,6 +327,26 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         }
         self.expect(")")
         result = IpCall(result, operation, arg)
+        continue
+      }
+      if name == "lessThan" ||
+        name == "lessThanOrEqual" ||
+        name == "greaterThan" ||
+        name == "greaterThanOrEqual" {
+        let operation = match name {
+          "lessThan" => Less
+          "lessThanOrEqual" => LessEqual
+          "greaterThan" => Greater
+          _ => GreaterEqual
+        }
+        self.depth += 1
+        if self.depth > 128 {
+          raise PolicyError("expression nesting limit exceeded")
+        }
+        let arg = self.expression()
+        self.depth -= 1
+        self.expect(")")
+        result = DecimalCall(result, operation, arg)
         continue
       }
       let operation = match name {

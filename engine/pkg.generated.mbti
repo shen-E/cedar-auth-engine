@@ -38,6 +38,14 @@ pub fn PolicyError::to_string(Self) -> String
 pub impl Show for PolicyError
 
 // Types and methods
+pub struct Decimal {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn Decimal::equal(Self, Self) -> Bool
+pub fn Decimal::not_equal(Self, Self) -> Bool
+pub fn Decimal::parse(String) -> Self raise PolicyError
+pub fn Decimal::to_repr(Self) -> @debug.Repr
+
 pub(all) enum Decision {
   Allow
   Deny
@@ -122,6 +130,7 @@ pub(all) enum Value {
   StringValue(String)
   EntityValue(EntityId)
   IpValue(IpAddress)
+  DecimalValue(Decimal)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, @debug.Debug)
