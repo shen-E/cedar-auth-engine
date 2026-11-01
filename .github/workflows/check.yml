@@ -1,0 +1,58 @@
+name: Check authorization engine
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s latest
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - run: moon version --all
+      - run: moon check --target all
+      - run: moon test --target all
+      - run: moon fmt --check
+
+  native:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install MoonBit (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s latest
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Install MoonBit (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://cli.moonbitlang.com/install/powershell.ps1 -OutFile "$env:RUNNER_TEMP/install-moonbit.ps1"
+          & "$env:RUNNER_TEMP/install-moonbit.ps1"
+          "$env:USERPROFILE/.moon/bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - run: moon version --all
+      - run: moon build cmd/cedar-auth-engine --target native
+      - run: python scripts/smoke.py
+      - name: Compare with Cedar 4.13.0
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          curl -fsSL https://github.com/cedar-policy/cedar/releases/download/cedar-policy-cli-v4.13.0/cedar-policy-cli-x86_64-unknown-linux-gnu.tar.xz -o "$RUNNER_TEMP/cedar.tar.xz"
+          echo "23d358ef38edad8ade629a09f6a7359ecbd1761c9ff82e9fd0a5c5bce36b8c79  $RUNNER_TEMP/cedar.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/cedar.tar.xz" -C "$RUNNER_TEMP"
+          python scripts/verify.py --cedar "$RUNNER_TEMP/cedar-policy-cli-x86_64-unknown-linux-gnu/cedar" --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe
