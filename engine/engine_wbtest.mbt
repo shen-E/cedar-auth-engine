@@ -70,7 +70,7 @@ test "set equality and int64 values" {
 ///|
 test "reject invalid syntax and unsupported operator" {
   let invalid = [
-    "permit(principal, action, resource) when { context.x > 1 };", "permit(principal, action, resource)",
+    "permit(principal, action, resource) when { context.x + 1 > 1 };", "permit(principal, action, resource)",
     "permit(principal, action, resource) when { context.x == };", "permit(principal, action, resource) when { 9223372036854775808 == 1 };",
   ]
   for text in invalid {
@@ -136,6 +136,107 @@ test "duplicate entities are rejected" {
   }
   let rejected = try {
     let _ = authorize(parse_policies(""), sample_request(), [entity, entity])
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
+
+///|
+fn evaluate_condition(expression : String) -> Response raise PolicyError {
+  let source = "permit(principal, action, resource) when { " +
+    expression +
+    " };"
+  authorize(parse_policies(source), sample_request(), [])
+}
+
+///|
+test "set methods compare values and handle empty sets" {
+  let yes = [
+    "[1, 2, 2].contains(2)", "[1, 2].containsAll([2, 1, 1])", "[1, 2].containsAll([])",
+    "[1, 2].containsAny([9, 2])", "[].isEmpty()", "[[1, 2], {name: 1}].contains([2, 1])",
+    "[1, \"x\"].contains(\"x\")",
+  ]
+  for condition in yes {
+    let response = evaluate_condition(condition)
+    assert_true(response.decision == Allow)
+    assert_true(response.errors.is_empty())
+  }
+  let no = [
+    "[].contains(1)", "[1].containsAll([1, 2])", "[1].containsAny([])", "[1].isEmpty()",
+    "[1].contains(\"1\")",
+  ]
+  for condition in no {
+    let response = evaluate_condition(condition)
+    assert_true(response.decision == Deny)
+    assert_true(response.errors.is_empty())
+  }
+}
+
+///|
+test "integer comparisons retain signed 64 bit boundaries" {
+  let yes = [
+    "-9223372036854775808 < 9223372036854775807", "9223372036854775807 >= 9223372036854775807",
+    "-5 <= -5", "0 > -1", "1 < 2 && 4 >= 4",
+  ]
+  for condition in yes {
+    assert_true(evaluate_condition(condition).decision == Allow)
+  }
+  for condition in ["1 < 1", "2 <= 1", "1 > 1", "1 >= 2"] {
+    let response = evaluate_condition(condition)
+    assert_true(response.decision == Deny)
+    assert_true(response.errors.is_empty())
+  }
+}
+
+///|
+test "invalid operand types produce policy diagnostics" {
+  for
+    condition in [
+      "\"x\".contains(\"x\")", "[1].containsAll(1)", "[1].containsAny(1)", "1.isEmpty()",
+      "1 < \"2\"",
+    ] {
+    let response = evaluate_condition(condition)
+    assert_true(response.decision == Deny)
+    assert_true(response.errors.length() == 1)
+    assert_true(response.errors[0].policy_id == "policy0")
+  }
+}
+
+///|
+test "set method syntax rejects unknown methods and wrong argument counts" {
+  for
+    condition in [
+      "[1].contains()", "[1].contains(1, 2)", "[1].isEmpty(1)", "[1].unknown(1)",
+    ] {
+    let source = "permit(principal, action, resource) when { " +
+      condition +
+      " };"
+    let rejected = try {
+      let _ = parse_policies(source)
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+  }
+}
+
+///|
+test "nested set calls respect parser depth limits" {
+  let builder = StringBuilder()
+  builder.write_string("permit(principal, action, resource) when { ")
+  for _ in 0..<130 {
+    builder.write_string("[true].contains(")
+  }
+  builder.write_string("true")
+  for _ in 0..<130 {
+    builder.write_string(")")
+  }
+  builder.write_string(" };")
+  let rejected = try {
+    let _ = parse_policies(builder.to_string())
     false
   } catch {
     _ => true

@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin"):
+    for name in ("tenant", "sharing", "admin", "risk"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -36,7 +36,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
-        policy.write_text("permit(principal, action, resource) when { context.x > 1 };", encoding="utf-8")
+        policy.write_text("permit(principal, action, resource) when { context.x + 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2
         checks += 1
         policy.write_text("permit(principal, action, resource);", encoding="utf-8")

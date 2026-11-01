@@ -85,6 +85,8 @@ fn tokenize(text : String) -> Array[String] raise PolicyError {
           (c == ':' && chars[i] == ':') ||
           (c == '=' && chars[i] == '=') ||
           (c == '!' && chars[i] == '=') ||
+          (c == '<' && chars[i] == '=') ||
+          (c == '>' && chars[i] == '=') ||
           (c == '&' && chars[i] == '&') ||
           (c == '|' && chars[i] == '|')
         ) {
@@ -245,7 +247,30 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
     if !identifier(name) {
       raise PolicyError("expected attribute name")
     }
-    result = Attribute(result, name)
+    if self.accept("(") {
+      let operation = match name {
+        "contains" => Contains
+        "containsAll" => ContainsAll
+        "containsAny" => ContainsAny
+        "isEmpty" => IsEmpty
+        _ => raise PolicyError("unsupported method '\{name}'")
+      }
+      let arg = if operation is IsEmpty {
+        None
+      } else {
+        self.depth += 1
+        if self.depth > 128 {
+          raise PolicyError("expression nesting limit exceeded")
+        }
+        let value = self.expression()
+        self.depth -= 1
+        Some(value)
+      }
+      self.expect(")")
+      result = SetCall(result, operation, arg)
+    } else {
+      result = Attribute(result, name)
+    }
   }
   result
 }
@@ -281,6 +306,16 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
     "in" => {
       self.pos += 1
       In(left, self.unary())
+    }
+    "<" | "<=" | ">" | ">=" as op => {
+      self.pos += 1
+      let kind = match op {
+        "<" => Less
+        "<=" => LessEqual
+        ">" => Greater
+        _ => GreaterEqual
+      }
+      Compare(left, kind, self.unary())
     }
     "has" => {
       self.pos += 1

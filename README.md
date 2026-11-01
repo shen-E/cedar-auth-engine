@@ -23,6 +23,7 @@ moon run cmd/cedar-auth-engine --target native -- check examples/tenant/policy.c
 moon run cmd/cedar-auth-engine --target native -- test examples/tenant/policy.cedar examples/tenant/entities.json examples/tenant/requests.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/sharing/policy.cedar examples/sharing/entities.json examples/sharing/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.cedar examples/admin/entities.json examples/admin/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/risk/policy.cedar examples/risk/entities.json examples/risk/requests.json
 python scripts/smoke.py
 ```
 
@@ -68,8 +69,11 @@ parsed `Json` value. The caller can alternatively construct typed values.
   `when` and `unless`, with policy IDs `policy0`, `policy1`, and so on.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
-- `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, attribute access, set and record
-  literals. Sets compare without regard to order and duplicate members.
+- `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, integer ordering (`<`, `<=`, `>`,
+  `>=`), attribute access, set and record literals. Sets compare without regard
+  to order and duplicate members.
+- Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
+  `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
 - Default deny, forbid overrides permit, and evaluation errors skip the
   affected policy while appearing in `errors`, as in Cedar. Applications that
   require a decision with no evaluation errors must inspect `errors` before
@@ -77,7 +81,7 @@ parsed `Json` value. The caller can alternatively construct typed values.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation, templates, annotations, arithmetic,
-ordering, conditional expressions, extension types or full Cedar string
+conditional expressions, extension types or full Cedar string
 escaping. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, JSON nesting to 64, and authorization
@@ -100,9 +104,8 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases. It reports mismatches and exits nonzero.
-On Windows and WSL Ubuntu, the checked toolchain was `moon 0.1.20261028` /
-`moonc v0.10.18`; the comparison ran 41 requests with no mismatches on each.
-This is evidence for the
-selected cases, not a claim of full Cedar conformance.
+On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
+the current comparison ran 71 requests with no mismatches. This is evidence
+for the selected cases, not a claim of full Cedar conformance.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.

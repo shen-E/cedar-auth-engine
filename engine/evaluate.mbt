@@ -143,6 +143,47 @@ fn evaluate(
           evaluate(right, request, entities),
         ),
       )
+    Compare(left, op, right) => {
+      let l = evaluate(left, request, entities)
+      let r = evaluate(right, request, entities)
+      match (l, r) {
+        (LongValue(a), LongValue(b)) =>
+          BoolValue(
+            match op {
+              Less => a < b
+              LessEqual => a <= b
+              Greater => a > b
+              GreaterEqual => a >= b
+            },
+          )
+        _ => raise PolicyError("ordering requires signed 64-bit integers")
+      }
+    }
+    SetCall(receiver, op, argument) => {
+      let value = evaluate(receiver, request, entities)
+      let arg = match argument {
+        Some(expression) => Some(evaluate(expression, request, entities))
+        None => None
+      }
+      match (value, op, arg) {
+        (SetValue(values), IsEmpty, None) => BoolValue(values.is_empty())
+        (SetValue(values), Contains, Some(needle)) =>
+          BoolValue(values.any(fn(item) { same_value(item, needle) }))
+        (SetValue(values), ContainsAll, Some(SetValue(needles))) =>
+          BoolValue(
+            needles.all(fn(needle) {
+              values.any(fn(item) { same_value(item, needle) })
+            }),
+          )
+        (SetValue(values), ContainsAny, Some(SetValue(needles))) =>
+          BoolValue(
+            needles.any(fn(needle) {
+              values.any(fn(item) { same_value(item, needle) })
+            }),
+          )
+        _ => raise PolicyError("set method received incompatible operand types")
+      }
+    }
     In(left, right) => {
       let l = evaluate(left, request, entities)
       let r = evaluate(right, request, entities)

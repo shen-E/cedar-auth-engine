@@ -70,7 +70,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin"):
+        for name in ("tenant", "sharing", "admin", "risk"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -98,6 +98,32 @@ def main():
             'false && resource.missing',
             '{name: "ok"}.name == "ok"',
             'principal in User::"alice"',
+            '[1, 2].contains(2)',
+            '[1, 2].contains(3)',
+            '[1, "two"].contains("two")',
+            '[1, 2].containsAll([2, 1, 1])',
+            '[1].containsAll([])',
+            '[1].containsAll([2])',
+            '[1, 2].containsAny([2, 3])',
+            '[1].containsAny([])',
+            '[1].containsAny([2])',
+            '[].isEmpty()',
+            '[1].isEmpty()',
+            '[[1, 2], {name: 1}].contains([2, 1])',
+            '"a".contains("a")',
+            '[1].containsAll(1)',
+            '[1].containsAny(1)',
+            '1.isEmpty()',
+            '-9223372036854775808 < 9223372036854775807',
+            '9223372036854775807 >= 9223372036854775807',
+            '-5 <= -5',
+            '0 > -1',
+            '1 < 1',
+            '2 <= 1',
+            '1 > 1',
+            '1 >= 2',
+            '1 < "2"',
+            'true || ("x" < 1)',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
