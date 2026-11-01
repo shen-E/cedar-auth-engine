@@ -160,6 +160,7 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
         return match name {
           "ip" => IpValue(IpAddress::parse(argument))
           "decimal" => DecimalValue(Decimal::parse(argument))
+          "duration" => DurationValue(Duration::parse(argument))
           _ => raise PolicyError("unsupported extension value")
         }
       }

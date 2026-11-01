@@ -229,13 +229,13 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       }
       RecordExpr(fields)
     }
-    "ip" | "decimal" as function_name if self.accept("(") => {
+    "ip" | "decimal" | "duration" as function_name if self.accept("(") => {
       let argument = self.expression()
       self.expect(")")
-      if function_name == "ip" {
-        IpConstructor(argument)
-      } else {
-        DecimalConstructor(argument)
+      match function_name {
+        "ip" => IpConstructor(argument)
+        "decimal" => DecimalConstructor(argument)
+        _ => DurationConstructor(argument)
       }
     }
     "true" => Literal(BoolValue(true))
@@ -327,6 +327,22 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         }
         self.expect(")")
         result = IpCall(result, operation, arg)
+        continue
+      }
+      if name == "toMilliseconds" ||
+        name == "toSeconds" ||
+        name == "toMinutes" ||
+        name == "toHours" ||
+        name == "toDays" {
+        let divisor = match name {
+          "toMilliseconds" => 1L
+          "toSeconds" => 1000L
+          "toMinutes" => 60000L
+          "toHours" => 3600000L
+          _ => 86400000L
+        }
+        self.expect(")")
+        result = DurationCall(result, divisor)
         continue
       }
       if name == "lessThan" ||

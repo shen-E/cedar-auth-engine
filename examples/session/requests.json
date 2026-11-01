@@ -1,0 +1,195 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "0ms"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "active-session"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "1h30m"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "active-session"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "8h"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "active-session"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "8h1ms"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "-1ms"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "invalid-session-age"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {
+        "session_age": {
+          "__extn": {
+            "fn": "duration",
+            "arg": "1h"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "view"
+      },
+      "resource": {
+        "type": "Dashboard",
+        "id": "operations"
+      },
+      "context": {}
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "active-session",
+      "invalid-session-age"
+    ]
+  }
+]

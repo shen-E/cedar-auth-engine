@@ -95,6 +95,16 @@ fn boolean(value : Value) -> Bool raise PolicyError {
 }
 
 ///|
+fn compare_long(a : Int64, op : CompareOp, b : Int64) -> Bool {
+  match op {
+    Less => a < b
+    LessEqual => a <= b
+    Greater => a > b
+    GreaterEqual => a >= b
+  }
+}
+
+///|
 fn evaluate(
   expr : Expr,
   request : Request,
@@ -179,16 +189,11 @@ fn evaluate(
       let l = evaluate(left, request, entities)
       let r = evaluate(right, request, entities)
       match (l, r) {
-        (LongValue(a), LongValue(b)) =>
-          BoolValue(
-            match op {
-              Less => a < b
-              LessEqual => a <= b
-              Greater => a > b
-              GreaterEqual => a >= b
-            },
-          )
-        _ => raise PolicyError("ordering requires signed 64-bit integers")
+        (LongValue(a), LongValue(b)) => BoolValue(compare_long(a, op, b))
+        (DurationValue(a), DurationValue(b)) =>
+          BoolValue(compare_long(a.milliseconds, op, b.milliseconds))
+        _ =>
+          raise PolicyError("ordering requires two integers or two durations")
       }
     }
     TagCall(receiver, presence, key) => {
@@ -212,6 +217,16 @@ fn evaluate(
         _ => raise PolicyError("tag access requires an entity and a string key")
       }
     }
+    DurationConstructor(argument) =>
+      match evaluate(argument, request, entities) {
+        StringValue(text) => DurationValue(Duration::parse(text))
+        _ => raise PolicyError("duration requires a string value")
+      }
+    DurationCall(receiver, divisor) =>
+      match evaluate(receiver, request, entities) {
+        DurationValue(duration) => LongValue(duration.milliseconds / divisor)
+        _ => raise PolicyError("duration conversion requires a duration")
+      }
     DecimalConstructor(argument) =>
       match evaluate(argument, request, entities) {
         StringValue(text) => DecimalValue(Decimal::parse(text))
