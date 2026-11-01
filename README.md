@@ -29,16 +29,26 @@ moon run cmd/cedar-auth-engine --target native -- test examples/invoices/policy.
 moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.cedar examples/quota/entities.json examples/quota/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
 python scripts/smoke.py
 ```
 
 `check POLICY` checks the supported syntax. With `--format json`, it also
 returns each policy ID, effect and annotations. `authorize POLICY ENTITIES REQUEST`
-evaluates one request. `test POLICY ENTITIES CASES` evaluates an array of
-objects containing `request` and expected `decision` fields. Each command
-accepts `--format json`; text is the default. An authorization decision of
-`Deny` is a normal result and exits 0. The test command exits 1 for a decision
-mismatch or any evaluation error; malformed input or usage exits 2.
+evaluates one request. Add `--strict` to make `authorize` exit 1 whenever a
+policy evaluation error occurs. The output still contains the Cedar decision
+and diagnostics; strict mode does not convert an `Allow` into a `Deny`.
+Without `--strict`, both `Allow` and `Deny` exit 0. Malformed input or usage
+exits 2. Each command accepts `--format json`; text is the default.
+
+`test POLICY ENTITIES CASES` evaluates an array of objects with `request` and
+expected `decision` fields. Optional `reasons` and `errors` fields contain
+arrays of policy IDs. Reasons are compared only when specified; errors must
+match exactly and default to an empty list. The comparisons ignore order and
+reject duplicate IDs. JSON output includes a per-case `checks` object; its
+`reasons` value is `null` when that comparison was omitted. A mismatched case
+makes the command exit 1. The [diagnostics example](examples/diagnostics/)
+includes a deliberate policy error and its expected ID.
 
 The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
@@ -155,7 +165,7 @@ IP range cases are also checked against Python `ipaddress` with a fixed seed.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 481 requests and 24 invalid-syntax cases with no
+the current comparison ran 485 requests and 24 invalid-syntax cases with no
 mismatches. This is evidence for the selected cases, not a claim of full Cedar
 conformance.
 
