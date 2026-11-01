@@ -110,6 +110,11 @@ fn evaluate(
     Variable("resource") => EntityValue(request.resource)
     Variable("context") => RecordValue(request.context)
     Variable(_) => raise PolicyError("unknown variable")
+    Like(value, pattern) =>
+      match evaluate(value, request, entities) {
+        StringValue(text) => BoolValue(match_pattern(text, pattern))
+        _ => raise PolicyError("like requires a string value")
+      }
     IsType(value, kind) =>
       match evaluate(value, request, entities) {
         EntityValue(uid) => BoolValue(uid.kind == kind)
