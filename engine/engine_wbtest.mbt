@@ -243,3 +243,110 @@ test "nested set calls respect parser depth limits" {
   }
   assert_true(rejected)
 }
+
+///|
+test "entity type guards and membership are short circuited" {
+  let group : Entity = {
+    uid: { kind: "User", id: "alice", },
+    attrs: {},
+    parents: [{ kind: "Team", id: "staff", }],
+  }
+  let source = "permit(principal is User in Team::\"staff\", action, resource is File);"
+  let result = authorize(parse_policies(source), sample_request(), [group])
+  assert_true(result.decision == Allow)
+  let wrong_type = parse_policies(
+    "permit(principal is Group in Team::\"staff\", action, resource);",
+  )
+  assert_true(authorize(wrong_type, sample_request(), [group]).decision == Deny)
+  assert_true(evaluate_condition("principal is User").decision == Allow)
+  assert_true(evaluate_condition("principal is Example::User").decision == Deny)
+  let namespaced = {
+    ..sample_request(),
+    principal: { kind: "Example::User", id: "alice", },
+  }
+  let namespaced_policy = parse_policies(
+    "permit(principal is Example::User, action, resource);",
+  )
+  assert_true(authorize(namespaced_policy, namespaced, []).decision == Allow)
+  let ignored = evaluate_condition("principal is Group in resource.missing")
+  assert_true(ignored.decision == Deny && ignored.errors.is_empty())
+  let bad_type = evaluate_condition("1 is User")
+  assert_true(bad_type.decision == Deny && bad_type.errors.length() == 1)
+}
+
+///|
+test "conditional expressions only evaluate the selected branch" {
+  for
+    condition in [
+      "if true then true else resource.missing", "if false then resource.missing else true",
+      "(if true then 3 else 1) == 3", "if true then (if false then false else true) else false",
+    ] {
+    let result = evaluate_condition(condition)
+    assert_true(result.decision == Allow && result.errors.is_empty())
+  }
+  let invalid_condition = evaluate_condition("if 1 then true else false")
+  assert_true(
+    invalid_condition.decision == Deny && invalid_condition.errors.length() == 1,
+  )
+  let invalid_result = evaluate_condition("if false then true else 1")
+  assert_true(
+    invalid_result.decision == Deny && invalid_result.errors.length() == 1,
+  )
+}
+
+///|
+test "quoted and nested attribute names" {
+  let request = {
+    ..sample_request(),
+    context: {
+      "team-id": StringValue("alpha"),
+      "settings": RecordValue({ "retention.days": LongValue(30L) }),
+    },
+  }
+  let policy = parse_policies(
+    "permit(principal, action, resource) when { context has \"team-id\" && context[\"team-id\"] == \"alpha\" && context.settings[\"retention.days\"] == 30 };",
+  )
+  let result = authorize(policy, request, [])
+  assert_true(result.decision == Allow && result.errors.is_empty())
+  let missing = evaluate_condition("context has \"unknown field\"")
+  assert_true(missing.decision == Deny && missing.errors.is_empty())
+}
+
+///|
+test "reject malformed conditionals, type paths and attribute indexes" {
+  for
+    source in [
+      "permit(principal, action, resource) when { if true then false };", "permit(principal, action, resource) when { principal is User::\"alice\" };",
+      "permit(principal, action is Action, resource);", "permit(principal, action, resource) when { context[1] == 1 };",
+      "permit(principal, action, resource) when { context[\"x\" == 1 };",
+    ] {
+    let rejected = try {
+      let _ = parse_policies(source)
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+  }
+}
+
+///|
+test "nested conditional expressions respect parser depth limits" {
+  let builder = StringBuilder()
+  builder.write_string("permit(principal, action, resource) when { ")
+  for _ in 0..<130 {
+    builder.write_string("if true then ")
+  }
+  builder.write_string("true")
+  for _ in 0..<130 {
+    builder.write_string(" else false")
+  }
+  builder.write_string(" };")
+  let rejected = try {
+    let _ = parse_policies(builder.to_string())
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}

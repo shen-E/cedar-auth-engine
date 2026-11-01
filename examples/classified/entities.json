@@ -1,0 +1,6 @@
+[
+  {"uid":{"type":"Document","id":"notes"},"attrs":{"security level":"internal"},"parents":[]},
+  {"uid":{"type":"Document","id":"plan"},"attrs":{"security level":"confidential"},"parents":[]},
+  {"uid":{"type":"Document","id":"draft"},"attrs":{},"parents":[]},
+  {"uid":{"type":"Ticket","id":"issue"},"attrs":{"security level":"internal"},"parents":[]}
+]

@@ -58,10 +58,10 @@ def main():
     mismatches = []
     with tempfile.TemporaryDirectory(prefix="cedar-verify-") as tmp:
         temp = pathlib.Path(tmp)
-        for name in ("1a", "2a", "2b", "2c", "3a", "3b", "3c"):
+        for name in ("1a", "2a", "2b", "2c", "3a", "3b", "3c", "4a", "5b"):
             fixture = json.loads((CORPUS / (name + ".json")).read_text(encoding="utf-8"))
             policy = CORPUS / ("policies_" + name + ".cedar")
-            entities = CORPUS / "entities.json"
+            entities = CORPUS / ("entities_sandbox_b.json" if name in ("4a", "5b") else "entities.json")
             for item in fixture["requests"]:
                 request = {k: item[k] for k in ("principal", "action", "resource", "context")}
                 expected = {"decision": item["decision"].title(), "reasons": sorted(item["reason"]), "errors": sorted(item["errors"])}
@@ -70,7 +70,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -124,6 +124,22 @@ def main():
             '1 >= 2',
             '1 < "2"',
             'true || ("x" < 1)',
+            'principal is User',
+            'principal is Group',
+            'principal is Example::User',
+            '1 is User',
+            'principal is Group in resource.missing',
+            'principal is User in User::"alice"',
+            'if true then true else resource.missing',
+            'if false then resource.missing else true',
+            '(if true then 3 else 1) == 3',
+            'if true then (if false then false else true) else false',
+            'if 1 then true else false',
+            'if false then true else 1',
+            'context has "missing field"',
+            'context["missing field"] == 1',
+            '{"team-id": "alpha"}["team-id"] == "alpha"',
+            '{"settings": {"retention.days": 30}}.settings["retention.days"] == 30',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
@@ -131,6 +147,20 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": expression, "reference": ref, "actual": got})
+        for scope in (
+            'principal is User in User::"alice", action, resource is File',
+            'principal is Group in User::"alice", action, resource',
+            'principal is User in Group::"staff", action, resource',
+            'principal is Example::User, action, resource',
+            'principal, action, resource is File',
+            'principal, action, resource is Document',
+        ):
+            policy.write_text('permit(' + scope + ');', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            if ref != got:
+                mismatches.append({"case": scope, "reference": ref, "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

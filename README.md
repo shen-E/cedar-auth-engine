@@ -24,6 +24,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/tenant/policy.ce
 moon run cmd/cedar-auth-engine --target native -- test examples/sharing/policy.cedar examples/sharing/entities.json examples/sharing/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.cedar examples/admin/entities.json examples/admin/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/risk/policy.cedar examples/risk/entities.json examples/risk/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/classified/policy.cedar examples/classified/entities.json examples/classified/requests.json
 python scripts/smoke.py
 ```
 
@@ -66,6 +67,7 @@ parsed `Json` value. The caller can alternatively construct typed values.
 ## Supported policy profile
 
 - Static `permit` and `forbid` policies, scope equality and entity ancestry,
+  principal and resource type restrictions (`is`, optionally with `in`),
   `when` and `unless`, with policy IDs `policy0`, `policy1`, and so on.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
@@ -74,6 +76,9 @@ parsed `Json` value. The caller can alternatively construct typed values.
   to order and duplicate members.
 - Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
   `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
+- Entity type tests, `if ... then ... else ...` expressions, quoted `has`
+  attributes and string-literal indexing such as `context["tenant-id"]`.
+  Conditional expressions evaluate only the selected branch.
 - Default deny, forbid overrides permit, and evaluation errors skip the
   affected policy while appearing in `errors`, as in Cedar. Applications that
   require a decision with no evaluation errors must inspect `errors` before
@@ -81,7 +86,7 @@ parsed `Json` value. The caller can alternatively construct typed values.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation, templates, annotations, arithmetic,
-conditional expressions, extension types or full Cedar string
+extension types or full Cedar string
 escaping. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, JSON nesting to 64, and authorization
@@ -105,7 +110,7 @@ decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases. It reports mismatches and exits nonzero.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 71 requests with no mismatches. This is evidence
+the current comparison ran 109 requests with no mismatches. This is evidence
 for the selected cases, not a claim of full Cedar conformance.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
