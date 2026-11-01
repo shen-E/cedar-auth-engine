@@ -151,3 +151,31 @@ fn ip_in_range(ip : IpAddress, range : IpAddress) -> Bool {
   }
   true
 }
+
+///|
+fn ip_loopback(ip : IpAddress) -> Bool {
+  let range = if ip.version == 4 {
+    { version: 4, bytes: [127, 0, 0, 0], prefix: 8, }
+  } else {
+    {
+      version: 6,
+      bytes: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+      prefix: 128,
+    }
+  }
+  ip_in_range(ip, range)
+}
+
+///|
+fn ip_multicast(ip : IpAddress) -> Bool {
+  let range = if ip.version == 4 {
+    { version: 4, bytes: [224, 0, 0, 0], prefix: 4, }
+  } else {
+    {
+      version: 6,
+      bytes: [255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      prefix: 8,
+    }
+  }
+  ip_in_range(ip, range)
+}

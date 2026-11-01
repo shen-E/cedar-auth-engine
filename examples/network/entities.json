@@ -48,5 +48,35 @@
       }
     },
     "parents": []
+  },
+  {
+    "uid": {
+      "type": "Service",
+      "id": "public-v4"
+    },
+    "attrs": {
+      "allowedNetwork": {
+        "__extn": {
+          "fn": "ip",
+          "arg": "0.0.0.0/0"
+        }
+      }
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Service",
+      "id": "public-v6"
+    },
+    "attrs": {
+      "allowedNetwork": {
+        "__extn": {
+          "fn": "ip",
+          "arg": "::/0"
+        }
+      }
+    },
+    "parents": []
   }
 ]

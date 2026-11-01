@@ -282,10 +282,16 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
       raise PolicyError("expected attribute name")
     }
     if self.accept("(") {
-      if name == "isIpv4" || name == "isIpv6" || name == "isInRange" {
+      if name == "isIpv4" ||
+        name == "isIpv6" ||
+        name == "isInRange" ||
+        name == "isLoopback" ||
+        name == "isMulticast" {
         let operation = match name {
           "isIpv4" => IsIpv4
           "isIpv6" => IsIpv6
+          "isLoopback" => IsLoopback
+          "isMulticast" => IsMulticast
           _ => IsInRange
         }
         let arg = if operation is IsInRange {
@@ -517,8 +523,30 @@ fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
 ///|
 pub fn parse_policies(text : String) -> PolicySet raise PolicyError {
   let parser = { tokens: tokenize(text), pos: 0, depth: 0, }
-  let policies = []
+  let policies : Array[Policy] = []
   while parser.peek() != "" {
+    let annotations : Map[String, String] = Map([])
+    while parser.accept("@") {
+      let name = parser.take()
+      if !identifier(name) {
+        raise PolicyError("expected annotation name")
+      }
+      if annotations.contains(name) {
+        raise PolicyError("duplicate annotation '@\{name}'")
+      }
+      let value = if parser.accept("(") {
+        let literal = parser.take()
+        if !literal.has_prefix("\"") {
+          raise PolicyError("annotation value must be a string literal")
+        }
+        let parsed = cedar_quoted(literal)
+        parser.expect(")")
+        parsed
+      } else {
+        ""
+      }
+      annotations[name] = value
+    }
     let effect = parser.take()
     if effect != "permit" && effect != "forbid" {
       raise PolicyError("expected permit or forbid, found '\{effect}'")
@@ -539,8 +567,11 @@ pub fn parse_policies(text : String) -> PolicySet raise PolicyError {
       condition = And(condition, if unless { Not(e) } else { e })
     }
     parser.expect(";")
-    let id = "policy\{policies.length()}"
-    policies.push({ id, forbid: effect == "forbid", condition, })
+    let id = annotations.get("id").unwrap_or("policy\{policies.length()}")
+    if policies.any(fn(policy) { policy.id == id }) {
+      raise PolicyError("duplicate policy id '\{id}'")
+    }
+    policies.push({ id, forbid: effect == "forbid", condition, annotations, })
     if policies.length() > 1024 {
       raise PolicyError("policy count limit exceeded")
     }

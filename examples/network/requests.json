@@ -180,5 +180,161 @@
         }
       }
     }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v4"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "127.0.0.1"
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v4"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "239.10.0.1"
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Allow",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v4"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "203.0.113.9"
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v6"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "::1"
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v6"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "ff02::1"
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Allow",
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "connect"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "public-v6"
+      },
+      "context": {
+        "mfa": true,
+        "sourceIp": {
+          "__extn": {
+            "fn": "ip",
+            "arg": "2001:db8::1"
+          }
+        }
+      }
+    }
   }
 ]

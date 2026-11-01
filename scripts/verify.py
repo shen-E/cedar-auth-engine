@@ -32,7 +32,7 @@ def reference(exe, policy, entities, request, temp):
     decision = re.search(r"(?m)^\s*(ALLOW|DENY)\s*$", output)
     if not decision:
         raise RuntimeError("Cedar failed: " + output)
-    reasons = re.findall(r"(?m)^\s+(policy\d+)\s*$", output)
+    reasons = re.findall(r"(?m)^  ([^\r\n]+)$", output)
     errors = re.findall(r"error while evaluating policy `([^`]+)`", output)
     return {"decision": decision.group(1).title(), "reasons": sorted(reasons), "errors": sorted(errors)}
 

@@ -146,6 +146,8 @@ priv enum IpOp {
   IsIpv4
   IsIpv6
   IsInRange
+  IsLoopback
+  IsMulticast
 } derive(Debug)
 
 ///|
@@ -161,9 +163,39 @@ priv struct Policy {
   id : String
   forbid : Bool
   condition : Expr
+  annotations : Map[String, String]
 }
 
 ///|
 pub struct PolicySet {
   priv policies : Array[Policy]
+}
+
+///|
+/// Metadata associated with a parsed policy.
+pub(all) struct PolicyInfo {
+  id : String
+  effect : String
+  annotations : Map[String, String]
+} derive(Debug)
+
+///|
+pub extend PolicyInfo with Debug::{to_repr}
+
+///|
+/// List policies in source order. Annotation maps are independent copies.
+pub fn PolicySet::metadata(self : PolicySet) -> Array[PolicyInfo] {
+  let result = []
+  for policy in self.policies {
+    result.push({
+      id: policy.id,
+      effect: if policy.forbid {
+        "forbid"
+      } else {
+        "permit"
+      },
+      annotations: policy.annotations.copy(),
+    })
+  }
+  result
 }

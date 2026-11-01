@@ -116,3 +116,59 @@ test "IP function and method arity and depth are bounded" {
   }
   assert_true(rejected)
 }
+
+///|
+test "IP loopback and multicast classifications use whole ranges" {
+  for
+    condition in [
+      "ip(\"127.1.2.3\").isLoopback()", "ip(\"127.1.2.3/8\").isLoopback()", "ip(\"::1\").isLoopback()",
+      "ip(\"::1/128\").isLoopback()", "ip(\"224.1.2.3/4\").isMulticast()", "ip(\"239.255.255.255\").isMulticast()",
+      "ip(\"ff00::1/8\").isMulticast()", "ip(\"ffff::1\").isMulticast()",
+    ] {
+    let result = evaluate_condition(condition)
+    assert_true(
+      result.decision == Allow && result.errors.is_empty(),
+      msg=condition,
+    )
+  }
+  for
+    condition in [
+      "ip(\"127.1.2.3/7\").isLoopback()", "ip(\"126.255.255.255\").isLoopback()",
+      "ip(\"128.0.0.0\").isLoopback()", "ip(\"::1/127\").isLoopback()", "ip(\"::2\").isLoopback()",
+      "ip(\"224.1.2.3/3\").isMulticast()", "ip(\"223.255.255.255\").isMulticast()",
+      "ip(\"240.0.0.0\").isMulticast()", "ip(\"ff00::1/7\").isMulticast()", "ip(\"feff::1\").isMulticast()",
+      "ip(\"127.0.0.1\").isMulticast()",
+    ] {
+    let result = evaluate_condition(condition)
+    assert_true(
+      result.decision == Deny && result.errors.is_empty(),
+      msg=condition,
+    )
+  }
+  for
+    condition in [
+      "1.isLoopback()", "\"224.0.0.1\".isMulticast()", "ip(\"bad\").isLoopback()",
+    ] {
+    let result = evaluate_condition(condition)
+    assert_true(
+      result.decision == Deny && result.errors.length() == 1,
+      msg=condition,
+    )
+  }
+}
+
+///|
+test "IP classifications cover every prefix length" {
+  for prefix in 0..<=32 {
+    let loopback = IpAddress::parse("127.1.2.3/\{prefix}")
+    let multicast = IpAddress::parse("239.1.2.3/\{prefix}")
+    assert_true(ip_loopback(loopback) == (prefix >= 8))
+    assert_true(ip_multicast(multicast) == (prefix >= 4))
+  }
+  for prefix in 0..<=128 {
+    let loopback = IpAddress::parse("::1/\{prefix}")
+    let multicast = IpAddress::parse("ff01::1/\{prefix}")
+    assert_true(ip_loopback(loopback) == (prefix == 128))
+    assert_true(ip_multicast(multicast) == (prefix >= 8))
+  }
+}

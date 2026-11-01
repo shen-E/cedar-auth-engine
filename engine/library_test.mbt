@@ -29,3 +29,18 @@ test "construct IP values through the public library" {
   let response = @engine.authorize(policies, request, [])
   assert_true(response.decision == @engine.Allow && response.errors.is_empty())
 }
+
+///|
+test "inspect policy annotations through the public library" {
+  let policies = @engine.parse_policies(
+    "@id(\"file-read\") @owner(\"platform\") permit(principal, action, resource);",
+  )
+  let entries = policies.metadata()
+  assert_true(entries.length() == 1)
+  assert_true(entries[0].id == "file-read" && entries[0].effect == "permit")
+  assert_true(entries[0].annotations.get("owner") == Some("platform"))
+  entries[0].annotations["owner"] = "other"
+  assert_true(
+    policies.metadata()[0].annotations.get("owner") == Some("platform"),
+  )
+}
