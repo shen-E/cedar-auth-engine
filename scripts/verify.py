@@ -82,6 +82,36 @@ def main():
                 expected = {"decision": item["decision"], "reasons": sorted(item.get("reasons", got["reasons"])), "errors": sorted(item.get("errors", []))}
                 if ref != got or got != expected:
                     mismatches.append({"case": name + ":" + str(i), "expected": expected, "reference": ref, "actual": got})
+        # Compare ordered batch responses with independent Cedar authorizations.
+        for name in ("diagnostics", "tags", "device"):
+            base = ROOT / "examples" / name
+            cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
+            batch_input = temp / "batch-requests.json"
+            batch_input.write_text(json.dumps([item["request"] for item in cases], ensure_ascii=False), encoding="utf-8")
+            command = [args.engine, "batch", base / "policy.cedar", base / "entities.json", batch_input]
+            batch = run(command + ["--format", "json"])
+            strict = run(command + ["--strict", "--format", "json"])
+            if batch.returncode != 0:
+                mismatches.append({"case": name + ":batch", "status": batch.returncode, "stderr": batch.stderr})
+                continue
+            try:
+                responses = json.loads(batch.stdout)
+                strict_responses = json.loads(strict.stdout)
+            except json.JSONDecodeError:
+                mismatches.append({"case": name + ":batch output", "stdout": batch.stdout, "strict_stdout": strict.stdout})
+                continue
+            if not isinstance(responses, list) or len(responses) != len(cases):
+                mismatches.append({"case": name + ":batch length", "responses": responses})
+                continue
+            strict_status = 1 if any(response["errors"] for response in responses) else 0
+            if strict.returncode != strict_status or strict_responses != responses:
+                mismatches.append({"case": name + ":strict batch", "status": strict.returncode, "expected_status": strict_status})
+            for i, (item, response) in enumerate(zip(cases, responses)):
+                ref = reference(args.cedar, base / "policy.cedar", base / "entities.json", item["request"], temp)
+                got = {"decision": response["decision"], "reasons": sorted(response["reasons"]), "errors": sorted(error["policy_id"] for error in response["errors"])}
+                count += 1
+                if ref != got:
+                    mismatches.append({"case": name + ":batch:" + str(i), "reference": ref, "actual": got})
         policy = temp / "errors.cedar"
         entities = temp / "entities.json"
         policy.write_text('permit(principal, action, resource); forbid(principal, action, resource) when { resource.missing };', encoding="utf-8")
@@ -494,9 +524,10 @@ def main():
             ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
             got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
             empty_batch = run([args.engine, "test", policy, entities, empty_cases, "--format", "json"])
+            empty_authorize_batch = run([args.engine, "batch", policy, entities, empty_cases, "--format", "json"])
             graph_checks += 1
-            if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip() or empty_batch.returncode != 2 or empty_batch.stdout.strip():
-                mismatches.append({"case": "invalid entity graph", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode, "empty_batch_status": empty_batch.returncode})
+            if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip() or empty_batch.returncode != 2 or empty_batch.stdout.strip() or empty_authorize_batch.returncode != 2 or empty_authorize_batch.stdout.strip():
+                mismatches.append({"case": "invalid entity graph", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode, "empty_batch_status": empty_batch.returncode, "empty_authorize_batch_status": empty_authorize_batch.returncode})
         syntax_checks = 0
         for expression in (
             r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',
