@@ -41,10 +41,44 @@ fn load_json(path : String) -> Json raise {
 }
 
 ///|
+fn optional_policy_ids(
+  fields : Map[String, Json],
+  name : String,
+) -> Array[String]? raise CliError {
+  match fields.get(name) {
+    None => None
+    Some(Array(items)) => {
+      let result : Array[String] = []
+      let seen : Map[String, Bool] = Map([])
+      for item in items {
+        match item {
+          String(id) => {
+            if seen.contains(id) {
+              raise CliError("duplicate policy ID in '\{name}'")
+            }
+            seen[id] = true
+            result.push(id)
+          }
+          _ => raise CliError("'\{name}' must be an array of policy ID strings")
+        }
+      }
+      Some(result)
+    }
+    _ => raise CliError("'\{name}' must be an array of policy ID strings")
+  }
+}
+
+///|
+fn same_policy_ids(expected : Array[String], actual : Array[String]) -> Bool {
+  expected.length() == actual.length() &&
+  expected.all(fn(id) { actual.contains(id) })
+}
+
+///|
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]",
     )
     return 0
   }
@@ -60,14 +94,25 @@ fn run(args : Array[String]) -> Int32 raise {
   } else {
     raise CliError("unknown command")
   }
-  let json = if args.length() == required_count {
-    false
-  } else if args.length() == required_count + 2 &&
-    args[required_count] == "--format" &&
-    args[required_count + 1] == "json" {
-    true
-  } else {
+  if args.length() < required_count {
     raise CliError("invalid arguments; use --help")
+  }
+  let mut json = false
+  let mut strict = false
+  let mut i = required_count
+  while i < args.length() {
+    if args[i] == "--format" &&
+      !json &&
+      i + 1 < args.length() &&
+      args[i + 1] == "json" {
+      json = true
+      i += 2
+    } else if args[i] == "--strict" && command == "authorize" && !strict {
+      strict = true
+      i += 1
+    } else {
+      raise CliError("invalid arguments; use --help")
+    }
   }
   let policies = @engine.parse_policies(read_text(args[2]))
   if command == "check" {
@@ -113,7 +158,7 @@ fn run(args : Array[String]) -> Int32 raise {
         println("\{error.policy_id}: \{error.message}")
       }
     }
-    return 0
+    return if strict && !response.errors.is_empty() { 1 } else { 0 }
   }
   let cases = match input {
     Array(items) => items
@@ -137,6 +182,8 @@ fn run(args : Array[String]) -> Int32 raise {
     if expected != "Allow" && expected != "Deny" {
       raise CliError("expected decision must be Allow or Deny")
     }
+    let expected_reasons = optional_policy_ids(fields, "reasons")
+    let expected_errors = optional_policy_ids(fields, "errors").unwrap_or([])
     let response = @engine.authorize_with_tags(
       policies,
       @engine.request_from_json(request),
@@ -146,7 +193,17 @@ fn run(args : Array[String]) -> Int32 raise {
       Allow => "Allow"
       Deny => "Deny"
     }
-    let passed = expected == actual && response.errors.is_empty()
+    let error_ids = []
+    for error in response.errors {
+      error_ids.push(error.policy_id)
+    }
+    let decision_match = expected == actual
+    let reasons_match = match expected_reasons {
+      Some(ids) => same_policy_ids(ids, response.reasons)
+      None => true
+    }
+    let errors_match = same_policy_ids(expected_errors, error_ids)
+    let passed = decision_match && reasons_match && errors_match
     if !passed {
       failures += 1
     }
@@ -154,13 +211,32 @@ fn run(args : Array[String]) -> Int32 raise {
       "index": i,
       "expected": expected,
       "passed": passed,
+      "checks": {
+        "decision": decision_match,
+        "reasons": match expected_reasons {
+          Some(_) => Json::boolean(reasons_match)
+          None => Json::null()
+        },
+        "errors": errors_match,
+      },
       "response": @engine.response_to_json(response),
     }
     results.push(report)
     if !json {
+      let status = if passed { "PASS" } else { "FAIL" }
       println(
-        "case \{i}: \{actual} (expected \{expected}), errors=\{response.errors.length()}",
+        "case \{i}: \{status} - \{actual} (expected \{expected}), errors=\{response.errors.length()}",
       )
+      if !reasons_match {
+        let wanted = expected_reasons.unwrap_or([]).join(", ")
+        let got = response.reasons.join(", ")
+        println("  reasons: expected [\{wanted}], got [\{got}]")
+      }
+      if !errors_match {
+        let wanted = expected_errors.join(", ")
+        let got = error_ids.join(", ")
+        println("  errors: expected [\{wanted}], got [\{got}]")
+      }
     }
   }
   if json {

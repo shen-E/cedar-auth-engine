@@ -72,15 +72,16 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
                 ref = reference(args.cedar, base / "policy.cedar", base / "entities.json", item["request"], temp)
                 got = actual(args.engine, base / "policy.cedar", base / "entities.json", item["request"], temp)
                 count += 1
-                if ref != got or got["decision"] != item["decision"]:
-                    mismatches.append({"case": name + ":" + str(i), "reference": ref, "actual": got})
+                expected = {"decision": item["decision"], "reasons": sorted(item.get("reasons", got["reasons"])), "errors": sorted(item.get("errors", []))}
+                if ref != got or got != expected:
+                    mismatches.append({"case": name + ":" + str(i), "expected": expected, "reference": ref, "actual": got})
         policy = temp / "errors.cedar"
         entities = temp / "entities.json"
         policy.write_text('permit(principal, action, resource); forbid(principal, action, resource) when { resource.missing };', encoding="utf-8")

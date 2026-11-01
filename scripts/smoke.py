@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -65,6 +65,71 @@ def main():
         empty.write_text('[]', encoding="utf-8")
         assert run("test", policy, empty, failed).returncode == 1
         checks += 1
+        diagnostics = ROOT / "examples" / "diagnostics"
+        diagnostic_policy, diagnostic_entities = diagnostics / "policy.cedar", diagnostics / "entities.json"
+        cases = json.loads((diagnostics / "requests.json").read_text(encoding="utf-8"))
+        samples = []
+        for i, case in enumerate(cases):
+            sample = path / ("sample-" + str(i) + ".json")
+            sample.write_text(json.dumps(case["request"]), encoding="utf-8")
+            samples.append(sample)
+        for i, case in enumerate(cases):
+            normal = run("authorize", diagnostic_policy, diagnostic_entities, samples[i], "--format", "json")
+            strict = run("authorize", diagnostic_policy, diagnostic_entities, samples[i], "--strict", "--format", "json")
+            assert normal.returncode == 0 and strict.returncode == (1 if case["errors"] else 0)
+            assert json.loads(normal.stdout) == json.loads(strict.stdout)
+            checks += 1
+        strict = run("authorize", diagnostic_policy, diagnostic_entities, samples[2], "--format", "json", "--strict")
+        assert strict.returncode == 1 and json.loads(strict.stdout)["decision"] == "Allow"
+        checks += 1
+        strict = run("authorize", diagnostic_policy, diagnostic_entities, samples[2], "--strict")
+        assert strict.returncode == 1 and "suspended" in strict.stdout
+        checks += 1
+        for args in (
+            ("check", diagnostic_policy, "--strict"),
+            ("test", diagnostic_policy, diagnostic_entities, diagnostics / "requests.json", "--strict"),
+            ("authorize", diagnostic_policy, diagnostic_entities, samples[0], "--strict", "--strict"),
+            ("authorize", diagnostic_policy, diagnostic_entities, samples[0], "--format"),
+            ("authorize", diagnostic_policy, diagnostic_entities, samples[0], "--format", "json", "--format", "json"),
+        ):
+            assert run(*args).returncode == 2
+            checks += 1
+        asserted = path / "assertions.json"
+        variants = [
+            ({**cases[0], "reasons": []}, "reasons"),
+            ({**cases[2], "errors": []}, "errors"),
+            ({k: v for k, v in cases[2].items() if k != "errors"}, "errors"),
+            ({**cases[0], "decision": "Deny"}, "decision"),
+        ]
+        for case, failed_check in variants:
+            asserted.write_text(json.dumps([case]), encoding="utf-8")
+            result = run("test", diagnostic_policy, diagnostic_entities, asserted, "--format", "json")
+            report = json.loads(result.stdout)
+            assert result.returncode == 1 and report["failures"] == 1
+            assert report["cases"][0]["checks"][failed_check] is False
+            text_result = run("test", diagnostic_policy, diagnostic_entities, asserted)
+            assert text_result.returncode == 1 and "FAIL" in text_result.stdout
+            if failed_check != "decision":
+                assert failed_check + ": expected" in text_result.stdout
+            checks += 1
+        asserted.write_text(json.dumps([{**cases[3], "errors": list(reversed(cases[3]["errors"]))}]), encoding="utf-8")
+        result = run("test", diagnostic_policy, diagnostic_entities, asserted)
+        assert result.returncode == 0 and "PASS" in result.stdout
+        checks += 1
+        unasserted = {k: v for k, v in cases[0].items() if k != "reasons"}
+        asserted.write_text(json.dumps([unasserted]), encoding="utf-8")
+        report = json.loads(run("test", diagnostic_policy, diagnostic_entities, asserted, "--format", "json").stdout)
+        assert report["failures"] == 0 and report["cases"][0]["checks"]["reasons"] is None
+        checks += 1
+        multi_policy = path / "multiple.cedar"
+        multi_policy.write_text('@id("first") permit(principal, action, resource); @id("second") permit(principal, action, resource);', encoding="utf-8")
+        asserted.write_text(json.dumps([{**unasserted, "reasons": ["second", "first"]}]), encoding="utf-8")
+        assert run("test", multi_policy, diagnostic_entities, asserted).returncode == 0
+        checks += 1
+        for field, value in (("reasons", None), ("reasons", "department-read"), ("reasons", [1]), ("reasons", ["x", "x"]), ("errors", {}), ("errors", [False]), ("errors", ["x", "x"])):
+            asserted.write_text(json.dumps([{**cases[0], field: value}]), encoding="utf-8")
+            assert run("test", diagnostic_policy, diagnostic_entities, asserted).returncode == 2
+            checks += 1
     print("CLI checks passed:", checks)
 
 

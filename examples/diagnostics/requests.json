@@ -1,0 +1,93 @@
+[
+  {
+    "decision": "Allow",
+    "reasons": [
+      "department-read"
+    ],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Report",
+        "id": "review"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [
+      "suspended"
+    ],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Report",
+        "id": "review"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Allow",
+    "reasons": [
+      "department-read"
+    ],
+    "errors": [
+      "suspended"
+    ],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "eve"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Report",
+        "id": "review"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "department-read",
+      "suspended"
+    ],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "unknown"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Report",
+        "id": "review"
+      },
+      "context": {}
+    }
+  }
+]
