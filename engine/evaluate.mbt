@@ -192,8 +192,9 @@ fn evaluate(
         (LongValue(a), LongValue(b)) => BoolValue(compare_long(a, op, b))
         (DurationValue(a), DurationValue(b)) =>
           BoolValue(compare_long(a.milliseconds, op, b.milliseconds))
-        _ =>
-          raise PolicyError("ordering requires two integers or two durations")
+        (DateTimeValue(a), DateTimeValue(b)) =>
+          BoolValue(compare_long(a.milliseconds, op, b.milliseconds))
+        _ => raise PolicyError("ordering requires compatible operand types")
       }
     }
     TagCall(receiver, presence, key) => {
@@ -215,6 +216,50 @@ fn evaluate(
           }
         }
         _ => raise PolicyError("tag access requires an entity and a string key")
+      }
+    }
+    DateTimeConstructor(argument) =>
+      match evaluate(argument, request, entities) {
+        StringValue(text) => DateTimeValue(DateTime::parse(text))
+        _ => raise PolicyError("datetime requires a string value")
+      }
+    DateTimeCall(receiver, operation, argument) => {
+      let value = evaluate(receiver, request, entities)
+      let arg = match argument {
+        Some(expression) => Some(evaluate(expression, request, entities))
+        None => None
+      }
+      match (value, operation, arg) {
+        (DateTimeValue(dt), Offset, Some(DurationValue(duration))) =>
+          DateTimeValue({
+            milliseconds: checked_arithmetic(
+              dt.milliseconds,
+              Add,
+              duration.milliseconds,
+            ),
+          })
+        (DateTimeValue(dt), DurationSince, Some(DateTimeValue(other))) =>
+          DurationValue({
+            milliseconds: checked_arithmetic(
+              dt.milliseconds,
+              Subtract,
+              other.milliseconds,
+            ),
+          })
+        (DateTimeValue(dt), ToDate, None) =>
+          DateTimeValue({
+            milliseconds: checked_arithmetic(
+              dt.milliseconds,
+              Subtract,
+              datetime_time(dt.milliseconds),
+            ),
+          })
+        (DateTimeValue(dt), ToTime, None) =>
+          DurationValue({ milliseconds: datetime_time(dt.milliseconds), })
+        _ =>
+          raise PolicyError(
+            "datetime method received incompatible operand types",
+          )
       }
     }
     DurationConstructor(argument) =>

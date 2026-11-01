@@ -229,13 +229,16 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       }
       RecordExpr(fields)
     }
-    "ip" | "decimal" | "duration" as function_name if self.accept("(") => {
+    "ip" | "decimal" | "duration" | "datetime" as function_name if self.accept(
+        "(",
+      ) => {
       let argument = self.expression()
       self.expect(")")
       match function_name {
         "ip" => IpConstructor(argument)
         "decimal" => DecimalConstructor(argument)
-        _ => DurationConstructor(argument)
+        "duration" => DurationConstructor(argument)
+        _ => DateTimeConstructor(argument)
       }
     }
     "true" => Literal(BoolValue(true))
@@ -327,6 +330,31 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         }
         self.expect(")")
         result = IpCall(result, operation, arg)
+        continue
+      }
+      if name == "offset" ||
+        name == "durationSince" ||
+        name == "toDate" ||
+        name == "toTime" {
+        let operation = match name {
+          "offset" => Offset
+          "durationSince" => DurationSince
+          "toDate" => ToDate
+          _ => ToTime
+        }
+        let arg = if operation is Offset || operation is DurationSince {
+          self.depth += 1
+          if self.depth > 128 {
+            raise PolicyError("expression nesting limit exceeded")
+          }
+          let value = self.expression()
+          self.depth -= 1
+          Some(value)
+        } else {
+          None
+        }
+        self.expect(")")
+        result = DateTimeCall(result, operation, arg)
         continue
       }
       if name == "toMilliseconds" ||

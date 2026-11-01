@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session", "access-window"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -74,6 +74,15 @@ def main():
             sample["context"]["session_age"]["__extn"]["arg"] = value
             duration_request.write_text(json.dumps(sample), encoding="utf-8")
             result = run("authorize", session / "policy.cedar", session / "entities.json", duration_request, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        window = ROOT / "examples" / "access-window"
+        sample = json.loads((window / "requests.json").read_text(encoding="utf-8"))[0]["request"]
+        datetime_request = path / "datetime-request.json"
+        for value in ("2023-02-29", "2026-11-01T00:00:00", "2026-11-01T24:00:00Z", "2026-11-01T00:00:00+2400"):
+            sample["context"]["now"]["__extn"]["arg"] = value
+            datetime_request.write_text(json.dumps(sample), encoding="utf-8")
+            result = run("authorize", window / "policy.cedar", window / "entities.json", datetime_request, "--format", "json")
             assert result.returncode == 2 and not result.stdout
             checks += 1
         failed = path / "failed.json"

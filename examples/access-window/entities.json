@@ -1,0 +1,67 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {},
+    "parents": [
+      {
+        "type": "Group",
+        "id": "employees"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {},
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "report"
+    },
+    "attrs": {
+      "opens": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-11-01T09:00:00Z"
+        }
+      },
+      "closes": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-11-01T17:00:00Z"
+        }
+      },
+      "revoked": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "withdrawn"
+    },
+    "attrs": {
+      "opens": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-11-01T09:00:00Z"
+        }
+      },
+      "closes": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-11-01T17:00:00Z"
+        }
+      },
+      "revoked": true
+    },
+    "parents": []
+  }
+]
