@@ -150,3 +150,51 @@ test "batch authorization through the public library" {
   let tagged_result = @engine.authorize_batch_with_tags(policy, [request], [])
   assert_true(tagged_result[0].decision == @engine.Allow)
 }
+
+///|
+test "entity snapshots isolate nested attributes, tags and hierarchy" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource in Folder::\"shared\") when { resource.data.members.contains(\"alice\") && resource.getTag(\"owner\").team == \"security\" };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let members : Array[@engine.Value] = [@engine.StringValue("alice")]
+  let data : Map[String, @engine.Value] = {
+    "members": @engine.SetValue(members),
+  }
+  let owner : Map[String, @engine.Value] = {
+    "team": @engine.StringValue("security"),
+  }
+  let attrs : Map[String, @engine.Value] = { "data": @engine.RecordValue(data) }
+  let tags : Map[String, @engine.Value] = {
+    "owner": @engine.RecordValue(owner),
+  }
+  let parents : Array[@engine.EntityId] = [{ kind: "Folder", id: "shared", }]
+  let entities : Array[@engine.TaggedEntity] = [
+    { entity: { uid: request.resource, attrs, parents, }, tags, },
+  ]
+  let store = @engine.EntityStore::new_with_tags(entities)
+  let initial = store.authorize(policy, request)
+  assert_true(initial.decision == @engine.Allow && initial.errors.is_empty())
+  members[0] = @engine.StringValue("bob")
+  data["members"] = @engine.SetValue([])
+  owner["team"] = @engine.StringValue("other")
+  attrs["data"] = @engine.BoolValue(false)
+  tags["owner"] = @engine.BoolValue(false)
+  parents[0] = { kind: "Folder", id: "other", }
+  entities.clear()
+  let result = store.authorize(policy, request)
+  assert_true(result.decision == @engine.Allow && result.errors.is_empty())
+  let denied = { ..request, resource: { kind: "File", id: "unknown", }, }
+  let responses = store.authorize_batch(policy, [request, denied, request])
+  assert_true(responses.length() == 3)
+  assert_true(responses[0].decision == @engine.Allow)
+  assert_true(responses[1].decision == @engine.Deny)
+  assert_true(responses[2].decision == @engine.Allow)
+  let plain = @engine.EntityStore::new([])
+  assert_true(plain.authorize(policy, request).decision == @engine.Deny)
+}
