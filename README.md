@@ -31,7 +31,8 @@ moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.c
 python scripts/smoke.py
 ```
 
-`check POLICY` checks the supported syntax. `authorize POLICY ENTITIES REQUEST`
+`check POLICY` checks the supported syntax. With `--format json`, it also
+returns each policy ID, effect and annotations. `authorize POLICY ENTITIES REQUEST`
 evaluates one request. `test POLICY ENTITIES CASES` evaluates an array of
 objects containing `request` and expected `decision` fields. Each command
 accepts `--format json`; text is the default. An authorization decision of
@@ -44,8 +45,9 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
 extension values other than IP, nulls, invalid integers and malformed input are
 rejected. IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
-entity attributes or request context. The host must supply a trustworthy source
-address; forwarded headers require validation by the application or proxy.
+entity attributes or request context. For client source addresses, the host
+must supply a trustworthy individual IP address; forwarded headers require
+validation by the application or proxy.
 
 ## Use the library
 
@@ -70,12 +72,18 @@ provide the JSON boundary. Use `parse_json` for text input to detect duplicate
 keys; duplicate keys are already lost if a caller supplies an independently
 parsed `Json` value. The caller can alternatively construct typed values,
 including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
+`policies.metadata()` returns IDs, effects and independent copies of annotation
+maps in policy order. Use the IDs in `reasons` and `errors` to find the
+corresponding metadata.
 
 ## Supported policy profile
 
 - Static `permit` and `forbid` policies, scope equality and entity ancestry,
   principal and resource type restrictions (`is`, optionally with `in`),
-  `when` and `unless`, with policy IDs `policy0`, `policy1`, and so on.
+  `when` and `unless`. Annotations appear before the policy effect. As in the
+  Cedar CLI, `@id("name")` sets the policy ID; otherwise IDs are `policy0`,
+  `policy1`, and so on. Duplicate annotations or policy IDs are rejected.
+  Annotations are metadata and do not change authorization decisions.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
 - `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, integer ordering (`<`, `<=`, `>`,
@@ -86,7 +94,8 @@ including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
 - Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
   `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
 - Cedar `ip(string)` values for IPv4 and IPv6 addresses and CIDR ranges,
-  `.isIpv4()`, `.isIpv6()` and `.isInRange(ip)`. Range inclusion requires
+  `.isIpv4()`, `.isIpv6()`, `.isLoopback()`, `.isMulticast()` and
+  `.isInRange(ip)`. Classification and range inclusion require
   the entire receiver range to fit; different address families do not match.
   IPv6 uses hexadecimal groups; dotted IPv4-in-IPv6 notation is rejected.
   Invalid addresses and incorrect operand types produce policy errors.
@@ -105,9 +114,8 @@ including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
   enforcing an `Allow` result.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
-not implement Cedar schema validation, templates, annotations, other IP methods
-or extension types besides IP. Policy checks are syntax/profile checks, not
-schema validation.
+not implement Cedar schema validation, templates, or extension types besides
+IP. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 JSON nesting to 64, and authorization to 4,096 entities and 65,536 parent
@@ -134,7 +142,7 @@ IP range cases are also checked against Python `ipaddress` with a fixed seed.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 398 requests and 16 invalid-syntax cases with no
+the current comparison ran 433 requests and 24 invalid-syntax cases with no
 mismatches. This is evidence for the selected cases, not a claim of full Cedar
 conformance.
 
