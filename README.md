@@ -106,6 +106,21 @@ let entities = @engine.tagged_entities_from_json(@engine.parse_json(entity_text)
 let response = @engine.authorize_with_tags(policies, request, entities)
 ```
 
+For services that make authorization calls over time, construct a reusable
+entity snapshot and pass a policy set to each call:
+
+```moonbit
+let store = @engine.EntityStore::new_with_tags(entities)
+let response = store.authorize(policies, request)
+let responses = store.authorize_batch(policies, [request])
+```
+
+`EntityStore::new` accepts entities without tags. Both constructors validate the
+hierarchy and copy the parent links, attributes and tags, including nested sets
+and records. Later mutations to the input entities do not change the snapshot;
+construct a new store to apply entity updates. Requests and policy sets remain
+separate from the store. The snapshot is used in memory and performs no I/O.
+
 ## Supported policy profile
 
 - Static `permit` and `forbid` policies, scope equality and entity ancestry,
@@ -160,8 +175,10 @@ The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 4,096 entities and 65,536 parent links. Batch authorization
-is limited to 4,096 requests. Limits raise errors
-instead of returning a partial decision.
+is limited to 4,096 requests. A reusable `EntityStore` additionally limits
+entity attribute and tag values to 131,072 total nodes and 64 nested levels;
+this also rejects cyclic values constructed through the typed API. Limits raise
+errors instead of returning a partial decision.
 
 ## Verify
 
