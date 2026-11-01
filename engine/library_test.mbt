@@ -107,3 +107,22 @@ test "public authorization rejects cyclic entity hierarchies" {
   assert_true(rejected)
   @engine.validate_entities([])
 }
+
+///|
+test "authorize using a nested attribute presence check" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { context has device.posture.managed && context.device.posture.managed };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {
+      "device": @engine.RecordValue({
+        "posture": @engine.RecordValue({ "managed": @engine.BoolValue(true) }),
+      }),
+    },
+  }
+  let response = @engine.authorize(policy, request, [])
+  assert_true(response.decision == @engine.Allow && response.errors.is_empty())
+}

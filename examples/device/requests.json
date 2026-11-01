@@ -1,0 +1,235 @@
+[
+  {
+    "decision": "Allow",
+    "reasons": [
+      "device-access"
+    ],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": true,
+            "risk": 20
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {}
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": false,
+            "risk": 20
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": true
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": true,
+            "risk": 51
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [
+      "suspended"
+    ],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": true,
+            "risk": 20
+          }
+        }
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "device-access"
+    ],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": "unknown"
+      }
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {}
+    }
+  },
+  {
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "device-access"
+    ],
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Service",
+        "id": "dashboard"
+      },
+      "context": {
+        "device": {
+          "posture": {
+            "managed": true,
+            "risk": "high"
+          }
+        }
+      }
+    }
+  }
+]

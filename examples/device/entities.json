@@ -1,0 +1,35 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "tenant": "north",
+      "suspended": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "tenant": "north",
+      "suspended": true
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Service",
+      "id": "dashboard"
+    },
+    "attrs": {
+      "tenant": "north",
+      "maxRisk": 50
+    },
+    "parents": []
+  }
+]
