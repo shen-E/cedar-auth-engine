@@ -72,7 +72,21 @@ fn run(args : Array[String]) -> Int32 raise {
   let policies = @engine.parse_policies(read_text(args[2]))
   if command == "check" {
     if json {
-      println("{\"valid\":true}")
+      let entries : Array[Json] = []
+      for info in policies.metadata() {
+        let annotations : Map[String, Json] = Map([])
+        for key, value in info.annotations {
+          annotations[key] = Json::string(value)
+        }
+        let item : Json = {
+          "id": info.id,
+          "effect": info.effect,
+          "annotations": Json::object(annotations),
+        }
+        entries.push(item)
+      }
+      let output : Json = { "valid": true, "policies": Json::array(entries) }
+      println(output.stringify())
     } else {
       println("Policy syntax accepted")
     }

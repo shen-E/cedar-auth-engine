@@ -32,7 +32,7 @@ def reference(exe, policy, entities, request, temp):
     decision = re.search(r"(?m)^\s*(ALLOW|DENY)\s*$", output)
     if not decision:
         raise RuntimeError("Cedar failed: " + output)
-    reasons = re.findall(r"(?m)^\s+(policy\d+)\s*$", output)
+    reasons = re.findall(r"(?m)^  ([^\r\n]+)$", output)
     errors = re.findall(r"error while evaluating policy `([^`]+)`", output)
     return {"decision": decision.group(1).title(), "reasons": sorted(reasons), "errors": sorted(errors)}
 
@@ -234,6 +234,29 @@ def main():
             'ip("1:2:3:4:5:6:7").isIpv4()',
             'ip("12345::").isIpv4()',
             'ip("fe80::1%eth0").isIpv4()',
+            'ip("127.1.2.3").isLoopback()',
+            'ip("127.1.2.3/8").isLoopback()',
+            'ip("127.1.2.3/7").isLoopback()',
+            'ip("126.255.255.255").isLoopback()',
+            'ip("128.0.0.0").isLoopback()',
+            'ip("::1").isLoopback()',
+            'ip("::1/128").isLoopback()',
+            'ip("::1/127").isLoopback()',
+            'ip("::2").isLoopback()',
+            'ip("224.1.2.3/4").isMulticast()',
+            'ip("224.1.2.3/3").isMulticast()',
+            'ip("239.255.255.255").isMulticast()',
+            'ip("223.255.255.255").isMulticast()',
+            'ip("240.0.0.0").isMulticast()',
+            'ip("ff00::1/8").isMulticast()',
+            'ip("ff00::1/7").isMulticast()',
+            'ip("feff::1").isMulticast()',
+            'ip("ffff::1").isMulticast()',
+            'ip("127.0.0.1").isMulticast()',
+            '1.isLoopback()',
+            '"224.0.0.1".isMulticast()',
+            'ip("bad").isLoopback()',
+            'true || ip("bad").isMulticast()',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
@@ -303,6 +326,20 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "overflow in forbid", "reference": ref, "actual": got})
+        for source in (
+            '@owner("security") @shadow_mode permit(principal, action, resource);',
+            '@id("grant") @owner("security") permit(principal, action, resource);',
+            '@id("grant") permit(principal, action, resource); @id("guard") forbid(principal, action, resource) when { resource.missing };',
+            '@id("grant") permit(principal, action, resource); @id("guard") forbid(principal, action, resource);',
+            '@if @true @__cedar permit(principal, action, resource);',
+            '@id("one") permit(principal, action, resource); permit(principal, action, resource);',
+        ):
+            policy.write_text(source, encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            if ref != got:
+                mismatches.append({"case": source, "reference": ref, "actual": got})
         for scope in (
             'principal is User in User::"alice", action, resource is File',
             'principal is Group in User::"alice", action, resource',
@@ -332,6 +369,21 @@ def main():
             syntax_checks += 1
             if ref.returncode == 0 or got.returncode != 2:
                 mismatches.append({"case": expression, "reference_status": ref.returncode, "actual_status": got.returncode})
+        for source in (
+            '@owner("a") @owner("b") permit(principal, action, resource);',
+            '@id("same") permit(principal, action, resource); @id("same") forbid(principal, action, resource);',
+            '@id("policy1") permit(principal, action, resource); permit(principal, action, resource);',
+            '@name() permit(principal, action, resource);',
+            '@name(1) permit(principal, action, resource);',
+            '@name("value", "other") permit(principal, action, resource);',
+            '@name("value")', '@123 permit(principal, action, resource);',
+        ):
+            policy.write_text(source, encoding="utf-8")
+            ref = run([args.cedar, "check-parse", "--policies", policy])
+            got = run([args.engine, "check", policy])
+            syntax_checks += 1
+            if ref.returncode == 0 or got.returncode != 2:
+                mismatches.append({"case": source, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

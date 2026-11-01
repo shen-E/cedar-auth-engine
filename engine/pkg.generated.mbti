@@ -65,9 +65,17 @@ pub fn IpAddress::not_equal(Self, Self) -> Bool
 pub fn IpAddress::parse(String) -> Self raise PolicyError
 pub fn IpAddress::to_repr(Self) -> @debug.Repr
 
+pub(all) struct PolicyInfo {
+  id : String
+  effect : String
+  annotations : Map[String, String]
+} derive(@debug.Debug)
+pub fn PolicyInfo::to_repr(Self) -> @debug.Repr
+
 pub struct PolicySet {
   // private fields
 }
+pub fn PolicySet::metadata(Self) -> Array[PolicyInfo]
 
 pub(all) struct Request {
   principal : EntityId

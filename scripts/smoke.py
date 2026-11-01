@@ -39,6 +39,11 @@ def main():
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2
         checks += 1
+        policy.write_text('@id("read-access") @owner("security") @review permit(principal, action, resource);', encoding="utf-8")
+        result = run("check", policy, "--format", "json")
+        metadata = json.loads(result.stdout)
+        assert result.returncode == 0 and metadata["policies"] == [{"id": "read-access", "effect": "permit", "annotations": {"id": "read-access", "owner": "security", "review": ""}}]
+        checks += 1
         policy.write_text("permit(principal, action, resource);", encoding="utf-8")
         entities = path / "duplicate.json"
         entities.write_text('[{"uid":{"type":"User","type":"Other","id":"a"},"attrs":{},"parents":[]}]', encoding="utf-8")

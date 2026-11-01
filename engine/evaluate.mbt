@@ -202,6 +202,8 @@ fn evaluate(
       match (value, op, arg) {
         (IpValue(ip), IsIpv4, None) => BoolValue(ip.version == 4)
         (IpValue(ip), IsIpv6, None) => BoolValue(ip.version == 6)
+        (IpValue(ip), IsLoopback, None) => BoolValue(ip_loopback(ip))
+        (IpValue(ip), IsMulticast, None) => BoolValue(ip_multicast(ip))
         (IpValue(ip), IsInRange, Some(IpValue(range))) =>
           BoolValue(ip_in_range(ip, range))
         _ => raise PolicyError("IP method received incompatible operand types")
