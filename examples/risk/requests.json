@@ -1,0 +1,6 @@
+[
+  {"decision":"Allow","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"review"},"resource":{"type":"Report","id":"quarterly"},"context":{"risk":50}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"review"},"resource":{"type":"Report","id":"quarterly"},"context":{"risk":51}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"bob"},"action":{"type":"Action","id":"review"},"resource":{"type":"Report","id":"quarterly"},"context":{"risk":10}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"carol"},"action":{"type":"Action","id":"review"},"resource":{"type":"Report","id":"quarterly"},"context":{"risk":10}}}
+]

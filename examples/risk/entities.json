@@ -1,0 +1,6 @@
+[
+  {"uid":{"type":"User","id":"alice"},"attrs":{"roles":["reviewer"],"departments":["finance"]},"parents":[]},
+  {"uid":{"type":"User","id":"bob"},"attrs":{"roles":["reviewer","suspended"],"departments":["finance"]},"parents":[]},
+  {"uid":{"type":"User","id":"carol"},"attrs":{"roles":["viewer"],"departments":["finance"]},"parents":[]},
+  {"uid":{"type":"Report","id":"quarterly"},"attrs":{"departments":["finance","audit"],"maxRisk":50},"parents":[]}
+]
