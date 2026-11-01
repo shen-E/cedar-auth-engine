@@ -158,6 +158,31 @@ fn identifier(token : String) -> Bool {
 }
 
 ///|
+fn type_identifier(token : String) -> Bool {
+  identifier(token) &&
+  !["if", "then", "else", "in", "is", "has", "like", "true", "false", "__cedar"].contains(
+    token,
+  )
+}
+
+///|
+fn Parser::type_path(self : Parser) -> String raise PolicyError {
+  let first = self.take()
+  if !type_identifier(first) {
+    raise PolicyError("expected entity type")
+  }
+  let mut path = first
+  while self.accept("::") {
+    let part = self.take()
+    if !type_identifier(part) {
+      raise PolicyError("expected entity type after ::")
+    }
+    path = path + "::" + part
+  }
+  path
+}
+
+///|
 fn Parser::primary(self : Parser) -> Expr raise PolicyError {
   self.depth += 1
   if self.depth > 128 {
@@ -242,7 +267,17 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
 ///|
 fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
   let mut result = self.primary()
-  while self.accept(".") {
+  while self.peek() == "." || self.peek() == "[" {
+    if self.accept("[") {
+      let name = self.take()
+      if !name.has_prefix("\"") {
+        raise PolicyError("attribute index requires a string literal")
+      }
+      self.expect("]")
+      result = Attribute(result, quoted(name))
+      continue
+    }
+    self.expect(".")
     let name = self.take()
     if !identifier(name) {
       raise PolicyError("expected attribute name")
@@ -320,10 +355,23 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
     "has" => {
       self.pos += 1
       let name = self.take()
-      if !identifier(name) {
+      if name.has_prefix("\"") {
+        Has(left, quoted(name))
+      } else if identifier(name) {
+        Has(left, name)
+      } else {
         raise PolicyError("expected attribute after has")
       }
-      Has(left, name)
+    }
+    "is" => {
+      self.pos += 1
+      let kind = self.type_path()
+      let type_test = IsType(left, kind)
+      if self.accept("in") {
+        And(type_test, In(left, self.unary()))
+      } else {
+        type_test
+      }
     }
     _ => left
   }
@@ -340,6 +388,19 @@ fn Parser::conjunction(self : Parser) -> Expr raise PolicyError {
 
 ///|
 fn Parser::expression(self : Parser) -> Expr raise PolicyError {
+  if self.accept("if") {
+    self.depth += 1
+    if self.depth > 128 {
+      raise PolicyError("expression nesting limit exceeded")
+    }
+    let condition = self.expression()
+    self.expect("then")
+    let when_true = self.expression()
+    self.expect("else")
+    let when_false = self.expression()
+    self.depth -= 1
+    return Conditional(condition, when_true, when_false)
+  }
   let mut e = self.conjunction()
   while self.accept("||") {
     e = Or(e, self.conjunction())
@@ -350,7 +411,21 @@ fn Parser::expression(self : Parser) -> Expr raise PolicyError {
 ///|
 fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
   self.expect(variable)
-  if self.accept("==") {
+  if self.accept("is") {
+    if variable == "action" {
+      raise PolicyError("action scope does not support is")
+    }
+    let type_test = IsType(Variable(variable), self.type_path())
+    if self.accept("in") {
+      let parent = self.primary()
+      if !(parent is Literal(EntityValue(_))) {
+        raise PolicyError("scope membership requires an entity literal")
+      }
+      And(type_test, In(Variable(variable), parent))
+    } else {
+      type_test
+    }
+  } else if self.accept("==") {
     let value = self.primary()
     if !(value is Literal(EntityValue(_))) {
       raise PolicyError("scope equality requires an entity literal")

@@ -110,6 +110,17 @@ fn evaluate(
     Variable("resource") => EntityValue(request.resource)
     Variable("context") => RecordValue(request.context)
     Variable(_) => raise PolicyError("unknown variable")
+    IsType(value, kind) =>
+      match evaluate(value, request, entities) {
+        EntityValue(uid) => BoolValue(uid.kind == kind)
+        _ => raise PolicyError("is requires an entity value")
+      }
+    Conditional(condition, when_true, when_false) =>
+      if boolean(evaluate(condition, request, entities)) {
+        evaluate(when_true, request, entities)
+      } else {
+        evaluate(when_false, request, entities)
+      }
     Attribute(base, name) =>
       match attribute(evaluate(base, request, entities), name, entities) {
         Some(value) => value

@@ -106,6 +106,8 @@ priv enum Expr {
   Or(Expr, Expr)
   Equal(Expr, Expr)
   In(Expr, Expr)
+  IsType(Expr, String)
+  Conditional(Expr, Expr, Expr)
   Compare(Expr, CompareOp, Expr)
   SetCall(Expr, SetOp, Expr?)
   SetExpr(Array[Expr])
