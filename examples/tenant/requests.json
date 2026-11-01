@@ -1,0 +1,5 @@
+[
+  {"decision":"Allow","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"report"},"context":{"authenticated":true}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"bob"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"report"},"context":{"authenticated":true}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"eve"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"report"},"context":{"authenticated":true}}}
+]

@@ -1,0 +1,6 @@
+[
+  {"uid":{"type":"User","id":"alice"},"attrs":{"tenant":"acme","suspended":false},"parents":[]},
+  {"uid":{"type":"User","id":"bob"},"attrs":{"tenant":"other","suspended":false},"parents":[]},
+  {"uid":{"type":"User","id":"eve"},"attrs":{"tenant":"acme","suspended":true},"parents":[]},
+  {"uid":{"type":"Document","id":"report"},"attrs":{"tenant":"acme"},"parents":[]}
+]
