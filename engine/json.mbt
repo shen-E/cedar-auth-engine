@@ -144,8 +144,18 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
       SetValue(result)
     }
     Object(fields) => {
-      if fields.contains("__extn") || fields.contains("__expr") {
-        raise PolicyError("Cedar extension values are unsupported")
+      if fields.contains("__expr") {
+        raise PolicyError("Cedar expression values are unsupported")
+      }
+      if fields.contains("__extn") {
+        if fields.length() != 1 {
+          raise PolicyError("extension escape must contain only __extn")
+        }
+        let ext = object(required(fields, "__extn"), "extension escape")
+        if ext.length() != 2 || string_field(ext, "fn") != "ip" {
+          raise PolicyError("unsupported extension value")
+        }
+        return IpValue(IpAddress::parse(string_field(ext, "arg")))
       }
       match fields.get("__entity") {
         Some(uid) => {

@@ -2,8 +2,10 @@
 """Compare the native engine with Cedar CLI 4.13.0 and pinned integration cases."""
 import argparse
 import json
+import ipaddress
 import pathlib
 import re
+import random
 import subprocess
 import tempfile
 
@@ -70,7 +72,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -198,6 +200,40 @@ def main():
             '1 + 2 < 4',
             '1 * 2 == 3',
             '0 - -9223372036854775808 == 0',
+            'ip("192.168.1.42").isInRange(ip("192.168.1.99/24"))',
+            'ip("192.168.1.42/25").isInRange(ip("192.168.1.0/24"))',
+            'ip("192.168.1.0/24").isInRange(ip("192.168.1.0/25"))',
+            'ip("192.168.1.128").isInRange(ip("192.168.1.0/25"))',
+            'ip("203.0.113.2").isInRange(ip("0.0.0.0/0"))',
+            'ip("2001:db8:abcd::1").isInRange(ip("2001:db8:abcd::/48"))',
+            'ip("2001:db8:abcd::/48").isInRange(ip("2001:db8::/32"))',
+            'ip("::1") == ip("0:0:0:0:0:0:0:1/128")',
+            'ip("127.0.0.1") == ip("127.0.0.1/32")',
+            'ip("127.0.0.1").isIpv4() && ip("::1").isIpv6()',
+            'ip(if true then "10.0.0.1" else "bad").isIpv4()',
+            '[ip("::1")].contains(ip("0:0:0:0:0:0:0:1"))',
+            'ip("192.168.1.5/24") == ip("192.168.1.0/24")',
+            'ip("::1").isInRange(ip("0.0.0.0/0"))',
+            'ip(1).isIpv4()',
+            '1.isIpv4()',
+            'ip("::1").isInRange(1)',
+            'true || ip("bad").isIpv4()',
+            'ip("").isIpv4()',
+            'ip("1.2.3").isIpv4()',
+            'ip("1.2.3.256").isIpv4()',
+            'ip("01.2.3.4").isIpv4()',
+            'ip("1.2.3.4/033").isIpv4()',
+            'ip("1.2.3.4/33").isIpv4()',
+            'ip("1.2.3.4/").isIpv4()',
+            'ip("1.2.3.4/8/16").isIpv4()',
+            'ip(":::").isIpv4()',
+            'ip("1::2::3").isIpv4()',
+            'ip("::1/129").isIpv4()',
+            'ip("::ffff:192.0.2.1").isIpv4()',
+            'ip("1:2:3:4:5:6:7:8:9").isIpv4()',
+            'ip("1:2:3:4:5:6:7").isIpv4()',
+            'ip("12345::").isIpv4()',
+            'ip("fe80::1%eth0").isIpv4()',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
@@ -205,6 +241,46 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": expression, "reference": ref, "actual": got})
+        # Compare range inclusion with both Cedar and Python's independent IP implementation.
+        ip_pairs = (
+            ("10.0.0.1", "0.0.0.0/0"), ("127.0.0.1", "0.0.0.0/1"),
+            ("128.0.0.1", "0.0.0.0/1"), ("10.127.1.1", "10.0.0.0/9"),
+            ("10.128.1.1", "10.0.0.0/9"), ("192.168.1.127", "192.168.1.0/25"),
+            ("192.168.1.128", "192.168.1.0/25"), ("192.168.1.0/24", "192.168.1.0/25"),
+            ("192.168.1.128/25", "192.168.1.42/24"), ("255.255.255.254", "255.255.255.255/31"),
+            ("255.255.255.255", "255.255.255.254/32"), ("::1", "::/0"),
+            ("8000::", "::/1"), ("2001:db8::1", "2001:db8::/32"),
+            ("2001:db9::1", "2001:db8::/32"), ("2001:db8:0:0:7fff::", "2001:db8::/65"),
+            ("2001:db8:0:0:8000::", "2001:db8::/65"),
+            ("2001:db8::/64", "2001:db8::/65"), ("::1", "::/127"),
+            ("::2", "::/127"), ("::1", "::1/128"),
+            ("10.0.0.1", "::/0"), ("::1", "0.0.0.0/0"),
+        )
+        rng = random.Random(20261102)
+        for family, width in ((4, 32), (6, 128)):
+            address_type = ipaddress.IPv4Address if family == 4 else ipaddress.IPv6Address
+            for _ in range(16):
+                prefix = rng.randrange(1, width + 1)
+                value = rng.getrandbits(width)
+                network = ipaddress.ip_network(f"{address_type(value)}/{prefix}", strict=False)
+                inside = address_type(value)
+                outside = address_type(value ^ (1 << (width - prefix)))
+                child_prefix = rng.randrange(prefix, width + 1)
+                ip_pairs += (
+                    (str(inside), str(network)), (str(outside), str(network)),
+                    (f"{inside}/{child_prefix}", str(network)),
+                    (f"{outside}/{child_prefix}", str(network)),
+                )
+        for left, right in ip_pairs:
+            a, b = ipaddress.ip_network(left, strict=False), ipaddress.ip_network(right, strict=False)
+            expected = a.version == b.version and a.subnet_of(b)
+            expression = f'ip("{left}").isInRange(ip("{right}"))'
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            if ref != got or (got["decision"] == "Allow") != expected or got["errors"]:
+                mismatches.append({"case": expression, "expected": expected, "reference": ref, "actual": got})
         # Boundary pairs cover both operand orders and sign combinations.
         for left, right in (
             (-9223372036854775808, -1), (-1, -9223372036854775808),

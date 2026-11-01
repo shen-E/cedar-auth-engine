@@ -27,6 +27,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/risk/policy.ceda
 moon run cmd/cedar-auth-engine --target native -- test examples/classified/policy.cedar examples/classified/entities.json examples/classified/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/invoices/policy.cedar examples/invoices/entities.json examples/invoices/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.cedar examples/quota/entities.json examples/quota/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
 python scripts/smoke.py
 ```
 
@@ -41,7 +42,10 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`, and
 `parents`; entity-valued attributes use `{"__entity":{"type":"User","id":"alice"}}`.
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
-extension values, nulls, invalid integers and malformed input are rejected.
+extension values other than IP, nulls, invalid integers and malformed input are
+rejected. IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
+entity attributes or request context. The host must supply a trustworthy source
+address; forwarded headers require validation by the application or proxy.
 
 ## Use the library
 
@@ -64,7 +68,8 @@ let response = @engine.authorize(policies, request, [])
 `parse_json`, `request_from_json`, `entities_from_json` and `response_to_json`
 provide the JSON boundary. Use `parse_json` for text input to detect duplicate
 keys; duplicate keys are already lost if a caller supplies an independently
-parsed `Json` value. The caller can alternatively construct typed values.
+parsed `Json` value. The caller can alternatively construct typed values,
+including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
 
 ## Supported policy profile
 
@@ -80,6 +85,11 @@ parsed `Json` value. The caller can alternatively construct typed values.
   Overflow and incompatible operands cause evaluation errors. Division is not supported.
 - Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
   `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
+- Cedar `ip(string)` values for IPv4 and IPv6 addresses and CIDR ranges,
+  `.isIpv4()`, `.isIpv6()` and `.isInRange(ip)`. Range inclusion requires
+  the entire receiver range to fit; different address families do not match.
+  IPv6 uses hexadecimal groups; dotted IPv4-in-IPv6 notation is rejected.
+  Invalid addresses and incorrect operand types produce policy errors.
 - Entity type tests, `if ... then ... else ...` expressions, quoted `has`
   attributes and string-literal indexing such as `context["tenant-id"]`.
   Conditional expressions evaluate only the selected branch.
@@ -95,12 +105,13 @@ parsed `Json` value. The caller can alternatively construct typed values.
   enforcing an `Allow` result.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
-not implement Cedar schema validation, templates, annotations or extension
-types. Policy checks are syntax/profile checks, not schema validation.
+not implement Cedar schema validation, templates, annotations, other IP methods
+or extension types besides IP. Policy checks are syntax/profile checks, not
+schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
-JSON nesting to 64, and authorization
-to 4,096 entities and 65,536 parent links. Limits raise errors instead of
+JSON nesting to 64, and authorization to 4,096 entities and 65,536 parent
+links. Limits raise errors instead of
 returning a partial decision.
 
 ## Verify
@@ -119,10 +130,11 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases. It reports mismatches and exits nonzero.
+IP range cases are also checked against Python `ipaddress` with a fixed seed.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 206 requests and 16 invalid-syntax cases with no
+the current comparison ran 398 requests and 16 invalid-syntax cases with no
 mismatches. This is evidence for the selected cases, not a claim of full Cedar
 conformance.
 

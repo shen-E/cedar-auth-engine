@@ -33,6 +33,7 @@ pub(all) enum Value {
   LongValue(Int64)
   StringValue(String)
   EntityValue(EntityId)
+  IpValue(IpAddress)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, Debug)
@@ -113,6 +114,8 @@ priv enum Expr {
   Like(Expr, Array[PatternPart])
   Compare(Expr, CompareOp, Expr)
   SetCall(Expr, SetOp, Expr?)
+  IpConstructor(Expr)
+  IpCall(Expr, IpOp, Expr?)
   SetExpr(Array[Expr])
   RecordExpr(Array[(String, Expr)])
 } derive(Debug)
@@ -136,6 +139,13 @@ priv enum CompareOp {
   LessEqual
   Greater
   GreaterEqual
+} derive(Debug)
+
+///|
+priv enum IpOp {
+  IsIpv4
+  IsIpv6
+  IsInRange
 } derive(Debug)
 
 ///|

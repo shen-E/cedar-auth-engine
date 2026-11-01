@@ -229,6 +229,11 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       }
       RecordExpr(fields)
     }
+    "ip" if self.accept("(") => {
+      let argument = self.expression()
+      self.expect(")")
+      IpConstructor(argument)
+    }
     "true" => Literal(BoolValue(true))
     "false" => Literal(BoolValue(false))
     "principal" | "action" | "resource" | "context" => Variable(token)
@@ -277,6 +282,27 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
       raise PolicyError("expected attribute name")
     }
     if self.accept("(") {
+      if name == "isIpv4" || name == "isIpv6" || name == "isInRange" {
+        let operation = match name {
+          "isIpv4" => IsIpv4
+          "isIpv6" => IsIpv6
+          _ => IsInRange
+        }
+        let arg = if operation is IsInRange {
+          self.depth += 1
+          if self.depth > 128 {
+            raise PolicyError("expression nesting limit exceeded")
+          }
+          let value = self.expression()
+          self.depth -= 1
+          Some(value)
+        } else {
+          None
+        }
+        self.expect(")")
+        result = IpCall(result, operation, arg)
+        continue
+      }
       let operation = match name {
         "contains" => Contains
         "containsAll" => ContainsAll

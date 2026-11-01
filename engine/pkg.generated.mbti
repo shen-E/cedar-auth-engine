@@ -57,6 +57,14 @@ pub fn EntityId::equal(Self, Self) -> Bool
 pub fn EntityId::not_equal(Self, Self) -> Bool
 pub fn EntityId::to_repr(Self) -> @debug.Repr
 
+pub struct IpAddress {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn IpAddress::equal(Self, Self) -> Bool
+pub fn IpAddress::not_equal(Self, Self) -> Bool
+pub fn IpAddress::parse(String) -> Self raise PolicyError
+pub fn IpAddress::to_repr(Self) -> @debug.Repr
+
 pub struct PolicySet {
   // private fields
 }
@@ -81,6 +89,7 @@ pub(all) enum Value {
   LongValue(Int64)
   StringValue(String)
   EntityValue(EntityId)
+  IpValue(IpAddress)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, @debug.Debug)

@@ -188,6 +188,25 @@ fn evaluate(
         _ => raise PolicyError("ordering requires signed 64-bit integers")
       }
     }
+    IpConstructor(argument) =>
+      match evaluate(argument, request, entities) {
+        StringValue(text) => IpValue(IpAddress::parse(text))
+        _ => raise PolicyError("ip requires a string value")
+      }
+    IpCall(receiver, op, argument) => {
+      let value = evaluate(receiver, request, entities)
+      let arg = match argument {
+        Some(expression) => Some(evaluate(expression, request, entities))
+        None => None
+      }
+      match (value, op, arg) {
+        (IpValue(ip), IsIpv4, None) => BoolValue(ip.version == 4)
+        (IpValue(ip), IsIpv6, None) => BoolValue(ip.version == 6)
+        (IpValue(ip), IsInRange, Some(IpValue(range))) =>
+          BoolValue(ip_in_range(ip, range))
+        _ => raise PolicyError("IP method received incompatible operand types")
+      }
+    }
     SetCall(receiver, op, argument) => {
       let value = evaluate(receiver, request, entities)
       let arg = match argument {
