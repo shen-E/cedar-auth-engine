@@ -106,8 +106,26 @@ priv enum Expr {
   Or(Expr, Expr)
   Equal(Expr, Expr)
   In(Expr, Expr)
+  Compare(Expr, CompareOp, Expr)
+  SetCall(Expr, SetOp, Expr?)
   SetExpr(Array[Expr])
   RecordExpr(Array[(String, Expr)])
+} derive(Debug)
+
+///|
+priv enum CompareOp {
+  Less
+  LessEqual
+  Greater
+  GreaterEqual
+} derive(Debug)
+
+///|
+priv enum SetOp {
+  Contains
+  ContainsAll
+  ContainsAny
+  IsEmpty
 } derive(Debug)
 
 ///|
