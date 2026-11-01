@@ -72,7 +72,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -354,6 +354,51 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": scope, "reference": ref, "actual": got})
+        # Entity tags use dynamic keys and remain separate from attributes and parents.
+        tag_entity = {
+            "uid": {"type": "File", "id": "r"},
+            "attrs": {"classification": "attribute"},
+            "parents": [{"type": "Folder", "id": "group"}],
+            "tags": {
+                "classification": "secret", "approved": False,
+                "label": {"level": 3}, "ranges": [1, 2], "": "empty key",
+                "ip": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}},
+            },
+        }
+        tag_parent = {"uid": {"type": "Folder", "id": "group"}, "attrs": {}, "parents": [], "tags": {"inherited": True}}
+        tag_request = {**request, "context": {"key": "classification"}}
+        for entity_set in ([], [tag_entity, tag_parent]):
+            entities.write_text(json.dumps(entity_set), encoding="utf-8")
+            for expression in (
+                'resource.hasTag("classification")',
+                'resource.getTag("classification") == "secret"',
+                'resource.hasTag(context.key)', 'resource.getTag(context.key) == "secret"',
+                'resource.hasTag("missing")', 'resource.getTag("missing") == "x"',
+                'resource.hasTag(1)', 'resource.getTag(1) == 1',
+                '{}.hasTag("x")', '{}.getTag("x") == 1',
+                'resource.hasTag("classification") || resource.getTag("missing") == "x"',
+                'resource.getTag("approved") == false',
+                'resource.getTag("label").level == 3',
+                'resource.getTag("ranges").contains(2)',
+                'resource.getTag("") == "empty key"',
+                'resource.getTag("ip").isInRange(ip("10.0.0.0/8"))',
+                'resource.hasTag("inherited")',
+                'resource.classification == "attribute" && resource.getTag("classification") == "secret"',
+                'resource.hasTag("missing") && resource.getTag("missing") == true',
+                'true || resource.getTag("missing") == true',
+            ):
+                policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+                ref = reference(args.cedar, policy, entities, tag_request, temp)
+                got = actual(args.engine, policy, entities, tag_request, temp)
+                count += 1
+                if ref != got:
+                    mismatches.append({"case": "tags: " + expression, "reference": ref, "actual": got})
+        policy.write_text('permit(principal, action, resource); forbid(principal, action, resource) when { resource.getTag("missing") == true };', encoding="utf-8")
+        ref = reference(args.cedar, policy, entities, tag_request, temp)
+        got = actual(args.engine, policy, entities, tag_request, temp)
+        count += 1
+        if ref != got:
+            mismatches.append({"case": "tags: forbid error", "reference": ref, "actual": got})
         syntax_checks = 0
         for expression in (
             r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',

@@ -28,6 +28,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/classified/polic
 moon run cmd/cedar-auth-engine --target native -- test examples/invoices/policy.cedar examples/invoices/entities.json examples/invoices/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.cedar examples/quota/entities.json examples/quota/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
 python scripts/smoke.py
 ```
 
@@ -40,8 +41,9 @@ accepts `--format json`; text is the default. An authorization decision of
 mismatch or any evaluation error; malformed input or usage exits 2.
 
 The request uses `principal`, `action` and `resource` objects with `type` and
-`id`, plus a `context` object. Entities are an array of `uid`, `attrs`, and
-`parents`; entity-valued attributes use `{"__entity":{"type":"User","id":"alice"}}`.
+`id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
+`parents`, and optional `tags`; entity-valued attributes use
+`{"__entity":{"type":"User","id":"alice"}}`.
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
 extension values other than IP, nulls, invalid integers and malformed input are
 rejected. IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
@@ -67,14 +69,22 @@ let request = @engine.Request::{
 let response = @engine.authorize(policies, request, [])
 ```
 
-`parse_json`, `request_from_json`, `entities_from_json` and `response_to_json`
-provide the JSON boundary. Use `parse_json` for text input to detect duplicate
-keys; duplicate keys are already lost if a caller supplies an independently
-parsed `Json` value. The caller can alternatively construct typed values,
-including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
+`parse_json`, `request_from_json`, `tagged_entities_from_json` and
+`response_to_json` provide the JSON boundary. Pass tagged entities to
+`authorize_with_tags`. The original `authorize` and `entities_from_json`
+accept entities without tags; `entities_from_json` rejects nonempty tags to
+prevent silently discarding them. Use `parse_json` for text input to detect
+duplicate keys; duplicate keys are already lost if a caller supplies an
+independently parsed `Json` value. The caller can alternatively construct typed
+values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
-corresponding metadata.
+corresponding metadata. For entity JSON that contains tags:
+
+```moonbit
+let entities = @engine.tagged_entities_from_json(@engine.parse_json(entity_text))
+let response = @engine.authorize_with_tags(policies, request, entities)
+```
 
 ## Supported policy profile
 
@@ -86,6 +96,10 @@ corresponding metadata.
   Annotations are metadata and do not change authorization decisions.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
+- Entity tags via `.hasTag(key)` and `.getTag(key)`, where `key` can be any
+  expression yielding a string. Tags belong to the individual entity and are
+  not inherited from parents. A missing tag causes a `getTag` evaluation error;
+  use `hasTag` to guard access.
 - `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, integer ordering (`<`, `<=`, `>`,
   `>=`), attribute access, set and record literals. Sets compare without regard
   to order and duplicate members.
@@ -119,8 +133,7 @@ IP. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 JSON nesting to 64, and authorization to 4,096 entities and 65,536 parent
-links. Limits raise errors instead of
-returning a partial decision.
+links. Limits raise errors instead of returning a partial decision.
 
 ## Verify
 
@@ -142,7 +155,7 @@ IP range cases are also checked against Python `ipaddress` with a fixed seed.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 433 requests and 24 invalid-syntax cases with no
+the current comparison ran 481 requests and 24 invalid-syntax cases with no
 mismatches. This is evidence for the selected cases, not a claim of full Cedar
 conformance.
 
