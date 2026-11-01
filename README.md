@@ -33,6 +33,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/poli
 moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy.cedar examples/approvals/entities.json examples/approvals/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.cedar examples/session/entities.json examples/session/requests.json
 python scripts/smoke.py
 ```
 
@@ -63,12 +64,15 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `parents`, and optional `tags`; entity-valued attributes use
 `{"__entity":{"type":"User","id":"alice"}}`.
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
-extension values other than IP and decimal, nulls, invalid integers and malformed
-input are rejected. Decimal values use
-`{"__extn":{"fn":"decimal","arg":"125.4500"}}`; IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
-entity attributes or request context. For client source addresses, the host
-must supply a trustworthy individual IP address; forwarded headers require
-validation by the application or proxy.
+extension values other than IP, decimal and duration, nulls, invalid integers
+and malformed input are rejected. Extension values in entity attributes or
+request context use `{"__extn":{"fn":"decimal","arg":"125.4500"}}`,
+`{"__extn":{"fn":"duration","arg":"1h30m"}}`, or
+`{"__extn":{"fn":"ip","arg":"10.1.2.3"}}`. The host must derive the
+session age used by the [session example](examples/session/) from trusted
+session state. For client source addresses, the host must supply a trustworthy
+individual IP address; forwarded headers require validation by the application
+or proxy.
 
 ## Use the library
 
@@ -98,8 +102,9 @@ accept entities without tags; `entities_from_json` rejects nonempty tags to
 prevent silently discarding them. Use `parse_json` for text input to detect
 duplicate keys; duplicate keys are already lost if a caller supplies an
 independently parsed `Json` value. The caller can alternatively construct typed
-values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`
-and `@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`.
+values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`,
+`@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`, and
+`@engine.DurationValue(@engine.Duration::parse("1h30m"))`.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
 corresponding metadata. For entity JSON that contains tags:
@@ -140,7 +145,7 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   expression yielding a string. Tags belong to the individual entity and are
   not inherited from parents. A missing tag causes a `getTag` evaluation error;
   use `hasTag` to guard access.
-- `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, integer ordering (`<`, `<=`, `>`,
+- `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, ordering (`<`, `<=`, `>`,
   `>=`), attribute access, set and record literals. Sets compare without regard
   to order and duplicate members.
 - Signed 64-bit addition, subtraction, multiplication and unary negation.
@@ -154,6 +159,13 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   `.greaterThanOrEqual()` to compare decimals. Equality compares their values,
   not their textual formatting. Invalid strings and incorrect operand types
   cause policy errors; decimal values are distinct from integers.
+- Cedar `duration(string)` values represent signed milliseconds. Components
+  use `d`, `h`, `m`, `s` and `ms` in descending order, each at most once;
+  `duration("1h30m")` and `duration("90m")` compare equal. Durations support
+  `==`, `!=`, `<`, `<=`, `>` and `>=`, plus `.toMilliseconds()`,
+  `.toSeconds()`, `.toMinutes()`, `.toHours()` and `.toDays()`. Conversions
+  to whole units truncate toward zero. Invalid formats and overflow cause
+  policy errors; durations are distinct from integers.
 - Cedar `ip(string)` values for IPv4 and IPv6 addresses and CIDR ranges,
   `.isIpv4()`, `.isIpv6()`, `.isLoopback()`, `.isMulticast()` and
   `.isInRange(ip)`. Classification and range inclusion require
@@ -180,7 +192,8 @@ separate from the store. The snapshot is used in memory and performs no I/O.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation, templates, or extension types besides
-IP and decimal. Policy checks are syntax/profile checks, not schema validation.
+IP, decimal and duration. Datetime is not supported. Policy checks are
+syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
@@ -214,7 +227,7 @@ cyclic inputs are checked against Cedar. The MoonBit tests also compare all
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 617 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 680 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. This is evidence for the selected cases,
 not a claim of full Cedar conformance.
 

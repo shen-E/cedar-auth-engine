@@ -72,7 +72,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -123,6 +123,48 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "skip-on-error", "reference": ref, "actual": got})
+        # Check ordered duration units, bounds, comparison and conversions.
+        duration_values = [
+            "", "-", "0", "0ms", "-0ms", "1ms", "-1ms", "1s", "1m", "1h", "1d",
+            "1d2h3m4s5ms", "-1d2h3m4s5ms", "00h001m", "1h60m", "1m1ms",
+            "00000000000000000000001ms", "9223372036854775807ms", "-9223372036854775808ms",
+            "9223372036854775808ms", "-9223372036854775809ms", "1d9223372036854775807ms",
+            "106751991168d", "+1h", "--1h", "1h-1m", "1m1h", "1s1s", "1ms1s",
+            "1h ", " 1h", "1.5h", "1H", "１h", "1d2", "ms",
+        ]
+        duration_expressions = [
+            'duration("1h30m") == duration("90m")',
+            'duration("-1ms") < duration("0ms")',
+            'duration("1h") <= duration("60m")',
+            'duration("2h") > duration("1h")',
+            'duration("1h") >= duration("60m")',
+            'duration("1h") < duration("60m")',
+            'duration("1h") == 3600000',
+            'duration("1h") < 3600000',
+            'duration("4s100ms").toMilliseconds() == 4100',
+            'duration("-1500ms").toSeconds() == -1',
+            'duration("-1ms").toSeconds() == 0',
+            'duration("4m70s").toMinutes() == 5',
+            'duration("4h70m").toHours() == 5',
+            'duration("4d30h").toDays() == 5',
+            'duration("-9223372036854775808ms").toMilliseconds() == -9223372036854775808',
+            'duration(1) == duration("1s")',
+            'duration("1s1h") == duration("1h1s")',
+            '1.toSeconds() == 1',
+            'true || duration("bad") == duration("0ms")',
+            'duration(if true then "2h" else "bad") >= duration("119m")',
+        ]
+        for expression, context in (
+            [(expression, {}) for expression in duration_expressions] +
+            [('duration(context.input) == duration("0ms")', {"input": value}) for value in duration_values]
+        ):
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            candidate = {**request, "context": context}
+            ref = reference(args.cedar, policy, entities, candidate, temp)
+            got = actual(args.engine, policy, entities, candidate, temp)
+            count += 1
+            if ref != got:
+                mismatches.append({"case": "duration: " + expression, "context": context, "reference": ref, "actual": got})
         # Exercise the decimal constructor and comparison methods against Cedar.
         decimal_values = [
             "0.0", "-0.0", "00.000", "0000000000000000000001.0", "1.0", "-1.0001",
