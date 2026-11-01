@@ -1,0 +1,52 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "suspended": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "suspended": true
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Service",
+      "id": "internal"
+    },
+    "attrs": {
+      "allowedNetwork": {
+        "__extn": {
+          "fn": "ip",
+          "arg": "10.0.0.0/8"
+        }
+      }
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Service",
+      "id": "ipv6"
+    },
+    "attrs": {
+      "allowedNetwork": {
+        "__extn": {
+          "fn": "ip",
+          "arg": "2001:db8:100::/48"
+        }
+      }
+    },
+    "parents": []
+  }
+]
