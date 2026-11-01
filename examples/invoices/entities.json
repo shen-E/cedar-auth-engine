@@ -1,0 +1,7 @@
+[
+  {"uid":{"type":"User","id":"alice"},"attrs":{},"parents":[{"type":"Group","id":"billing"}]},
+  {"uid":{"type":"User","id":"bob"},"attrs":{},"parents":[]},
+  {"uid":{"type":"Document","id":"invoice"},"attrs":{"name":"invoice-2026.pdf"},"parents":[]},
+  {"uid":{"type":"Document","id":"receipt"},"attrs":{"name":"receipt-2026.pdf"},"parents":[]},
+  {"uid":{"type":"Document","id":"uppercase"},"attrs":{"name":"invoice-2026.PDF"},"parents":[]}
+]

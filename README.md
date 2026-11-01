@@ -25,6 +25,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/sharing/policy.c
 moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.cedar examples/admin/entities.json examples/admin/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/risk/policy.cedar examples/risk/entities.json examples/risk/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/classified/policy.cedar examples/classified/entities.json examples/classified/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/invoices/policy.cedar examples/invoices/entities.json examples/invoices/requests.json
 python scripts/smoke.py
 ```
 
@@ -79,15 +80,20 @@ parsed `Json` value. The caller can alternatively construct typed values.
 - Entity type tests, `if ... then ... else ...` expressions, quoted `has`
   attributes and string-literal indexing such as `context["tenant-id"]`.
   Conditional expressions evaluate only the selected branch.
+- String `like` patterns with `*` matching any sequence and `\*` matching a
+  literal asterisk. Matching is case-sensitive and uses literal Unicode values;
+  it does not normalize strings or interpret paths or URLs.
+- Cedar string escapes include `\"`, `\\`, `\n`, `\r`, `\t`, `\0`, ASCII
+  `\xHH` and Unicode `\u{...}`. JSON-only escapes such as `\u0041` are rejected
+  in policies; JSON input retains standard JSON escaping.
 - Default deny, forbid overrides permit, and evaluation errors skip the
   affected policy while appearing in `errors`, as in Cedar. Applications that
   require a decision with no evaluation errors must inspect `errors` before
   enforcing an `Allow` result.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
-not implement Cedar schema validation, templates, annotations, arithmetic,
-extension types or full Cedar string
-escaping. Policy checks are syntax/profile checks, not schema validation.
+not implement Cedar schema validation, templates, annotations, arithmetic or
+extension types. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, JSON nesting to 64, and authorization
 to 4,096 entities and 65,536 parent links. Limits raise errors instead of
@@ -109,8 +115,11 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases. It reports mismatches and exits nonzero.
+The MoonBit tests also compare wildcard matching against an independent
+exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 109 requests with no mismatches. This is evidence
-for the selected cases, not a claim of full Cedar conformance.
+the current comparison ran 132 requests and 10 invalid-syntax cases with no
+mismatches. This is evidence for the selected cases, not a claim of full Cedar
+conformance.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
