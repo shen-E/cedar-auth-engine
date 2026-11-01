@@ -67,6 +67,14 @@ pub fn EntityId::equal(Self, Self) -> Bool
 pub fn EntityId::not_equal(Self, Self) -> Bool
 pub fn EntityId::to_repr(Self) -> @debug.Repr
 
+pub struct EntityStore {
+  // private fields
+}
+pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
+pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
+pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
+pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError
+
 pub struct IpAddress {
   // private fields
 } derive(Eq, @debug.Debug)
