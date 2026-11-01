@@ -400,6 +400,68 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "tags: forbid error", "reference": ref, "actual": got})
+        # Compare role hierarchies with both Cedar and a separate reachability walk.
+        def entity(kind, name, parents):
+            return {"uid": {"type": kind, "id": name}, "attrs": {}, "parents": [{"type": "Group", "id": parent} for parent in parents]}
+
+        rng = random.Random(20261103)
+        graph_sets = [
+            ([entity("User", "alice", ["absent"])], "absent"),
+            ([entity("User", "alice", ["a", "b", "a"]), entity("Group", "a", ["root"]), entity("Group", "b", ["root"]), entity("Group", "root", [])], "root"),
+            ([entity("User", "alice", ["a"]), entity("Group", "a", [])], "other"),
+            ([entity("User", "alice", ["a", "a"]), entity("Group", "a", ["absent"])], "absent"),
+        ]
+        for _ in range(24):
+            nodes = [f"g{i}" for i in range(8)]
+            initial = [name for name in nodes if rng.random() < 0.35]
+            graph = [entity("User", "alice", initial)]
+            for i, name in enumerate(nodes):
+                parents = [other for other in nodes[i + 1:] if rng.random() < 0.35]
+                if rng.random() < 0.25:
+                    parents.append("external")
+                graph.append(entity("Group", name, parents))
+            graph_sets.append((graph, rng.choice(nodes + ["external", "other"])))
+        for graph, target in graph_sets:
+            links = {(item["uid"]["type"], item["uid"]["id"]): [(parent["type"], parent["id"]) for parent in item["parents"]] for item in graph}
+            pending, visited = [("User", "alice")], set()
+            while pending:
+                node = pending.pop()
+                if node in visited:
+                    continue
+                visited.add(node)
+                pending.extend(links.get(node, ()))
+            expected = ("Group", target) in visited
+            policy.write_text('permit(principal in Group::"' + target + '", action, resource);', encoding="utf-8")
+            entities.write_text(json.dumps(graph), encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            if ref != got or (got["decision"] == "Allow") != expected or got["errors"]:
+                mismatches.append({"case": "hierarchy: " + target, "expected": expected, "reference": ref, "actual": got})
+        invalid_graphs = (
+            [entity("Group", "a", ["a"])],
+            [entity("Group", "a", ["b"]), entity("Group", "b", ["a"])],
+            [entity("Group", "a", ["b"]), entity("Group", "b", ["c"]), entity("Group", "c", ["a"])],
+            [entity("User", "alice", []), entity("Group", "a", ["b"]), entity("Group", "b", ["a"])],
+            [{**entity("Group", "a", []), "attrs": {"x": 1}}, {**entity("Group", "a", []), "attrs": {"x": 2}}],
+        )
+        graph_checks = 0
+        policy.write_text('permit(principal, action, resource);', encoding="utf-8")
+        ref_request = {k: uid(request[k]) for k in ("principal", "action", "resource")}
+        ref_request["context"] = request["context"]
+        ref_path, engine_path = temp / "graph-cedar-request.json", temp / "graph-request.json"
+        ref_path.write_text(json.dumps(ref_request), encoding="utf-8")
+        engine_path.write_text(json.dumps(request), encoding="utf-8")
+        empty_cases = temp / "graph-empty-cases.json"
+        empty_cases.write_text('[]', encoding="utf-8")
+        for graph in invalid_graphs:
+            entities.write_text(json.dumps(graph), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
+            got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
+            empty_batch = run([args.engine, "test", policy, entities, empty_cases, "--format", "json"])
+            graph_checks += 1
+            if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip() or empty_batch.returncode != 2 or empty_batch.stdout.strip():
+                mismatches.append({"case": "invalid entity graph", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode, "empty_batch_status": empty_batch.returncode})
         syntax_checks = 0
         for expression in (
             r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',
@@ -430,7 +492,7 @@ def main():
             syntax_checks += 1
             if ref.returncode == 0 or got.returncode != 2:
                 mismatches.append({"case": source, "reference_status": ref.returncode, "actual_status": got.returncode})
-    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "mismatches": mismatches}, indent=2))
+    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
 

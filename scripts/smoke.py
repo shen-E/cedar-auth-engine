@@ -65,6 +65,22 @@ def main():
         empty.write_text('[]', encoding="utf-8")
         assert run("test", policy, empty, failed).returncode == 1
         checks += 1
+        cyclic = path / "cycle.json"
+        cyclic.write_text('[{"uid":{"type":"Group","id":"x"},"attrs":{},"parents":[{"type":"Group","id":"y"}]},{"uid":{"type":"Group","id":"y"},"attrs":{},"parents":[{"type":"Group","id":"x"}]}]', encoding="utf-8")
+        result = run("authorize", policy, cyclic, valid_request, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "cycle" in result.stderr
+        checks += 1
+        result = run("test", policy, cyclic, failed, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "cycle" in result.stderr
+        checks += 1
+        empty_cases = path / "empty-cases.json"
+        empty_cases.write_text('[]', encoding="utf-8")
+        result = run("test", policy, cyclic, empty_cases, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "cycle" in result.stderr
+        checks += 1
+        result = run("test", policy, empty, empty_cases, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == {"cases": [], "failures": 0}
+        checks += 1
         diagnostics = ROOT / "examples" / "diagnostics"
         diagnostic_policy, diagnostic_entities = diagnostics / "policy.cedar", diagnostics / "entities.json"
         cases = json.loads((diagnostics / "requests.json").read_text(encoding="utf-8"))

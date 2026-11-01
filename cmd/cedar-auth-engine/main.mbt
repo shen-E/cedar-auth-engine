@@ -164,6 +164,7 @@ fn run(args : Array[String]) -> Int32 raise {
     Array(items) => items
     _ => raise CliError("test input must be an array")
   }
+  @engine.validate_entities(entities)
   let results : Array[Json] = []
   let mut failures = 0
   for i in 0..<cases.length() {
