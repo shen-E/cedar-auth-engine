@@ -72,7 +72,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -123,6 +123,44 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "skip-on-error", "reference": ref, "actual": got})
+        # Exercise the decimal constructor and comparison methods against Cedar.
+        decimal_values = [
+            "0.0", "-0.0", "00.000", "0000000000000000000001.0", "1.0", "-1.0001",
+            "0.0001", "-0.0001", "922337203685477.5807", "-922337203685477.5808",
+            "922337203685477.5808", "-922337203685477.5809", "1000000000000000.0",
+            "", ".1", "1.", "1", "1.00000", "+1.0", "--1.0", "1.2.3", " 1.0",
+            "1.0 ", "1e1.0", "１２.０",
+        ]
+        decimal_expressions = [
+            'decimal("1.00") == decimal("01.0000")',
+            'decimal("-0.0000") == decimal("0.0")',
+            'decimal("0.0001").greaterThan(decimal("0.0"))',
+            'decimal("-0.0001").lessThan(decimal("0.0"))',
+            'decimal("-922337203685477.5808").lessThan(decimal("922337203685477.5807"))',
+            'decimal("1.0").lessThan(decimal("1.0"))',
+            'decimal("1.0").lessThanOrEqual(decimal("1.00"))',
+            'decimal("1.0").greaterThan(decimal("1.0"))',
+            'decimal("1.0").greaterThanOrEqual(decimal("1.00"))',
+            'decimal("1.0") == 1',
+            '[decimal("1.00")].contains(decimal("1.0"))',
+            'decimal(1) == decimal("1.0")',
+            'decimal("1.0").lessThan(1)',
+            '1.greaterThan(decimal("1.0"))',
+            'false && decimal("bad") == decimal("1.0")',
+            'true || decimal("bad") == decimal("1.0")',
+            'decimal(if true then "1.5" else "bad").lessThan(decimal("2.0"))',
+        ]
+        for expression, context in (
+            [(expression, {}) for expression in decimal_expressions] +
+            [('decimal(context.input) == decimal("1.0")', {"input": value}) for value in decimal_values]
+        ):
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            candidate = {**request, "context": context}
+            ref = reference(args.cedar, policy, entities, candidate, temp)
+            got = actual(args.engine, policy, entities, candidate, temp)
+            count += 1
+            if ref != got:
+                mismatches.append({"case": "decimal: " + expression, "context": context, "reference": ref, "actual": got})
         for expression in (
             '[1, 2, 1] == [2, 1]',
             '9223372036854775807 == 9223372036854775807',

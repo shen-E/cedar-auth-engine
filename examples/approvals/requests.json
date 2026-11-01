@@ -1,0 +1,201 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "125.4500"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "within-limit"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "5000.0"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "within-limit"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "5000.0001"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "-0.0001"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "negative-amount"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "EUR",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "50.0"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD",
+        "amount": {
+          "__extn": {
+            "fn": "decimal",
+            "arg": "50.0"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "approve"
+      },
+      "resource": {
+        "type": "Invoice",
+        "id": "invoice-1"
+      },
+      "context": {
+        "currency": "USD"
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "within-limit",
+      "negative-amount"
+    ]
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "approval_limit": {
+        "__extn": {
+          "fn": "decimal",
+          "arg": "5000.0000"
+        }
+      }
+    },
+    "parents": [
+      {
+        "type": "Group",
+        "id": "finance"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "approval_limit": {
+        "__extn": {
+          "fn": "decimal",
+          "arg": "5000.0000"
+        }
+      }
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Invoice",
+      "id": "invoice-1"
+    },
+    "attrs": {
+      "currency": "USD"
+    },
+    "parents": []
+  }
+]

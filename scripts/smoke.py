@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -58,6 +58,15 @@ def main():
         valid_request.write_text(json.dumps({"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}), encoding="utf-8")
         assert run("authorize", policy, invalid_tags, valid_request).returncode == 2
         checks += 1
+        approval = ROOT / "examples" / "approvals"
+        sample = json.loads((approval / "requests.json").read_text(encoding="utf-8"))[0]["request"]
+        decimal_request = path / "decimal-request.json"
+        for value in ("1", "1.00000", "922337203685477.5808", "-922337203685477.5809"):
+            sample["context"]["amount"]["__extn"]["arg"] = value
+            decimal_request.write_text(json.dumps(sample), encoding="utf-8")
+            result = run("authorize", approval / "policy.cedar", approval / "entities.json", decimal_request, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}
         failed.write_text(json.dumps([{"request": request_obj, "decision": "Deny"}]), encoding="utf-8")

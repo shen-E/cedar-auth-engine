@@ -152,10 +152,16 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
           raise PolicyError("extension escape must contain only __extn")
         }
         let ext = object(required(fields, "__extn"), "extension escape")
-        if ext.length() != 2 || string_field(ext, "fn") != "ip" {
-          raise PolicyError("unsupported extension value")
+        if ext.length() != 2 {
+          raise PolicyError("invalid extension escape")
         }
-        return IpValue(IpAddress::parse(string_field(ext, "arg")))
+        let name = string_field(ext, "fn")
+        let argument = string_field(ext, "arg")
+        return match name {
+          "ip" => IpValue(IpAddress::parse(argument))
+          "decimal" => DecimalValue(Decimal::parse(argument))
+          _ => raise PolicyError("unsupported extension value")
+        }
       }
       match fields.get("__entity") {
         Some(uid) => {
