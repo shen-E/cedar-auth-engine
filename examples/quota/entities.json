@@ -1,0 +1,39 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "roles": [
+        "member"
+      ],
+      "quota": 1000
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "roles": [
+        "member",
+        "suspended"
+      ],
+      "quota": 1000
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "report"
+    },
+    "attrs": {
+      "size": 200
+    },
+    "parents": []
+  }
+]

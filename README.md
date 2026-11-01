@@ -26,6 +26,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.ced
 moon run cmd/cedar-auth-engine --target native -- test examples/risk/policy.cedar examples/risk/entities.json examples/risk/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/classified/policy.cedar examples/classified/entities.json examples/classified/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/invoices/policy.cedar examples/invoices/entities.json examples/invoices/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.cedar examples/quota/entities.json examples/quota/requests.json
 python scripts/smoke.py
 ```
 
@@ -75,6 +76,8 @@ parsed `Json` value. The caller can alternatively construct typed values.
 - `==`, `!=`, `in`, `has`, `!`, `&&`, `||`, integer ordering (`<`, `<=`, `>`,
   `>=`), attribute access, set and record literals. Sets compare without regard
   to order and duplicate members.
+- Signed 64-bit addition, subtraction, multiplication and unary negation.
+  Overflow and incompatible operands cause evaluation errors. Division is not supported.
 - Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
   `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
 - Entity type tests, `if ... then ... else ...` expressions, quoted `has`
@@ -92,10 +95,11 @@ parsed `Json` value. The caller can alternatively construct typed values.
   enforcing an `Allow` result.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
-not implement Cedar schema validation, templates, annotations, arithmetic or
-extension types. Policy checks are syntax/profile checks, not schema validation.
+not implement Cedar schema validation, templates, annotations or extension
+types. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
-2,048 tokens, expression nesting to 128, JSON nesting to 64, and authorization
+2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
+JSON nesting to 64, and authorization
 to 4,096 entities and 65,536 parent links. Limits raise errors instead of
 returning a partial decision.
 
@@ -118,7 +122,7 @@ examples and error/condition cases. It reports mismatches and exits nonzero.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 132 requests and 10 invalid-syntax cases with no
+the current comparison ran 206 requests and 16 invalid-syntax cases with no
 mismatches. This is evidence for the selected cases, not a claim of full Cedar
 conformance.
 

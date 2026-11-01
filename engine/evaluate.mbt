@@ -136,6 +136,19 @@ fn evaluate(
         attribute(evaluate(base, request, entities), name, entities) is Some(_),
       )
     Not(inner) => BoolValue(!boolean(evaluate(inner, request, entities)))
+    Negate(inner) =>
+      match evaluate(inner, request, entities) {
+        LongValue(value) => LongValue(checked_arithmetic(0L, Subtract, value))
+        _ => raise PolicyError("arithmetic requires signed 64-bit integers")
+      }
+    Arithmetic(left, op, right) => {
+      let l = evaluate(left, request, entities)
+      let r = evaluate(right, request, entities)
+      match (l, r) {
+        (LongValue(a), LongValue(b)) => LongValue(checked_arithmetic(a, op, b))
+        _ => raise PolicyError("arithmetic requires signed 64-bit integers")
+      }
+    }
     And(left, right) => {
       let first = boolean(evaluate(left, request, entities))
       if first {

@@ -102,6 +102,8 @@ priv enum Expr {
   Attribute(Expr, String)
   Has(Expr, String)
   Not(Expr)
+  Negate(Expr)
+  Arithmetic(Expr, ArithmeticOp, Expr)
   And(Expr, Expr)
   Or(Expr, Expr)
   Equal(Expr, Expr)
@@ -119,6 +121,13 @@ priv enum Expr {
 priv enum PatternPart {
   AnySequence
   PatternChar(Char)
+} derive(Debug)
+
+///|
+priv enum ArithmeticOp {
+  Add
+  Subtract
+  Multiply
 } derive(Debug)
 
 ///|

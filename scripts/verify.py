@@ -70,7 +70,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -159,6 +159,45 @@ def main():
             r'"a\nb" like "a*b"',
             '1 like "*"',
             'true || (1 like "*")',
+            '1+2*3 == 7',
+            '(1+2)*3 == 9',
+            '10-3-2 == 5',
+            '1--2 == 3',
+            '1*-2 == -2',
+            '--1 == 1',
+            '- -1 == 1',
+            '- 1 == -1',
+            '-9223372036854775808 + 1 == -9223372036854775807',
+            '9223372036854775807 - 1 == 9223372036854775806',
+            '(-3037000499 * -3037000499) == 9223372030926249001',
+            '-9223372036854775808 * 0 == 0',
+            '0 - -9223372036854775807 == 9223372036854775807',
+            '9223372036854775807 + 1 > 0',
+            '-9223372036854775808 + -1 < 0',
+            '-9223372036854775808 - 1 < 0',
+            '9223372036854775807 - -1 > 0',
+            '-(-9223372036854775808) > 0',
+            '- -9223372036854775808 > 0',
+            '9223372036854775807 * 2 > 0',
+            '-9223372036854775808 * -1 > 0',
+            '-1 * -9223372036854775808 > 0',
+            '-9223372036854775808 * 2 > 0',
+            '2 * -9223372036854775808 > 0',
+            '3037000500 * 3037000500 > 0',
+            '(-3037000500 * -3037000500) > 0',
+            '(-3037000500 * 3037000500) < 0',
+            'true + 1 == 2',
+            '1 * false == 0',
+            '-true == 1',
+            'false && (9223372036854775807 + 1 > 0)',
+            'true || (9223372036854775807 + 1 > 0)',
+            'if true then true else (9223372036854775807 + 1 > 0)',
+            '(if false then 10 else 3) * 4 == 12',
+            'context.missing + 1 > 0',
+            '1 + context.missing > 0',
+            '1 + 2 < 4',
+            '1 * 2 == 3',
+            '0 - -9223372036854775808 == 0',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
@@ -166,6 +205,28 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": expression, "reference": ref, "actual": got})
+        # Boundary pairs cover both operand orders and sign combinations.
+        for left, right in (
+            (-9223372036854775808, -1), (-1, -9223372036854775808),
+            (9223372036854775807, 1), (1, 9223372036854775807),
+            (-9223372036854775808, 2), (2, -9223372036854775808),
+            (-3037000500, -3037000500), (-3037000500, 3037000500),
+            (3037000500, -3037000500), (3037000500, 3037000500),
+        ):
+            for op in ("+", "-", "*"):
+                expression = f"({left} {op} {right}) == 0"
+                policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+                ref = reference(args.cedar, policy, entities, request, temp)
+                got = actual(args.engine, policy, entities, request, temp)
+                count += 1
+                if ref != got:
+                    mismatches.append({"case": expression, "reference": ref, "actual": got})
+        policy.write_text('permit(principal, action, resource); forbid(principal, action, resource) when { 9223372036854775807 + 1 > 0 };', encoding="utf-8")
+        ref = reference(args.cedar, policy, entities, request, temp)
+        got = actual(args.engine, policy, entities, request, temp)
+        count += 1
+        if ref != got:
+            mismatches.append({"case": "overflow in forbid", "reference": ref, "actual": got})
         for scope in (
             'principal is User in User::"alice", action, resource is File',
             'principal is Group in User::"alice", action, resource',
@@ -186,6 +247,8 @@ def main():
             r'"\x80" == "x"', r'"\*" == "*"', r'"\u{_41}" == "A"',
             r'"\u{d800}" == "x"', r'"\u{110000}" == "x"',
             r'"x" like "\q"', 'context.name like context.pattern',
+            '1 / 2 == 0', '0 - 9223372036854775808 == 0',
+            '-(9223372036854775808) == 0', '-----1 == 0', '!-1 == 0', '-!true == 0',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = run([args.cedar, "check-parse", "--policies", policy])
