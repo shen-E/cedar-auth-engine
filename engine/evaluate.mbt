@@ -31,9 +31,9 @@ fn same_value(a : Value, b : Value) -> Bool {
 }
 
 ///|
-fn find_entity(entities : Array[Entity], uid : EntityId) -> Entity? {
+fn find_entity(entities : Array[TaggedEntity], uid : EntityId) -> TaggedEntity? {
   for entity in entities {
-    if entity.uid == uid {
+    if entity.entity.uid == uid {
       return Some(entity)
     }
   }
@@ -42,7 +42,7 @@ fn find_entity(entities : Array[Entity], uid : EntityId) -> Entity? {
 
 ///|
 fn is_descendant(
-  entities : Array[Entity],
+  entities : Array[TaggedEntity],
   child : EntityId,
   ancestor : EntityId,
 ) -> Bool {
@@ -61,7 +61,7 @@ fn is_descendant(
     visited.push(current)
     match find_entity(entities, current) {
       Some(entity) =>
-        for parent in entity.parents {
+        for parent in entity.entity.parents {
           if !pending.contains(parent) {
             pending.push(parent)
           }
@@ -76,13 +76,13 @@ fn is_descendant(
 fn attribute(
   value : Value,
   name : String,
-  entities : Array[Entity],
+  entities : Array[TaggedEntity],
 ) -> Value? raise PolicyError {
   match value {
     RecordValue(fields) => fields.get(name)
     EntityValue(uid) =>
       match find_entity(entities, uid) {
-        Some(entity) => entity.attrs.get(name)
+        Some(entity) => entity.entity.attrs.get(name)
         None => None
       }
     _ => raise PolicyError("attribute access requires an entity or record")
@@ -101,7 +101,7 @@ fn boolean(value : Value) -> Bool raise PolicyError {
 fn evaluate(
   expr : Expr,
   request : Request,
-  entities : Array[Entity],
+  entities : Array[TaggedEntity],
 ) -> Value raise PolicyError {
   match expr {
     Literal(value) => value
@@ -186,6 +186,27 @@ fn evaluate(
             },
           )
         _ => raise PolicyError("ordering requires signed 64-bit integers")
+      }
+    }
+    TagCall(receiver, presence, key) => {
+      let value = evaluate(receiver, request, entities)
+      let name = evaluate(key, request, entities)
+      match (value, name) {
+        (EntityValue(uid), StringValue(tag)) => {
+          let found = match find_entity(entities, uid) {
+            Some(entity) => entity.tags.get(tag)
+            None => None
+          }
+          if presence {
+            BoolValue(found is Some(_))
+          } else {
+            match found {
+              Some(tag_value) => tag_value
+              None => raise PolicyError("missing tag '\{tag}'")
+            }
+          }
+        }
+        _ => raise PolicyError("tag access requires an entity and a string key")
       }
     }
     IpConstructor(argument) =>
@@ -284,6 +305,7 @@ fn evaluate(
 }
 
 ///|
+/// Authorize a request against entities without tags.
 pub fn authorize(
   policies : PolicySet,
   request : Request,
@@ -292,14 +314,31 @@ pub fn authorize(
   if entities.length() > 4096 {
     raise PolicyError("entity limit exceeded")
   }
+  let tagged = []
+  for entity in entities {
+    tagged.push({ entity, tags: {}, })
+  }
+  authorize_with_tags(policies, request, tagged)
+}
+
+///|
+/// Authorize a request against entities and their tags.
+pub fn authorize_with_tags(
+  policies : PolicySet,
+  request : Request,
+  entities : Array[TaggedEntity],
+) -> Response raise PolicyError {
+  if entities.length() > 4096 {
+    raise PolicyError("entity limit exceeded")
+  }
   let mut edges = 0
   let seen : Array[EntityId] = []
   for entity in entities {
-    if seen.contains(entity.uid) {
+    if seen.contains(entity.entity.uid) {
       raise PolicyError("duplicate entity")
     }
-    seen.push(entity.uid)
-    edges += entity.parents.length()
+    seen.push(entity.entity.uid)
+    edges += entity.entity.parents.length()
     if edges > 65536 {
       raise PolicyError("entity parent limit exceeded")
     }

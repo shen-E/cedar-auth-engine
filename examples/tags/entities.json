@@ -1,0 +1,80 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "tenant": "north",
+      "clearanceKey": "team:engineering"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "tenant": "south",
+      "clearanceKey": "team:engineering"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "carol"
+    },
+    "attrs": {
+      "tenant": "north",
+      "clearanceKey": "team:finance"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "design"
+    },
+    "attrs": {},
+    "parents": [],
+    "tags": {
+      "tenant": "north",
+      "team:engineering": true
+    }
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "finance"
+    },
+    "attrs": {},
+    "parents": [],
+    "tags": {
+      "tenant": "north",
+      "team:finance": true
+    }
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "quarantined"
+    },
+    "attrs": {},
+    "parents": [],
+    "tags": {
+      "tenant": "north",
+      "team:engineering": true,
+      "quarantined": true
+    }
+  },
+  {
+    "uid": {
+      "type": "Document",
+      "id": "untagged"
+    },
+    "attrs": {},
+    "parents": []
+  }
+]

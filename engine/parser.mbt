@@ -282,6 +282,17 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
       raise PolicyError("expected attribute name")
     }
     if self.accept("(") {
+      if name == "hasTag" || name == "getTag" {
+        self.depth += 1
+        if self.depth > 128 {
+          raise PolicyError("expression nesting limit exceeded")
+        }
+        let key = self.expression()
+        self.depth -= 1
+        self.expect(")")
+        result = TagCall(result, name == "hasTag", key)
+        continue
+      }
       if name == "isIpv4" ||
         name == "isIpv6" ||
         name == "isInRange" ||

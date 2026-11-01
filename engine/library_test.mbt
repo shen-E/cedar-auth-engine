@@ -44,3 +44,24 @@ test "inspect policy annotations through the public library" {
     policies.metadata()[0].annotations.get("owner") == Some("platform"),
   )
 }
+
+///|
+test "authorize typed entities with tags through the public library" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { resource.getTag(\"team\") == \"security\" };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let entities : Array[@engine.TaggedEntity] = [
+    {
+      entity: { uid: { kind: "File", id: "report", }, attrs: {}, parents: [], },
+      tags: { "team": @engine.StringValue("security") },
+    },
+  ]
+  let response = @engine.authorize_with_tags(policy, request, entities)
+  assert_true(response.decision == @engine.Allow && response.errors.is_empty())
+}
