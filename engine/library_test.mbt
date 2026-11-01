@@ -126,3 +126,27 @@ test "authorize using a nested attribute presence check" {
   let response = @engine.authorize(policy, request, [])
   assert_true(response.decision == @engine.Allow && response.errors.is_empty())
 }
+
+///|
+test "batch authorization through the public library" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { context.approved };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: { "approved": @engine.BoolValue(true) },
+  }
+  let no_approval = {
+    ..request,
+    context: { "approved": @engine.BoolValue(false) },
+  }
+  let result = @engine.authorize_batch(policy, [request, no_approval], [])
+  assert_true(result.length() == 2)
+  assert_true(
+    result[0].decision == @engine.Allow && result[1].decision == @engine.Deny,
+  )
+  let tagged_result = @engine.authorize_batch_with_tags(policy, [request], [])
+  assert_true(tagged_result[0].decision == @engine.Allow)
+}

@@ -332,6 +332,53 @@ pub fn authorize_with_tags(
   entities : Array[TaggedEntity],
 ) -> Response raise PolicyError {
   let graph = build_entity_graph(entities)
+  authorize_in_graph(policies, request, graph)
+}
+
+///|
+/// Authorize up to 4,096 requests against entities without tags.
+pub fn authorize_batch(
+  policies : PolicySet,
+  requests : Array[Request],
+  entities : Array[Entity],
+) -> Array[Response] raise PolicyError {
+  if requests.length() > 4096 {
+    raise PolicyError("request batch limit exceeded")
+  }
+  if entities.length() > 4096 {
+    raise PolicyError("entity limit exceeded")
+  }
+  let tagged = []
+  for entity in entities {
+    tagged.push({ entity, tags: {}, })
+  }
+  authorize_batch_with_tags(policies, requests, tagged)
+}
+
+///|
+/// Authorize up to 4,096 requests using one validated entity graph.
+pub fn authorize_batch_with_tags(
+  policies : PolicySet,
+  requests : Array[Request],
+  entities : Array[TaggedEntity],
+) -> Array[Response] raise PolicyError {
+  if requests.length() > 4096 {
+    raise PolicyError("request batch limit exceeded")
+  }
+  let graph = build_entity_graph(entities)
+  let responses = []
+  for request in requests {
+    responses.push(authorize_in_graph(policies, request, graph))
+  }
+  responses
+}
+
+///|
+fn authorize_in_graph(
+  policies : PolicySet,
+  request : Request,
+  graph : EntityGraph,
+) -> Response {
   let permits = []
   let forbids = []
   let errors = []

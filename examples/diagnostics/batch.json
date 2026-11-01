@@ -1,0 +1,62 @@
+[
+  {
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "Report",
+      "id": "review"
+    },
+    "context": {}
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "bob"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "Report",
+      "id": "review"
+    },
+    "context": {}
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "eve"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "Report",
+      "id": "review"
+    },
+    "context": {}
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "unknown"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "Report",
+      "id": "review"
+    },
+    "context": {}
+  }
+]
