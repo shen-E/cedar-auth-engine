@@ -8,6 +8,10 @@ import {
 // Values
 pub fn authorize(PolicySet, Request, Array[Entity]) -> Response raise PolicyError
 
+pub fn authorize_batch(PolicySet, Array[Request], Array[Entity]) -> Array[Response] raise PolicyError
+
+pub fn authorize_batch_with_tags(PolicySet, Array[Request], Array[TaggedEntity]) -> Array[Response] raise PolicyError
+
 pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
 
 pub fn entities_from_json(Json) -> Array[Entity] raise PolicyError

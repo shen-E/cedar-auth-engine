@@ -78,7 +78,7 @@ fn same_policy_ids(expected : Array[String], actual : Array[String]) -> Bool {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]",
     )
     return 0
   }
@@ -89,7 +89,7 @@ fn run(args : Array[String]) -> Int32 raise {
   let command = args[1]
   let required_count = if command == "check" {
     3
-  } else if command == "authorize" || command == "test" {
+  } else if command == "authorize" || command == "batch" || command == "test" {
     5
   } else {
     raise CliError("unknown command")
@@ -107,7 +107,9 @@ fn run(args : Array[String]) -> Int32 raise {
       args[i + 1] == "json" {
       json = true
       i += 2
-    } else if args[i] == "--strict" && command == "authorize" && !strict {
+    } else if args[i] == "--strict" &&
+      (command == "authorize" || command == "batch") &&
+      !strict {
       strict = true
       i += 1
     } else {
@@ -159,6 +161,47 @@ fn run(args : Array[String]) -> Int32 raise {
       }
     }
     return if strict && !response.errors.is_empty() { 1 } else { 0 }
+  }
+  if command == "batch" {
+    let items = match input {
+      Array(items) => items
+      _ => raise CliError("batch input must be an array")
+    }
+    if items.length() > 4096 {
+      raise CliError("request batch limit exceeded")
+    }
+    let requests = []
+    for item in items {
+      requests.push(@engine.request_from_json(item))
+    }
+    let responses = @engine.authorize_batch_with_tags(
+      policies, requests, entities,
+    )
+    let output : Array[Json] = []
+    let mut has_errors = false
+    for i in 0..<responses.length() {
+      let response = responses[i]
+      if !response.errors.is_empty() {
+        has_errors = true
+      }
+      if json {
+        output.push(@engine.response_to_json(response))
+      } else {
+        let decision = match response.decision {
+          Allow => "Allow"
+          Deny => "Deny"
+        }
+        let reasons = response.reasons.join(", ")
+        println("request \{i}: \{decision}: \{reasons}")
+        for error in response.errors {
+          println("  \{error.policy_id}: \{error.message}")
+        }
+      }
+    }
+    if json {
+      println(Json::array(output).stringify())
+    }
+    return if strict && has_errors { 1 } else { 0 }
   }
   let cases = match input {
     Array(items) => items

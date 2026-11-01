@@ -101,6 +101,46 @@ def main():
             assert normal.returncode == 0 and strict.returncode == (1 if case["errors"] else 0)
             assert json.loads(normal.stdout) == json.loads(strict.stdout)
             checks += 1
+        batch_input = diagnostics / "batch.json"
+        expected = [json.loads(run("authorize", diagnostic_policy, diagnostic_entities, sample, "--format", "json").stdout) for sample in samples]
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--format", "json")
+        assert batch.returncode == 0 and json.loads(batch.stdout) == expected
+        checks += 1
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--strict", "--format", "json")
+        assert batch.returncode == 1 and json.loads(batch.stdout) == expected
+        checks += 1
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--format", "json", "--strict")
+        assert batch.returncode == 1 and json.loads(batch.stdout) == expected
+        checks += 1
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--strict")
+        assert batch.returncode == 1 and "request 0: Allow" in batch.stdout and "request 3: Deny" in batch.stdout
+        assert "suspended" in batch.stdout
+        checks += 1
+        batch_path = path / "batch.json"
+        batch_path.write_text(json.dumps([cases[0]["request"], cases[1]["request"]]), encoding="utf-8")
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--strict", "--format", "json")
+        assert batch.returncode == 0 and [x["decision"] for x in json.loads(batch.stdout)] == ["Allow", "Deny"]
+        checks += 1
+        batch_path.write_text('[]', encoding="utf-8")
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--strict", "--format", "json")
+        assert batch.returncode == 0 and json.loads(batch.stdout) == []
+        checks += 1
+        batch = run("batch", diagnostic_policy, cyclic, batch_path, "--format", "json")
+        assert batch.returncode == 2 and not batch.stdout and "cycle" in batch.stderr
+        checks += 1
+        for bad in ({}, [cases[0]["request"], {}], [None], "bad"):
+            batch_path.write_text(json.dumps(bad), encoding="utf-8")
+            batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
+            assert batch.returncode == 2 and not batch.stdout
+            checks += 1
+        batch_path.write_text(json.dumps([cases[0]["request"]] * 4097, separators=(",", ":")), encoding="utf-8")
+        batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
+        assert batch.returncode == 2 and not batch.stdout and "batch limit" in batch.stderr
+        checks += 1
+        for flags in (("--strict", "--strict"), ("--format",), ("--format", "text")):
+            batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, *flags)
+            assert batch.returncode == 2 and not batch.stdout
+            checks += 1
         strict = run("authorize", diagnostic_policy, diagnostic_entities, samples[2], "--format", "json", "--strict")
         assert strict.returncode == 1 and json.loads(strict.stdout)["decision"] == "Allow"
         checks += 1
