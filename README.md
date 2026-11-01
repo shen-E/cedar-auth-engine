@@ -14,7 +14,7 @@ does not access the filesystem, network, clock, identity provider or database.
 
 ## Run from source
 
-With a MoonBit toolchain and Python 3.8 or newer:
+With MoonBit `moon 0.1.20261028` / `moonc v0.10.18` and Python 3.8 or newer:
 
 ```sh
 moon build cmd/cedar-auth-engine --target native
