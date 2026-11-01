@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device", "approvals", "session"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -65,6 +65,15 @@ def main():
             sample["context"]["amount"]["__extn"]["arg"] = value
             decimal_request.write_text(json.dumps(sample), encoding="utf-8")
             result = run("authorize", approval / "policy.cedar", approval / "entities.json", decimal_request, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        session = ROOT / "examples" / "session"
+        sample = json.loads((session / "requests.json").read_text(encoding="utf-8"))[0]["request"]
+        duration_request = path / "duration-request.json"
+        for value in ("1", "1s1h", "9223372036854775808ms", "-9223372036854775809ms"):
+            sample["context"]["session_age"]["__extn"]["arg"] = value
+            duration_request.write_text(json.dumps(sample), encoding="utf-8")
+            result = run("authorize", session / "policy.cedar", session / "entities.json", duration_request, "--format", "json")
             assert result.returncode == 2 and not result.stdout
             checks += 1
         failed = path / "failed.json"

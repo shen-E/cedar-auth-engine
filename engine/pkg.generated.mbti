@@ -60,6 +60,14 @@ pub(all) struct Diagnostic {
 } derive(@debug.Debug)
 pub fn Diagnostic::to_repr(Self) -> @debug.Repr
 
+pub struct Duration {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn Duration::equal(Self, Self) -> Bool
+pub fn Duration::not_equal(Self, Self) -> Bool
+pub fn Duration::parse(String) -> Self raise PolicyError
+pub fn Duration::to_repr(Self) -> @debug.Repr
+
 pub(all) struct Entity {
   uid : EntityId
   attrs : Map[String, Value]
@@ -131,6 +139,7 @@ pub(all) enum Value {
   EntityValue(EntityId)
   IpValue(IpAddress)
   DecimalValue(Decimal)
+  DurationValue(Duration)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, @debug.Debug)

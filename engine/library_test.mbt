@@ -214,3 +214,17 @@ test "construct decimal values through the public library" {
   }
   assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
 }
+
+///|
+test "construct duration values through the public library" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { context.age <= duration(\"8h\") };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "Dashboard", id: "main", },
+    context: { "age": @engine.DurationValue(@engine.Duration::parse("1h30m")) },
+  }
+  assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
+}

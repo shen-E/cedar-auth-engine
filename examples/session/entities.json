@@ -1,0 +1,45 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {
+      "max_session": {
+        "__extn": {
+          "fn": "duration",
+          "arg": "8h"
+        }
+      }
+    },
+    "parents": [
+      {
+        "type": "Group",
+        "id": "employees"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {
+      "max_session": {
+        "__extn": {
+          "fn": "duration",
+          "arg": "8h"
+        }
+      }
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Dashboard",
+      "id": "operations"
+    },
+    "attrs": {},
+    "parents": []
+  }
+]
