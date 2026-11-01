@@ -108,10 +108,17 @@ priv enum Expr {
   In(Expr, Expr)
   IsType(Expr, String)
   Conditional(Expr, Expr, Expr)
+  Like(Expr, Array[PatternPart])
   Compare(Expr, CompareOp, Expr)
   SetCall(Expr, SetOp, Expr?)
   SetExpr(Array[Expr])
   RecordExpr(Array[(String, Expr)])
+} derive(Debug)
+
+///|
+priv enum PatternPart {
+  AnySequence
+  PatternChar(Char)
 } derive(Debug)
 
 ///|

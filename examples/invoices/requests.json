@@ -1,0 +1,6 @@
+[
+  {"decision":"Allow","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"invoice"},"context":{}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"receipt"},"context":{}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"uppercase"},"context":{}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"bob"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"invoice"},"context":{}}}
+]

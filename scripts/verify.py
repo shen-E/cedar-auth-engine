@@ -70,7 +70,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -140,6 +140,25 @@ def main():
             'context["missing field"] == 1',
             '{"team-id": "alpha"}["team-id"] == "alpha"',
             '{"settings": {"retention.days": 30}}.settings["retention.days"] == 30',
+            '"ham and eggs" like "ham*"',
+            '"ham and eggs" like "*ham"',
+            '"Gotham" like "*ham"',
+            '"ham" like "*h*a*m*"',
+            '"" like "**"',
+            '"abc" like "a**c"',
+            r'"string*with*stars" like "string\*with\*stars"',
+            r'"a*b" like "a\u{2a}b"',
+            r'"axb" like "a\u{2a}b"',
+            r'"a*b" like "a\x2ab"',
+            r'"axb" like "a\x2ab"',
+            r'"\u{1f600}" == "😀"',
+            r'"\u{0_41}" == "A"',
+            r'"\u{41_}" == "A"',
+            r'"\x41" == "A"',
+            r'"\0" == "\x00"',
+            r'"a\nb" like "a*b"',
+            '1 like "*"',
+            'true || (1 like "*")',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = reference(args.cedar, policy, entities, request, temp)
@@ -161,7 +180,20 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": scope, "reference": ref, "actual": got})
-    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "mismatches": mismatches}, indent=2))
+        syntax_checks = 0
+        for expression in (
+            r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',
+            r'"\x80" == "x"', r'"\*" == "*"', r'"\u{_41}" == "A"',
+            r'"\u{d800}" == "x"', r'"\u{110000}" == "x"',
+            r'"x" like "\q"', 'context.name like context.pattern',
+        ):
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            ref = run([args.cedar, "check-parse", "--policies", policy])
+            got = run([args.engine, "check", policy])
+            syntax_checks += 1
+            if ref.returncode == 0 or got.returncode != 2:
+                mismatches.append({"case": expression, "reference_status": ref.returncode, "actual_status": got.returncode})
+    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
 

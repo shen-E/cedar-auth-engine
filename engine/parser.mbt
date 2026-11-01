@@ -211,7 +211,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       if !self.accept("}") {
         let key = self.take()
         let name = if key.has_prefix("\"") {
-          quoted(key)
+          cedar_quoted(key)
         } else if identifier(key) {
           key
         } else {
@@ -222,7 +222,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
         while self.accept(",") {
           let key = self.take()
           let name = if key.has_prefix("\"") {
-            quoted(key)
+            cedar_quoted(key)
           } else if identifier(key) {
             key
           } else {
@@ -238,7 +238,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
     "true" => Literal(BoolValue(true))
     "false" => Literal(BoolValue(false))
     "principal" | "action" | "resource" | "context" => Variable(token)
-    _ if token.has_prefix("\"") => Literal(StringValue(quoted(token)))
+    _ if token.has_prefix("\"") => Literal(StringValue(cedar_quoted(token)))
     _ if identifier(token) => {
       let mut kind = token
       self.expect("::")
@@ -251,7 +251,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
         self.expect("::")
         part = self.take()
       }
-      Literal(EntityValue({ kind, id: quoted(part), }))
+      Literal(EntityValue({ kind, id: cedar_quoted(part), }))
     }
     _ => {
       let number : Int64 = @json.from_json(Json::string(token)) catch {
@@ -274,7 +274,7 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         raise PolicyError("attribute index requires a string literal")
       }
       self.expect("]")
-      result = Attribute(result, quoted(name))
+      result = Attribute(result, cedar_quoted(name))
       continue
     }
     self.expect(".")
@@ -356,7 +356,7 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
       self.pos += 1
       let name = self.take()
       if name.has_prefix("\"") {
-        Has(left, quoted(name))
+        Has(left, cedar_quoted(name))
       } else if identifier(name) {
         Has(left, name)
       } else {
@@ -372,6 +372,11 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
       } else {
         type_test
       }
+    }
+    "like" => {
+      self.pos += 1
+      let token = self.take()
+      Like(left, cedar_parts(token, pattern=true))
     }
     _ => left
   }
