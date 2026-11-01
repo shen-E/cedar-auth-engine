@@ -38,6 +38,14 @@ pub fn PolicyError::to_string(Self) -> String
 pub impl Show for PolicyError
 
 // Types and methods
+pub struct DateTime {
+  // private fields
+} derive(Eq, @debug.Debug)
+pub fn DateTime::equal(Self, Self) -> Bool
+pub fn DateTime::not_equal(Self, Self) -> Bool
+pub fn DateTime::parse(String) -> Self raise PolicyError
+pub fn DateTime::to_repr(Self) -> @debug.Repr
+
 pub struct Decimal {
   // private fields
 } derive(Eq, @debug.Debug)
@@ -140,6 +148,7 @@ pub(all) enum Value {
   IpValue(IpAddress)
   DecimalValue(Decimal)
   DurationValue(Duration)
+  DateTimeValue(DateTime)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, @debug.Debug)

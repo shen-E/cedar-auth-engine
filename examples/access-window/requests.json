@@ -1,0 +1,192 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T08:59:59.999Z"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T09:00:00Z"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "within-window"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T12:00:00+0300"
+          }
+        }
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "within-window"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T17:00:00Z"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "withdrawn"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T12:00:00Z"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "revoked"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {
+        "now": {
+          "__extn": {
+            "fn": "datetime",
+            "arg": "2026-11-01T12:00:00Z"
+          }
+        }
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "Document",
+        "id": "report"
+      },
+      "context": {}
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "within-window"
+    ]
+  }
+]

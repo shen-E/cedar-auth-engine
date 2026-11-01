@@ -69,7 +69,7 @@ test "IP extension JSON values and typed library inputs" {
   assert_true(authorize(policy, typed, []).decision == Allow)
   for
     text in [
-      "{\"__extn\":{\"fn\":\"ip\",\"arg\":\"bad\"}}", "{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"2026-01-01\"}}",
+      "{\"__extn\":{\"fn\":\"ip\",\"arg\":\"bad\"}}", "{\"__extn\":{\"fn\":\"unknown\",\"arg\":\"2026-01-01\"}}",
       "{\"__extn\":{\"fn\":\"ip\",\"arg\":\"1.2.3.4\",\"extra\":1}}", "{\"__extn\":{\"fn\":\"ip\",\"arg\":1}}",
     ] {
     let rejected = try {

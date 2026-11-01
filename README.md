@@ -34,6 +34,7 @@ moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/pol
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy.cedar examples/approvals/entities.json examples/approvals/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.cedar examples/session/entities.json examples/session/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/access-window/policy.cedar examples/access-window/entities.json examples/access-window/requests.json
 python scripts/smoke.py
 ```
 
@@ -64,13 +65,15 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `parents`, and optional `tags`; entity-valued attributes use
 `{"__entity":{"type":"User","id":"alice"}}`.
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
-extension values other than IP, decimal and duration, nulls, invalid integers
+extension values other than IP, decimal, duration and datetime, nulls, invalid integers
 and malformed input are rejected. Extension values in entity attributes or
 request context use `{"__extn":{"fn":"decimal","arg":"125.4500"}}`,
-`{"__extn":{"fn":"duration","arg":"1h30m"}}`, or
+`{"__extn":{"fn":"duration","arg":"1h30m"}}`,
+`{"__extn":{"fn":"datetime","arg":"2026-11-01T12:00:00Z"}}`, or
 `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}`. The host must derive the
 session age used by the [session example](examples/session/) from trusted
-session state. For client source addresses, the host must supply a trustworthy
+session state and supply the current time used by the
+[access-window example](examples/access-window/) from a trusted clock. For client source addresses, the host must supply a trustworthy
 individual IP address; forwarded headers require validation by the application
 or proxy.
 
@@ -103,8 +106,9 @@ prevent silently discarding them. Use `parse_json` for text input to detect
 duplicate keys; duplicate keys are already lost if a caller supplies an
 independently parsed `Json` value. The caller can alternatively construct typed
 values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`,
-`@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`, and
-`@engine.DurationValue(@engine.Duration::parse("1h30m"))`.
+`@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`,
+`@engine.DurationValue(@engine.Duration::parse("1h30m"))`, and
+`@engine.DateTimeValue(@engine.DateTime::parse("2026-11-01T12:00:00Z"))`.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
 corresponding metadata. For entity JSON that contains tags:
@@ -159,6 +163,12 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   `.greaterThanOrEqual()` to compare decimals. Equality compares their values,
   not their textual formatting. Invalid strings and incorrect operand types
   cause policy errors; decimal values are distinct from integers.
+- Cedar `datetime(string)` values accept a calendar date or a timestamp with
+  UTC `Z` or a numeric timezone offset. Timestamps may include exactly three
+  fractional digits. Comparisons use UTC instants. `.offset(duration)` and
+  `.durationSince(datetime)` support time arithmetic; `.toDate()` and
+  `.toTime()` extract the UTC date and time. Invalid calendar dates, timestamps
+  and arithmetic overflow produce policy errors. The engine uses no clock.
 - Cedar `duration(string)` values represent signed milliseconds. Components
   use `d`, `h`, `m`, `s` and `ms` in descending order, each at most once;
   `duration("1h30m")` and `duration("90m")` compare equal. Durations support
@@ -192,8 +202,8 @@ separate from the store. The snapshot is used in memory and performs no I/O.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation, templates, or extension types besides
-IP, decimal and duration. Datetime is not supported. Policy checks are
-syntax/profile checks, not schema validation.
+IP, decimal, duration and datetime. Policy checks are syntax/profile checks,
+not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
@@ -221,13 +231,14 @@ including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
-Hierarchy cases are checked against an independent reachability walk, and
-cyclic inputs are checked against Cedar. The MoonBit tests also compare all
+Hierarchy cases are checked against an independent reachability walk, cyclic
+inputs are checked against Cedar, and generated timestamps are checked against
+Python calendar arithmetic. The MoonBit tests also compare all
 512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 680 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 759 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. This is evidence for the selected cases,
 not a claim of full Cedar conformance.
 

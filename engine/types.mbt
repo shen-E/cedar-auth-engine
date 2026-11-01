@@ -36,6 +36,7 @@ pub(all) enum Value {
   IpValue(IpAddress)
   DecimalValue(Decimal)
   DurationValue(Duration)
+  DateTimeValue(DateTime)
   SetValue(Array[Value])
   RecordValue(Map[String, Value])
 } derive(Eq, Debug)
@@ -130,6 +131,8 @@ priv enum Expr {
   IpConstructor(Expr)
   DecimalConstructor(Expr)
   DurationConstructor(Expr)
+  DateTimeConstructor(Expr)
+  DateTimeCall(Expr, DateTimeOp, Expr?)
   DurationCall(Expr, Int64)
   DecimalCall(Expr, CompareOp, Expr)
   IpCall(Expr, IpOp, Expr?)
@@ -156,6 +159,14 @@ priv enum CompareOp {
   LessEqual
   Greater
   GreaterEqual
+} derive(Debug)
+
+///|
+priv enum DateTimeOp {
+  Offset
+  DurationSince
+  ToDate
+  ToTime
 } derive(Debug)
 
 ///|

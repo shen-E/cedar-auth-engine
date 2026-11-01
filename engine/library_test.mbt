@@ -228,3 +228,21 @@ test "construct duration values through the public library" {
   }
   assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
 }
+
+///|
+test "construct datetime values through the public library" {
+  let policy = @engine.parse_policies(
+    "permit(principal, action, resource) when { context.now < datetime(\"2026-11-02\") };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {
+      "now": @engine.DateTimeValue(
+        @engine.DateTime::parse("2026-11-01T12:00:00Z"),
+      ),
+    },
+  }
+  assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
+}
