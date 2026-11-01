@@ -32,6 +32,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.ceda
 moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
 moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy.cedar examples/approvals/entities.json examples/approvals/requests.json
 python scripts/smoke.py
 ```
 
@@ -62,8 +63,9 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `parents`, and optional `tags`; entity-valued attributes use
 `{"__entity":{"type":"User","id":"alice"}}`.
 See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
-extension values other than IP, nulls, invalid integers and malformed input are
-rejected. IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
+extension values other than IP and decimal, nulls, invalid integers and malformed
+input are rejected. Decimal values use
+`{"__extn":{"fn":"decimal","arg":"125.4500"}}`; IP input uses `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}` in
 entity attributes or request context. For client source addresses, the host
 must supply a trustworthy individual IP address; forwarded headers require
 validation by the application or proxy.
@@ -96,7 +98,8 @@ accept entities without tags; `entities_from_json` rejects nonempty tags to
 prevent silently discarding them. Use `parse_json` for text input to detect
 duplicate keys; duplicate keys are already lost if a caller supplies an
 independently parsed `Json` value. The caller can alternatively construct typed
-values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`.
+values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`
+and `@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
 corresponding metadata. For entity JSON that contains tags:
@@ -144,6 +147,13 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   Overflow and incompatible operands cause evaluation errors. Division is not supported.
 - Set methods `.contains(value)`, `.containsAll(set)`, `.containsAny(set)` and
   `.isEmpty()`. Incorrect operand types produce policy evaluation errors.
+- Cedar fixed-point `decimal(string)` values for amounts and other precise
+  quantities. Values range from `-922337203685477.5808` to
+  `922337203685477.5807`, with one to four fractional digits. Use
+  `.lessThan()`, `.lessThanOrEqual()`, `.greaterThan()` and
+  `.greaterThanOrEqual()` to compare decimals. Equality compares their values,
+  not their textual formatting. Invalid strings and incorrect operand types
+  cause policy errors; decimal values are distinct from integers.
 - Cedar `ip(string)` values for IPv4 and IPv6 addresses and CIDR ranges,
   `.isIpv4()`, `.isIpv6()`, `.isLoopback()`, `.isMulticast()` and
   `.isInRange(ip)`. Classification and range inclusion require
@@ -170,7 +180,7 @@ separate from the store. The snapshot is used in memory and performs no I/O.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation, templates, or extension types besides
-IP. Policy checks are syntax/profile checks, not schema validation.
+IP and decimal. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
@@ -204,7 +214,7 @@ cyclic inputs are checked against Cedar. The MoonBit tests also compare all
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 568 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 617 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. This is evidence for the selected cases,
 not a claim of full Cedar conformance.
 
