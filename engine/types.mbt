@@ -111,7 +111,7 @@ priv enum Expr {
   Literal(Value)
   Variable(String)
   Attribute(Expr, String)
-  Has(Expr, String)
+  HasPath(Expr, Array[String])
   Not(Expr)
   Negate(Expr)
   Arithmetic(Expr, ArithmeticOp, Expr)

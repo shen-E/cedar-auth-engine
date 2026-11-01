@@ -266,7 +266,12 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
 ///|
 fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
   let mut result = self.primary()
+  let mut count = 0
   while self.peek() == "." || self.peek() == "[" {
+    count += 1
+    if count > 128 {
+      raise PolicyError("postfix chain limit exceeded")
+    }
     if self.accept("[") {
       let name = self.take()
       if !name.has_prefix("\"") {
@@ -432,13 +437,25 @@ fn Parser::relation(self : Parser) -> Expr raise PolicyError {
     "has" => {
       self.pos += 1
       let name = self.take()
+      let path = []
       if name.has_prefix("\"") {
-        Has(left, cedar_quoted(name))
-      } else if identifier(name) {
-        Has(left, name)
+        path.push(cedar_quoted(name))
+      } else if type_identifier(name) {
+        path.push(name)
+        while self.accept(".") {
+          let segment = self.take()
+          if !type_identifier(segment) {
+            raise PolicyError("expected identifier in has path")
+          }
+          path.push(segment)
+          if path.length() > 128 {
+            raise PolicyError("has path limit exceeded")
+          }
+        }
       } else {
         raise PolicyError("expected attribute after has")
       }
+      HasPath(left, path)
     }
     "is" => {
       self.pos += 1

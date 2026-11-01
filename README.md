@@ -30,6 +30,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.ced
 moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
 python scripts/smoke.py
 ```
 
@@ -128,6 +129,10 @@ let response = @engine.authorize_with_tags(policies, request, entities)
   Invalid addresses and incorrect operand types produce policy errors.
 - Entity type tests, `if ... then ... else ...` expressions, quoted `has`
   attributes and string-literal indexing such as `context["tenant-id"]`.
+  A nested `has` path such as `context has device.posture.managed` checks
+  each identifier in order: a missing segment returns false, while an
+  intermediate value that is neither an entity nor a record causes an error.
+  A quoted `has` attribute names a single field, including any dots.
   Conditional expressions evaluate only the selected branch.
 - String `like` patterns with `*` matching any sequence and `\*` matching a
   literal asterisk. Matching is case-sensitive and uses literal Unicode values;
@@ -145,8 +150,9 @@ not implement Cedar schema validation, templates, or extension types besides
 IP. Policy checks are syntax/profile checks, not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
-JSON nesting to 64, and authorization to 4,096 entities and 65,536 parent
-links. Limits raise errors instead of returning a partial decision.
+postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
+authorization to 4,096 entities and 65,536 parent links. Limits raise errors
+instead of returning a partial decision.
 
 ## Verify
 
@@ -171,7 +177,7 @@ cyclic inputs are checked against Cedar. The MoonBit tests also compare all
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 513 requests, 24 invalid-syntax cases and 5 invalid
+the current comparison ran 548 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. This is evidence for the selected cases,
 not a claim of full Cedar conformance.
 

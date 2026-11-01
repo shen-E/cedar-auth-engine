@@ -72,7 +72,7 @@ def main():
                 count += 1
                 if got != expected or ref != expected:
                     mismatches.append({"case": name + ": " + item["description"], "expected": expected, "reference": ref, "actual": got})
-        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics"):
+        for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device"):
             base = ROOT / "examples" / name
             cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
             for i, item in enumerate(cases):
@@ -355,6 +355,41 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": scope, "reference": ref, "actual": got})
+        # Nested attribute checks cover records, entity references and absent entities.
+        nested_entities = [
+            {"uid": {"type": "User", "id": "manager"}, "attrs": {"access": {"level": 3}}, "parents": []},
+            {"uid": {"type": "File", "id": "r"}, "attrs": {"owner": {"__entity": {"type": "User", "id": "manager"}}}, "parents": []},
+        ]
+        nested_request = {**request, "context": {
+            "profile": {"team": {"name": "security", "active": False}, "flag": 1},
+            "profile.team": "literal",
+            "link": {"__entity": {"type": "User", "id": "manager"}},
+            "missingLink": {"__entity": {"type": "User", "id": "unknown"}},
+        }}
+        entities.write_text(json.dumps(nested_entities), encoding="utf-8")
+        for expression in (
+            'context has profile.team.name', 'context has profile.team.active',
+            'context has "profile.team"', 'context has link.access.level',
+            'resource has owner.access.level', 'context.profile has team.name',
+            'context has profile.team && context.profile.team.name == "security"',
+            '(context has profile.team.name) == true', '!(context has profile.missing.name)',
+            '!(context has missing.team.name)', '!(context has missingLink.name)',
+            'context has missing.team', 'context has profile.missing.name',
+            'context has profile.team.missing', 'context has missingLink.name',
+            'resource has owner.access.missing', 'resource has absent.more',
+            'context has profile.flag.name', 'context has profile.team.name.more',
+            '1 has name', 'context.missing has team.name', 'resource.absent has team.name',
+            'true || (context has profile.flag.name)',
+            'context has missing.flag.name && context.missing.flag.name == 1',
+            'context has profile.team && context.profile.team.active == false',
+            'resource has owner.access.level && resource.owner.access.level == 3',
+        ):
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, nested_request, temp)
+            got = actual(args.engine, policy, entities, nested_request, temp)
+            count += 1
+            if ref != got:
+                mismatches.append({"case": "nested has: " + expression, "reference": ref, "actual": got})
         # Entity tags use dynamic keys and remain separate from attributes and parents.
         tag_entity = {
             "uid": {"type": "File", "id": "r"},
@@ -470,6 +505,11 @@ def main():
             r'"x" like "\q"', 'context.name like context.pattern',
             '1 / 2 == 0', '0 - 9223372036854775808 == 0',
             '-(9223372036854775808) == 0', '-----1 == 0', '!-1 == 0', '-!true == 0',
+            'context has "profile".team', 'context has profile."team"',
+            'context has profile["team"]', 'context has profile.team()',
+            'context has profile.true', 'context has profile.if', 'context has true',
+            'context has __cedar', 'context has profile.', 'context has profile..name',
+            'context has profile.1', 'context has profile.team == true',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = run([args.cedar, "check-parse", "--policies", policy])

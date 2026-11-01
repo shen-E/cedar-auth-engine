@@ -128,10 +128,16 @@ fn evaluate(
         Some(value) => value
         None => raise PolicyError("missing attribute '\{name}'")
       }
-    Has(base, name) =>
-      BoolValue(
-        attribute(evaluate(base, request, entities), name, entities) is Some(_),
-      )
+    HasPath(base, path) => {
+      let mut current = evaluate(base, request, entities)
+      for name in path {
+        match attribute(current, name, entities) {
+          Some(value) => current = value
+          None => return BoolValue(false)
+        }
+      }
+      BoolValue(true)
+    }
     Not(inner) => BoolValue(!boolean(evaluate(inner, request, entities)))
     Negate(inner) =>
       match evaluate(inner, request, entities) {

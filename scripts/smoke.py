@@ -16,7 +16,7 @@ def run(*args):
 
 def main():
     checks = 0
-    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics"):
+    for name in ("tenant", "sharing", "admin", "risk", "classified", "invoices", "quota", "network", "tags", "diagnostics", "device"):
         base = ROOT / "examples" / name
         policy, entities, cases = (base / "policy.cedar", base / "entities.json", base / "requests.json")
         result = run("check", policy, "--format", "json")
@@ -80,6 +80,12 @@ def main():
         checks += 1
         result = run("test", policy, empty, empty_cases, "--format", "json")
         assert result.returncode == 0 and json.loads(result.stdout) == {"cases": [], "failures": 0}
+        checks += 1
+        policy.write_text('permit(principal, action, resource) when { context has a' + '.a' * 128 + ' };', encoding="utf-8")
+        assert run("check", policy).returncode == 2
+        checks += 1
+        policy.write_text('permit(principal, action, resource) when { context' + '.a' * 129 + ' == true };', encoding="utf-8")
+        assert run("check", policy).returncode == 2
         checks += 1
         diagnostics = ROOT / "examples" / "diagnostics"
         diagnostic_policy, diagnostic_entities = diagnostics / "policy.cedar", diagnostics / "entities.json"
