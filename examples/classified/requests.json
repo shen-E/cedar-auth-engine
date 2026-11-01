@@ -1,0 +1,7 @@
+[
+  {"decision":"Allow","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"notes"},"context":{}}},
+  {"decision":"Allow","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"plan"},"context":{"mfa":true}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"plan"},"context":{"mfa":false}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Document","id":"draft"},"context":{}}},
+  {"decision":"Deny","request":{"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"Ticket","id":"issue"},"context":{}}}
+]
