@@ -168,6 +168,46 @@ def main():
         result = run("authorize", sharing / "policy.cedar", sharing / "entities.json", entity_request, "--template", sharing / "template.cedar", "--links", link_path, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
+        empty = path / "empty.json"
+        empty.write_text('[]', encoding="utf-8")
+        # Test batches validate every case before writing text or JSON output.
+        batch_cases = path / "batch-cases.json"
+        passing_case = {"request": valid, "decision": "Allow"}
+        for malformed in (
+            None, {}, {"request": valid, "decision": "Maybe"},
+            {"request": {**valid, "principal": {"type": "bad type", "id": "x"}}, "decision": "Allow"},
+            {"request": valid, "decision": "Allow", "reasons": ["same", "same"]},
+        ):
+            batch_cases.write_text(json.dumps([passing_case, malformed]), encoding="utf-8")
+            for flags in ((), ("--format", "json")):
+                result = run("test", entity_policy, empty, batch_cases, *flags)
+                assert result.returncode == 2 and not result.stdout
+                checks += 1
+        # Crossing the internal request batch boundary preserves every result.
+        deny_policy = path / "empty-policy.cedar"
+        deny_policy.write_text("", encoding="utf-8")
+        empty_case = {"request": valid, "decision": "Deny"}
+        for size in (4095, 4096, 4097):
+            batch_cases.write_text(json.dumps([empty_case] * size, separators=(",", ":")), encoding="utf-8")
+            result = run("test", deny_policy, empty, batch_cases, "--format", "json")
+            report = json.loads(result.stdout)
+            assert result.returncode == 0 and report["failures"] == 0 and len(report["cases"]) == size
+            assert report["cases"][0]["index"] == 0 and report["cases"][-1]["index"] == size - 1
+            checks += 1
+        edge_policy = path / "edge-policy.cedar"
+        edge_policy.write_text('permit(principal == User::"alice", action, resource);', encoding="utf-8")
+        alice = {**valid, "principal": {"type": "User", "id": "alice"}}
+        batch_cases.write_text(json.dumps([empty_case] * 4096 + [{"request": alice, "decision": "Allow"}], separators=(",", ":")), encoding="utf-8")
+        result = run("test", edge_policy, empty, batch_cases, "--format", "json")
+        report = json.loads(result.stdout)
+        assert result.returncode == 0 and report["cases"][4095]["response"]["decision"] == "Deny"
+        assert report["cases"][4096]["response"]["decision"] == "Allow" and report["cases"][4096]["response"]["reasons"] == ["policy0"]
+        checks += 1
+        batch_cases.write_text(json.dumps([empty_case] * 4096 + [{"request": valid}], separators=(",", ":")), encoding="utf-8")
+        for flags in ((), ("--format", "json")):
+            result = run("test", deny_policy, empty, batch_cases, *flags)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}
         failed.write_text(json.dumps([{"request": request_obj, "decision": "Deny"}]), encoding="utf-8")
