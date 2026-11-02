@@ -37,6 +37,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy
 moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.cedar examples/session/entities.json examples/session/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/access-window/policy.cedar examples/access-window/entities.json examples/access-window/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/template-sharing/policy.cedar examples/template-sharing/entities.json examples/template-sharing/requests.json --template examples/template-sharing/template.cedar --links examples/template-sharing/links.json
+moon run cmd/cedar-auth-engine --target native -- test examples/multi-template/policy.cedar examples/multi-template/entities.json examples/multi-template/requests.json --template examples/multi-template/direct.cedar --links examples/multi-template/direct-links.json --template examples/multi-template/team.cedar --links examples/multi-template/team-links.json
 python scripts/smoke.py
 ```
 
@@ -80,18 +81,20 @@ requests, sharing one entity graph within each chunk. Empty input still checks
 the entity graph.
 
 For `authorize`, `batch`, `enforce`, `enforce-batch` and `test`, add
-`--template TEMPLATE --links LINKS`
-to evaluate static policies together with links from one template. The links
-file is an array such as:
+`--template TEMPLATE --links LINKS` to evaluate static policies together with
+template links. Repeat the two options to load multiple templates. Templates
+and links files are paired in their respective order of appearance; their counts
+must match. The CLI accepts up to 1024 pairs. Each links file is an array such as:
 
 ```json
 [{"id":"share-1","principal":{"type":"User","id":"alice"},"resource":{"type":"File","id":"report"}}]
 ```
 
-Each link supplies exactly the slots used by the template and a unique policy
-ID; omit an unused slot. All links and their IDs are checked before any result
-is produced. A linked policy's ID appears in authorization reasons and errors.
-See [template sharing](examples/template-sharing/) for complete inputs.
+Each link supplies exactly the slots used by its template and a policy ID
+unique across the static policies and all links; omit an unused slot. All groups
+are checked before any result is produced. A linked policy's ID appears in
+authorization reasons and errors. See [template sharing](examples/template-sharing/)
+and [multiple templates](examples/multi-template/) for complete inputs.
 
 The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
@@ -173,8 +176,21 @@ let linked = policies.link(template, "share-1", {
 let response = @engine.authorize(linked, request, [])
 ```
 
-`template.slots()` lists the required slots. Linking returns a new policy set;
-the original remains unchanged. Each link captures the parsed template at link
+To add several links to the same template in one operation, use `link_batch`:
+
+```moonbit
+let links : Array[@engine.TemplateLink] = [
+  { id: "share-1", bindings: {
+    principal: Some(request.principal), resource: Some(request.resource),
+  } },
+]
+let linked = policies.link_batch(template, links)
+```
+
+`template.slots()` lists the required slots. Both linking methods return a new
+policy set; the original remains unchanged. `link_batch` validates every link
+before returning and preserves their order. Call it again to link another
+template. Each link captures the parsed template at link
 time. When a template changes, parse it and rebuild its links to apply the
 change. The application owns template storage and the mapping from template
 versions to links.
@@ -206,7 +222,7 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   Annotations are metadata and do not change authorization decisions.
   Templates support `?principal` and `?resource` only on the corresponding
   scope operand of `==` or `in`, including `is Type in`. Linking requires all
-  and only the template slots. The CLI loads one template at a time.
+  and only the template slots. The CLI accepts multiple template/link pairs.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
 - Entity tags via `.hasTag(key)` and `.getTag(key)`, where `key` can be any
@@ -300,7 +316,8 @@ decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
-responses, and links compared with Cedar template-linked policies. It reports mismatches and exits nonzero.
+responses, and links from single and multiple templates compared with Cedar
+template-linked policies. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -309,7 +326,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 911 requests, 36 invalid-syntax cases and 5 invalid
+the current run made 956 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.
