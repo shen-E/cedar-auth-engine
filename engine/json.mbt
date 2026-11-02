@@ -1,6 +1,6 @@
 ///|
 priv enum JsonContainer {
-  JsonObject(Array[String])
+  JsonObject(Map[String, Bool])
   JsonArray
 }
 
@@ -15,7 +15,7 @@ pub fn parse_json(text : String) -> Json raise PolicyError {
   while i < chars.length() {
     match chars[i] {
       '{' => {
-        stack.push(JsonObject([]))
+        stack.push(JsonObject(Map([])))
         i += 1
       }
       '[' => {
@@ -68,7 +68,7 @@ pub fn parse_json(text : String) -> Json raise PolicyError {
               if keys.contains(key) {
                 raise PolicyError("duplicate JSON key '\{key}'")
               }
-              keys.push(key)
+              keys[key] = true
             }
             JsonArray => ()
           }
