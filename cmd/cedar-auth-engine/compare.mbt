@@ -5,10 +5,8 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut fail_on_change = false
-  let before_templates : Array[String] = []
-  let before_links : Array[String] = []
-  let after_templates : Array[String] = []
-  let after_links : Array[String] = []
+  let before_inputs = policy_inputs()
+  let after_inputs = policy_inputs()
   let mut i = 6
   while i < args.length() {
     if args[i] == "--format" &&
@@ -21,40 +19,47 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       fail_on_change = true
       i += 1
     } else if args[i] == "--before-template" && i + 1 < args.length() {
-      before_templates.push(args[i + 1])
+      before_inputs.templates.push(args[i + 1])
       i += 2
     } else if args[i] == "--before-links" && i + 1 < args.length() {
-      before_links.push(args[i + 1])
+      before_inputs.links.push(args[i + 1])
       i += 2
     } else if args[i] == "--after-template" && i + 1 < args.length() {
-      after_templates.push(args[i + 1])
+      after_inputs.templates.push(args[i + 1])
       i += 2
     } else if args[i] == "--after-links" && i + 1 < args.length() {
-      after_links.push(args[i + 1])
+      after_inputs.links.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--before-add-policies" && i + 1 < args.length() {
+      before_inputs.additions.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--after-add-policies" && i + 1 < args.length() {
+      after_inputs.additions.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--before-replace-policies" && i + 1 < args.length() {
+      before_inputs.replacements.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--after-replace-policies" && i + 1 < args.length() {
+      after_inputs.replacements.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--before-remove-policy" && i + 1 < args.length() {
+      before_inputs.removals.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--after-remove-policy" && i + 1 < args.length() {
+      after_inputs.removals.push(args[i + 1])
       i += 2
     } else {
       raise CliError("invalid compare arguments; use --help")
     }
   }
-  if before_templates.length() != before_links.length() ||
-    after_templates.length() != after_links.length() {
+  if before_inputs.templates.length() != before_inputs.links.length() ||
+    after_inputs.templates.length() != after_inputs.links.length() {
     raise CliError("template and links counts must match on each side")
   }
-  if before_templates.length() > 1024 || after_templates.length() > 1024 {
-    raise CliError("template pair limit exceeded")
-  }
-  let mut before = @engine.parse_policies(read_text(args[2]))
-  let mut after = @engine.parse_policies(read_text(args[3]))
-  for index in 0..<before_templates.length() {
-    before = apply_template(
-      before,
-      before_templates[index],
-      before_links[index],
-    )
-  }
-  for index in 0..<after_templates.length() {
-    after = apply_template(after, after_templates[index], after_links[index])
-  }
+  before_inputs.validate()
+  after_inputs.validate()
+  let before = before_inputs.load(args[2])
+  let after = after_inputs.load(args[3])
   let entities = @engine.tagged_entities_from_json(load_json(args[4]))
   let items = match load_json(args[5]) {
     Array(items) => items
