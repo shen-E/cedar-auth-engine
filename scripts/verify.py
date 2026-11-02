@@ -172,6 +172,33 @@ def main():
                 count += 2
                 if got != ref or batch_got != ref:
                     mismatches.append({"case": "removal:" + ",".join(removed_ids) + ":" + str(index), "reference": ref, "actual": got, "batch": batch_got})
+        # Compare an added forbid and replacements of a static policy and a link.
+        update = ROOT / "examples" / "policy-update"
+        update_policy = temp / "updates-reference.cedar"
+        update_policy.write_text("\n".join(p.read_text(encoding="utf-8") for p in (
+            multi / "direct.cedar", multi / "team.cedar",
+            update / "additional.cedar", update / "replacements.cedar")), encoding="utf-8")
+        update_links = temp / "updates-reference-links.json"
+        update_links.write_text(json.dumps([link for link in reference_links if link["link_id"] != "alice-report"]), encoding="utf-8")
+        update_cases = json.loads((update / "requests.json").read_text(encoding="utf-8"))
+        update_flags = (*multi_flags, "--add-policies", update / "additional.cedar", "--replace-policies", update / "replacements.cedar")
+        update_input = temp / "updates-batch.json"
+        update_input.write_text(json.dumps([case["request"] for case in update_cases]), encoding="utf-8")
+        update_batch = run([args.engine, "batch", multi / "policy.cedar", multi / "entities.json", update_input, *update_flags, "--format", "json"])
+        if update_batch.returncode != 0:
+            raise RuntimeError("updated policy batch failed: " + update_batch.stderr)
+        update_results = json.loads(update_batch.stdout)
+        if len(update_results) != len(update_cases):
+            raise RuntimeError("updated policy batch length mismatch")
+        for index, case in enumerate(update_cases):
+            ref = reference(args.cedar, update_policy, multi / "entities.json", case["request"], temp, update_links)
+            got = actual(args.engine, multi / "policy.cedar", multi / "entities.json", case["request"], temp, update_flags)
+            raw = update_results[index]
+            batch_got = {"decision": raw["decision"], "reasons": sorted(raw["reasons"]), "errors": sorted(error["policy_id"] for error in raw["errors"])}
+            expected = {"decision": case["decision"], "reasons": sorted(case["reasons"]), "errors": sorted(case["errors"])}
+            count += 2
+            if got != ref or batch_got != ref or ref != expected:
+                mismatches.append({"case": "updates:" + str(index), "expected": expected, "reference": ref, "actual": got, "batch": batch_got})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
