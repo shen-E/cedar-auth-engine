@@ -278,3 +278,39 @@ test "validate entity type names through the public library" {
   }
   assert_true(rejected)
 }
+
+///|
+test "enforcement requires Allow with no policy errors" {
+  let allow = @engine.Response::{
+    decision: @engine.Allow,
+    reasons: ["permit"],
+    errors: [],
+  }
+  let deny = @engine.Response::{
+    decision: @engine.Deny,
+    reasons: [],
+    errors: [],
+  }
+  let error : @engine.Diagnostic = {
+    policy_id: "guard",
+    message: "missing attribute",
+  }
+  let allow_with_error = @engine.Response::{
+    decision: @engine.Allow,
+    reasons: ["permit"],
+    errors: [error],
+  }
+  let deny_with_error = @engine.Response::{
+    decision: @engine.Deny,
+    reasons: [],
+    errors: [error],
+  }
+  assert_true(allow.is_authorized())
+  assert_false(deny.is_authorized())
+  assert_false(allow_with_error.is_authorized())
+  assert_false(deny_with_error.is_authorized())
+  assert_true(
+    allow_with_error.decision == @engine.Allow &&
+    allow_with_error.reasons == ["permit"],
+  )
+}
