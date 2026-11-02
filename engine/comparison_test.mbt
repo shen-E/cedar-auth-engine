@@ -106,3 +106,116 @@ test "comparison batch limit is enforced before returning results" {
   }
   assert_true(rejected)
 }
+
+///|
+test "compare team memberships across independent entity snapshots" {
+  let policy = @engine.parse_policies(
+    "@id(\"team\") permit(principal in Group::\"editors\", action == Action::\"read\", resource);",
+  )
+  let alice = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let bob = { ..alice, principal: { kind: "User", id: "bob", }, }
+  let before_entities : Array[@engine.Entity] = [
+    {
+      uid: alice.principal,
+      attrs: {},
+      parents: [{ kind: "Group", id: "editors", }],
+    },
+    { uid: bob.principal, attrs: {}, parents: [], },
+  ]
+  let after_entities : Array[@engine.Entity] = [
+    { uid: alice.principal, attrs: {}, parents: [], },
+    {
+      uid: bob.principal,
+      attrs: {},
+      parents: [{ kind: "Group", id: "editors", }],
+    },
+  ]
+  let before = @engine.EntityStore::new(before_entities)
+  let after = @engine.EntityStore::new(after_entities)
+  let cases = before.compare_with_entities(after, policy, policy, [alice, bob])
+  assert_true(
+    cases[0].before.decision == @engine.Allow &&
+    cases[0].after.decision == @engine.Deny,
+  )
+  assert_true(
+    cases[1].before.decision == @engine.Deny &&
+    cases[1].after.decision == @engine.Allow,
+  )
+  assert_true(cases[0].decision_changed() && cases[1].enforcement_changed())
+  assert_true(
+    before.compare_with_entities(after, policy, policy, []).is_empty(),
+  )
+  let same = before.compare_with_entities(before, policy, policy, [alice, bob])
+  let existing = before.compare(policy, policy, [alice, bob])
+  assert_false(same[0].changed() || same[1].changed())
+  assert_true(
+    @engine.response_to_json(same[0].before).stringify() ==
+    @engine.response_to_json(existing[0].before).stringify(),
+  )
+  after_entities[1].parents.clear()
+  assert_true(
+    before.compare_with_entities(after, policy, policy, [bob])[0].after.decision ==
+    @engine.Allow,
+  )
+}
+
+///|
+test "entity attribute changes can alter enforcement without changing Cedar decision" {
+  let policies = @engine.parse_policies(
+    "@id(\"allow\") permit(principal, action, resource); @id(\"guard\") forbid(principal, action, resource) when { resource.locked };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let before = @engine.EntityStore::new([
+    {
+      uid: request.resource,
+      attrs: { "locked": @engine.BoolValue(false) },
+      parents: [],
+    },
+  ])
+  let after = @engine.EntityStore::new([
+    { uid: request.resource, attrs: {}, parents: [], },
+  ])
+  let result = before.compare_with_entities(after, policies, policies, [request])[0]
+  assert_true(
+    result.before.decision == @engine.Allow &&
+    result.after.decision == @engine.Allow,
+  )
+  assert_false(result.decision_changed())
+  assert_true(result.errors_changed() && result.enforcement_changed())
+  assert_true(result.after.errors[0].policy_id == "guard")
+}
+
+///|
+test "different entity comparison respects the request batch limit" {
+  let empty = @engine.parse_policies("")
+  let before = @engine.EntityStore::new([])
+  let after = @engine.EntityStore::new([])
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "a", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "r", },
+    context: {},
+  }
+  let requests = Array::make(4096, request)
+  assert_true(
+    before.compare_with_entities(after, empty, empty, requests).length() == 4096,
+  )
+  requests.push(request)
+  let rejected = try {
+    let _ = before.compare_with_entities(after, empty, empty, requests)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
