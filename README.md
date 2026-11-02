@@ -38,6 +38,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.c
 moon run cmd/cedar-auth-engine --target native -- test examples/access-window/policy.cedar examples/access-window/entities.json examples/access-window/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/template-sharing/policy.cedar examples/template-sharing/entities.json examples/template-sharing/requests.json --template examples/template-sharing/template.cedar --links examples/template-sharing/links.json
 moon run cmd/cedar-auth-engine --target native -- test examples/multi-template/policy.cedar examples/multi-template/entities.json examples/multi-template/requests.json --template examples/multi-template/direct.cedar --links examples/multi-template/direct-links.json --template examples/multi-template/team.cedar --links examples/multi-template/team-links.json
+moon run cmd/cedar-auth-engine --target native -- test examples/multi-template/policy.cedar examples/multi-template/entities.json examples/policy-update/requests.json --add-policies examples/policy-update/additional.cedar --template examples/multi-template/direct.cedar --links examples/multi-template/direct-links.json --template examples/multi-template/team.cedar --links examples/multi-template/team-links.json --replace-policies examples/policy-update/replacements.cedar
 python scripts/smoke.py
 ```
 
@@ -95,6 +96,22 @@ unique across the static policies and all links; omit an unused slot. All groups
 are checked before any result is produced. A linked policy's ID appears in
 authorization reasons and errors. See [template sharing](examples/template-sharing/)
 and [multiple templates](examples/multi-template/) for complete inputs.
+
+The same commands also accept `--add-policies FILE` to append a Cedar policy
+file and `--replace-policies FILE` to replace existing policies by ID. Both
+options can be repeated, with up to 1,024 files per option. Each added ID must
+be new, and each replacement ID must already exist. Use explicit `@id` values
+when composing files: automatically assigned IDs start from `policy0` in each
+file. The [policy update example](examples/policy-update/) combines an emergency
+rule with replacements for a static rule and a linked share. The host must set
+`authenticated`, `mfa`, `emergency` and `override` from trusted application
+state; accepting these flags directly from an untrusted caller would let that
+caller affect authorization.
+
+Updates are applied in this order, regardless of option order: the main file,
+added policy files in their given order, template links, replacement files in
+their given order, then removals. A later replacement file can replace an ID
+from an earlier one. Invalid updates fail before any authorization output.
 
 The same commands accept `--remove-policy ID` to evaluate without that policy.
 Repeat it for multiple IDs. Removal happens after all templates are linked and
@@ -200,6 +217,27 @@ template. Each link captures the parsed template at link
 time. When a template changes, parse it and rebuild its links to apply the
 change. The application owns template storage and the mapping from template
 versions to links.
+
+Combine or update parsed policy sets in memory:
+
+```moonbit
+let additional = @engine.parse_policies(
+  "@id(\"guard\") forbid(principal, action, resource) when { context.suspended };",
+)
+let combined = policies.merge(additional)
+let replacement = @engine.parse_policies(
+  "@id(\"guard\") forbid(principal, action, resource) when { context.blocked };",
+)
+let updated = combined.replace(replacement)
+```
+
+`merge` appends policies with distinct IDs; `replace` requires every supplied
+ID to exist and retains the original policy order. Either input can contain
+static or linked policies. Both methods return a new set or raise an error
+without changing either input. Replacement changes the whole policy, including
+its effect, condition and annotations. The 1,024-policy limit applies to the
+merged result. Applications control when to publish a new snapshot to their
+workers.
 
 Revoke a policy by ID when an application updates access:
 
@@ -337,8 +375,8 @@ decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
-responses, links from single and multiple templates, and policy removal
-compared with the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
+responses, links from single and multiple templates, policy removal, and
+policy updates compared with the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -347,7 +385,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 1,010 comparisons, 36 invalid-syntax cases and 5 invalid
+the current run made 1,020 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.
