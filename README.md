@@ -59,7 +59,10 @@ match exactly and default to an empty list. The comparisons ignore order and
 reject duplicate IDs. JSON output includes a per-case `checks` object; its
 `reasons` value is `null` when that comparison was omitted. A mismatched case
 makes the command exit 1. The [diagnostics example](examples/diagnostics/)
-includes a deliberate policy error and its expected ID.
+includes a deliberate policy error and its expected ID. The command validates
+all cases before printing results and evaluates them in chunks of up to 4,096
+requests, sharing one entity graph within each chunk. Empty input still checks
+the entity graph.
 
 For `authorize`, `batch` and `test`, add `--template TEMPLATE --links LINKS`
 to evaluate static policies together with links from one template. The links
@@ -271,8 +274,8 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
-individual reference decisions, and links compared with Cedar template-linked
-policies. It reports mismatches and exits nonzero.
+individual reference decisions, test-command responses, and links compared with
+Cedar template-linked policies. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 inputs are checked against Cedar, and generated timestamps are checked against
@@ -281,7 +284,7 @@ Python calendar arithmetic. The MoonBit tests also compare all
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 774 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 794 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

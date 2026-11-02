@@ -132,6 +132,39 @@ fn apply_template(
 }
 
 ///|
+priv struct TestCase {
+  request : @engine.Request
+  expected : String
+  expected_reasons : Array[String]?
+  expected_errors : Array[String]
+}
+
+///|
+fn parse_test_case(item : Json) -> TestCase raise {
+  let fields = match item {
+    Object(fields) => fields
+    _ => raise CliError("test case must be an object")
+  }
+  let request = match fields.get("request") {
+    Some(request) => @engine.request_from_json(request)
+    None => raise CliError("test case missing request")
+  }
+  let expected = match fields.get("decision") {
+    Some(String(value)) => value
+    _ => raise CliError("test case missing decision")
+  }
+  if expected != "Allow" && expected != "Deny" {
+    raise CliError("expected decision must be Allow or Deny")
+  }
+  {
+    request,
+    expected,
+    expected_reasons: optional_policy_ids(fields, "reasons"),
+    expected_errors: optional_policy_ids(fields, "errors").unwrap_or([]),
+  }
+}
+
+///|
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
@@ -284,32 +317,41 @@ fn run(args : Array[String]) -> Int32 raise {
     Array(items) => items
     _ => raise CliError("test input must be an array")
   }
-  @engine.validate_entities(entities)
+  let parsed_cases = []
+  for item in cases {
+    parsed_cases.push(parse_test_case(item))
+  }
+  let responses : Array[@engine.Response] = []
+  let mut start = 0
+  while start < parsed_cases.length() {
+    let requests = []
+    let end = if start + 4096 < parsed_cases.length() {
+      start + 4096
+    } else {
+      parsed_cases.length()
+    }
+    for i in start..<end {
+      requests.push(parsed_cases[i].request)
+    }
+    for
+      response in @engine.authorize_batch_with_tags(
+        policies, requests, entities,
+      ) {
+      responses.push(response)
+    }
+    start = end
+  }
+  if parsed_cases.is_empty() {
+    @engine.validate_entities(entities)
+  }
   let results : Array[Json] = []
   let mut failures = 0
-  for i in 0..<cases.length() {
-    let fields = match cases[i] {
-      Object(fields) => fields
-      _ => raise CliError("test case must be an object")
-    }
-    let request = match fields.get("request") {
-      Some(request) => request
-      None => raise CliError("test case missing request")
-    }
-    let expected = match fields.get("decision") {
-      Some(String(value)) => value
-      _ => raise CliError("test case missing decision")
-    }
-    if expected != "Allow" && expected != "Deny" {
-      raise CliError("expected decision must be Allow or Deny")
-    }
-    let expected_reasons = optional_policy_ids(fields, "reasons")
-    let expected_errors = optional_policy_ids(fields, "errors").unwrap_or([])
-    let response = @engine.authorize_with_tags(
-      policies,
-      @engine.request_from_json(request),
-      entities,
-    )
+  for i in 0..<parsed_cases.length() {
+    let test_case = parsed_cases[i]
+    let expected = test_case.expected
+    let expected_reasons = test_case.expected_reasons
+    let expected_errors = test_case.expected_errors
+    let response = responses[i]
     let actual = match response.decision {
       Allow => "Allow"
       Deny => "Deny"

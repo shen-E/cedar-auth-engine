@@ -160,6 +160,25 @@ def main():
                 count += 1
                 if ref != got:
                     mismatches.append({"case": name + ":batch:" + str(i), "reference": ref, "actual": got})
+        # Check the case-test command against independent Cedar decisions.
+        for name in ("diagnostics", "tags", "device"):
+            base = ROOT / "examples" / name
+            cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
+            report = run([args.engine, "test", base / "policy.cedar", base / "entities.json", base / "requests.json", "--format", "json"])
+            if report.returncode != 0:
+                mismatches.append({"case": name + ":test command", "status": report.returncode, "stderr": report.stderr})
+                continue
+            data = json.loads(report.stdout)
+            if data["failures"] != 0 or len(data["cases"]) != len(cases):
+                mismatches.append({"case": name + ":test report", "report": data})
+                continue
+            for index, (case, result) in enumerate(zip(cases, data["cases"])):
+                ref = reference(args.cedar, base / "policy.cedar", base / "entities.json", case["request"], temp)
+                response = result["response"]
+                got = {"decision": response["decision"], "reasons": sorted(response["reasons"]), "errors": sorted(error["policy_id"] for error in response["errors"])}
+                count += 1
+                if ref != got or result["index"] != index or not result["passed"]:
+                    mismatches.append({"case": name + ":test:" + str(index), "reference": ref, "actual": got, "report": result})
         policy = temp / "errors.cedar"
         entities = temp / "entities.json"
         policy.write_text('permit(principal, action, resource); forbid(principal, action, resource) when { resource.missing };', encoding="utf-8")
