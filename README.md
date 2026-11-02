@@ -78,10 +78,12 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
 `parents`, and optional `tags`; entity-valued attributes use
 `{"__entity":{"type":"User","id":"alice"}}`.
-See [examples](examples/) for complete inputs. Duplicate JSON keys, unsupported
-extension values other than IP, decimal, duration and datetime, nulls, invalid integers
-and malformed input are rejected. Extension values in entity attributes or
-request context use `{"__extn":{"fn":"decimal","arg":"125.4500"}}`,
+See [examples](examples/) for complete inputs. Entity type names in requests,
+entity data and template bindings must use valid Cedar identifiers and
+namespaces; entity IDs may be arbitrary strings. Duplicate JSON keys, unsupported
+extension values other than IP, decimal, duration and datetime, nulls, invalid
+integers and malformed input are rejected. Extension values in entity
+attributes or request context use `{"__extn":{"fn":"decimal","arg":"125.4500"}}`,
 `{"__extn":{"fn":"duration","arg":"1h30m"}}`,
 `{"__extn":{"fn":"datetime","arg":"2026-11-01T12:00:00Z"}}`, or
 `{"__extn":{"fn":"ip","arg":"10.1.2.3"}}`. The host must derive the
@@ -114,9 +116,12 @@ let response = @engine.authorize(policies, request, [])
 `authorize_with_tags`. For multiple requests, `authorize_batch` and
 `authorize_batch_with_tags` validate and index the shared entity graph once and
 return responses in input order. `validate_entities` checks graph limits, duplicate IDs
-and cycles independently of policy evaluation. The original `authorize` and `entities_from_json`
-accept entities without tags; `entities_from_json` rejects nonempty tags to
-prevent silently discarding them. Use `parse_json` for text input to detect
+and cycles independently of policy evaluation. When constructing typed request
+and entity values directly, call `EntityId::validate()` on each identifier to
+validate its type name; JSON inputs and template bindings perform this check.
+The original `authorize` and `entities_from_json` accept entities without
+tags; `entities_from_json` rejects nonempty tags to prevent silently discarding
+them. Use `parse_json` for text input to detect
 duplicate keys; duplicate keys are already lost if a caller supplies an
 independently parsed `Json` value. The caller can alternatively construct typed
 values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`,
@@ -277,7 +282,8 @@ The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
 the current comparison ran 774 requests, 36 invalid-syntax cases and 5 invalid
-entity-graph cases with no mismatches. This is evidence for the selected cases,
-not a claim of full Cedar conformance.
+entity-graph cases with no mismatches. Another 41 checks compare accepted and
+rejected entity type names in entity data, requests and template bindings. These
+results cover the selected cases, rather than all Cedar behavior.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.

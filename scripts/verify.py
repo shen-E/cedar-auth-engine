@@ -715,6 +715,68 @@ def main():
             graph_checks += 1
             if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip() or empty_batch.returncode != 2 or empty_batch.stdout.strip() or empty_authorize_batch.returncode != 2 or empty_authorize_batch.stdout.strip():
                 mismatches.append({"case": "invalid entity graph", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode, "empty_batch_status": empty_batch.returncode, "empty_authorize_batch_status": empty_authorize_batch.returncode})
+        # Compare accepted entity type names and invalid IDs at the JSON boundary.
+        entity_type_checks = 0
+        name_cases = [
+            ("User", True), ("App::User", True), ("_", True), ("_App::_2", True),
+            ("principal", True), ("when", True), ("__cedarX", True), ("App::when", True),
+            ("", False), (" User", False), ("User ", False), ("1User", False),
+            ("User-Name", False), ("User.Name", False), ("équipe", False),
+            ("::User", False), ("User::", False), ("User::::Group", False), ("User::1Group", False),
+            ("User:: if", False), ("User::Group\n", False), ("if", False), ("then", False),
+            ("else", False), ("in", False), ("is", False), ("has", False), ("like", False),
+            ("true", False), ("false", False), ("__cedar", False), ("App::if", False), ("App::__cedar", False),
+        ]
+        for kind, valid in name_cases:
+            entities.write_text(json.dumps([{"uid": {"type": kind, "id": ""}, "attrs": {}, "parents": []}], ensure_ascii=False), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
+            got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
+            entity_type_checks += 1
+            if (ref.returncode == 0) != valid or (got.returncode == 0) != valid or (not valid and (got.returncode != 2 or got.stdout.strip())):
+                mismatches.append({"case": "entity type", "type": kind, "reference_status": ref.returncode, "actual_status": got.returncode})
+        bad_uid = {"type": "invalid type", "id": "x"}
+        good_uid = {"type": "User", "id": "a"}
+        for graph in [
+            [{"uid": bad_uid, "attrs": {}, "parents": []}],
+            [{"uid": good_uid, "attrs": {}, "parents": [bad_uid]}],
+            [{"uid": good_uid, "attrs": {"owner": {"__entity": bad_uid}}, "parents": []}],
+            [{"uid": good_uid, "attrs": {}, "parents": [], "tags": {"owner": {"__entity": bad_uid}}}],
+        ]:
+            entities.write_text(json.dumps(graph), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
+            got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
+            entity_type_checks += 1
+            if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "invalid nested entity type", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode})
+        entities.write_text("[]", encoding="utf-8")
+        for field in ("principal", "action", "resource"):
+            bad_request = {**request, field: bad_uid}
+            bad_ref_request = {k: uid(bad_request[k]) for k in ("principal", "action", "resource")}
+            bad_ref_request["context"] = bad_request["context"]
+            ref_path.write_text(json.dumps(bad_ref_request), encoding="utf-8")
+            engine_path.write_text(json.dumps(bad_request), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
+            got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
+            entity_type_checks += 1
+            if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "invalid request entity type: " + field, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Template bindings are entity IDs and follow the same naming rule.
+        sharing = ROOT / "examples" / "template-sharing"
+        bad_links = json.loads((sharing / "links.json").read_text(encoding="utf-8"))
+        bad_links[0]["principal"]["type"] = "invalid type"
+        bad_links_path = temp / "invalid-entity-link.json"
+        bad_links_path.write_text(json.dumps(bad_links), encoding="utf-8")
+        ref_links_path = temp / "invalid-entity-link-reference.json"
+        ref_links_path.write_text(json.dumps([{"template_id": "share", "link_id": link["id"], "args": {"?" + slot: uid(link[slot]) for slot in ("principal", "resource")}} for link in bad_links]), encoding="utf-8")
+        ref_policy_path = temp / "invalid-entity-link-policy.cedar"
+        ref_policy_path.write_text((sharing / "policy.cedar").read_text(encoding="utf-8") + "\n" + (sharing / "template.cedar").read_text(encoding="utf-8"), encoding="utf-8")
+        ref_path.write_text(json.dumps(ref_request), encoding="utf-8")
+        engine_path.write_text(json.dumps(request), encoding="utf-8")
+        ref = run([args.cedar, "authorize", "--policies", ref_policy_path, "--entities", sharing / "entities.json", "--request-json", ref_path, "--template-linked", ref_links_path])
+        got = run([args.engine, "authorize", sharing / "policy.cedar", sharing / "entities.json", engine_path, "--template", sharing / "template.cedar", "--links", bad_links_path, "--format", "json"])
+        entity_type_checks += 1
+        if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+            mismatches.append({"case": "invalid template slot entity type", "reference_status": ref.returncode, "actual_status": got.returncode})
         syntax_checks = 0
         for expression in (
             r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',
@@ -750,7 +812,7 @@ def main():
             syntax_checks += 1
             if ref.returncode == 0 or got.returncode != 2:
                 mismatches.append({"case": source, "reference_status": ref.returncode, "actual_status": got.returncode})
-    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "mismatches": mismatches}, indent=2))
+    print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
 

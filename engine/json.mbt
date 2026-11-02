@@ -118,7 +118,12 @@ fn string_field(
 ///|
 fn entity_id(value : Json) -> EntityId raise PolicyError {
   let fields = object(value, "entity id")
-  { kind: string_field(fields, "type"), id: string_field(fields, "id"), }
+  let uid : EntityId = {
+    kind: string_field(fields, "type"),
+    id: string_field(fields, "id"),
+  }
+  uid.validate()
+  uid
 }
 
 ///|

@@ -80,6 +80,14 @@ pub fn PolicySet::link(
     template.resource_slot != (bindings.resource is Some(_)) {
     raise PolicyError("template bindings must match required slots")
   }
+  match bindings.principal {
+    Some(uid) => uid.validate()
+    None => ()
+  }
+  match bindings.resource {
+    Some(uid) => uid.validate()
+    None => ()
+  }
   if self.policies.length() >= 1024 {
     raise PolicyError("policy count limit exceeded")
   }
