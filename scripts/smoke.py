@@ -131,6 +131,53 @@ def main():
             result = run("batch", policy, entities, batch_file, *flags, "--format", "json")
             assert result.returncode == 2 and not result.stdout
             checks += 1
+        flags = ("--template", direct, "--links", direct_links, "--template", team, "--links", team_links)
+        # Removal is applied after all templates are linked, independent of flag order.
+        remove_flags = ("--remove-policy", "alice-report", *flags, "--remove-policy", "carol-report")
+        removed = run("batch", policy, entities, batch_file, *remove_flags, "--format", "json")
+        removed_responses = json.loads(removed.stdout)
+        assert removed.returncode == 0 and removed_responses[0]["decision"] == "Deny"
+        assert removed_responses[1]["reasons"] == ["design-team"]
+        assert [error["policy_id"] for error in removed_responses[8]["errors"]] == ["design-team"]
+        checks += 1
+        for index, case in enumerate(cases_value):
+            request = path / "removed-request.json"
+            request.write_text(json.dumps(case["request"]), encoding="utf-8")
+            single = run("authorize", policy, entities, request, *remove_flags, "--format", "json")
+            assert single.returncode == 0 and json.loads(single.stdout) == removed_responses[index]
+            enforced = run("enforce", policy, entities, request, *remove_flags, "--format", "json")
+            allowed = removed_responses[index]["decision"] == "Allow" and not removed_responses[index]["errors"]
+            assert enforced.returncode == (0 if allowed else 1)
+            assert json.loads(enforced.stdout) == {"allowed": allowed, "response": removed_responses[index]}
+            checks += 2
+        enforced = run("enforce-batch", policy, entities, batch_file, *remove_flags, "--format", "json")
+        assert enforced.returncode == 1 and json.loads(enforced.stdout) == [
+            {"allowed": item["decision"] == "Allow" and not item["errors"], "response": item}
+            for item in removed_responses
+        ]
+        checks += 1
+        test_cases = path / "removed-cases.json"
+        test_cases.write_text(json.dumps([
+            {"request": item["request"], "decision": result["decision"],
+             "reasons": result["reasons"], "errors": [error["policy_id"] for error in result["errors"]]}
+            for item, result in zip(cases_value, removed_responses)
+        ]), encoding="utf-8")
+        tested = run("test", policy, entities, test_cases, *remove_flags, "--format", "json")
+        assert tested.returncode == 0 and json.loads(tested.stdout)["failures"] == 0
+        checks += 1
+        # Removing a forbid can reveal a permit.
+        without_forbid = run("batch", policy, entities, batch_file, *flags, "--remove-policy", "revoked", "--format", "json")
+        assert without_forbid.returncode == 0 and json.loads(without_forbid.stdout)[4]["reasons"] == ["design-team"]
+        checks += 1
+        for invalid in (("alice-report", "missing"), ("design-team", "design-team")):
+            for command in ("batch", "enforce-batch", "test"):
+                input_file = test_cases if command == "test" else batch_file
+                result = run(command, policy, entities, input_file, *flags, "--remove-policy", invalid[0], "--remove-policy", invalid[1], "--format", "json")
+                assert result.returncode == 2 and not result.stdout
+                checks += 1
+        result = run("check", policy, "--remove-policy", "revoked")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
         no_links = path / "empty-links.json"
         no_links.write_text("[]", encoding="utf-8")
         result = run("batch", policy, entities, batch_file, "--template", direct, "--links", direct_links, "--template", team, "--links", no_links, "--format", "json")
