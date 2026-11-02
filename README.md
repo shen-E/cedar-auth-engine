@@ -35,6 +35,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.ce
 moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy.cedar examples/approvals/entities.json examples/approvals/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.cedar examples/session/entities.json examples/session/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/access-window/policy.cedar examples/access-window/entities.json examples/access-window/requests.json
+moon run cmd/cedar-auth-engine --target native -- test examples/template-sharing/policy.cedar examples/template-sharing/entities.json examples/template-sharing/requests.json --template examples/template-sharing/template.cedar --links examples/template-sharing/links.json
 python scripts/smoke.py
 ```
 
@@ -59,6 +60,19 @@ reject duplicate IDs. JSON output includes a per-case `checks` object; its
 `reasons` value is `null` when that comparison was omitted. A mismatched case
 makes the command exit 1. The [diagnostics example](examples/diagnostics/)
 includes a deliberate policy error and its expected ID.
+
+For `authorize`, `batch` and `test`, add `--template TEMPLATE --links LINKS`
+to evaluate static policies together with links from one template. The links
+file is an array such as:
+
+```json
+[{"id":"share-1","principal":{"type":"User","id":"alice"},"resource":{"type":"File","id":"report"}}]
+```
+
+Each link supplies exactly the slots used by the template and a unique policy
+ID; omit an unused slot. All links and their IDs are checked before any result
+is produced. A linked policy's ID appears in authorization reasons and errors.
+See [template sharing](examples/template-sharing/) for complete inputs.
 
 The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
@@ -118,6 +132,25 @@ let entities = @engine.tagged_entities_from_json(@engine.parse_json(entity_text)
 let response = @engine.authorize_with_tags(policies, request, entities)
 ```
 
+A reusable policy template can be linked to a policy set in memory:
+
+```moonbit
+let template = @engine.parse_template(
+  "permit(principal == ?principal, action == Action::\"read\", resource == ?resource);",
+)
+let linked = policies.link(template, "share-1", {
+  principal: Some(request.principal),
+  resource: Some(request.resource),
+})
+let response = @engine.authorize(linked, request, [])
+```
+
+`template.slots()` lists the required slots. Linking returns a new policy set;
+the original remains unchanged. Each link captures the parsed template at link
+time. When a template changes, parse it and rebuild its links to apply the
+change. The application owns template storage and the mapping from template
+versions to links.
+
 For services that make authorization calls over time, construct a reusable
 entity snapshot and pass a policy set to each call:
 
@@ -135,7 +168,7 @@ separate from the store. The snapshot is used in memory and performs no I/O.
 
 ## Supported policy profile
 
-- Static `permit` and `forbid` policies, scope equality and entity ancestry,
+- Static and template-linked `permit` and `forbid` policies, scope equality and entity ancestry,
   principal and resource type restrictions (`is`, optionally with `in`),
   `when` and `unless`. Entity hierarchies must be acyclic; missing parent
   entities and repeated parent links are allowed. Duplicate entity IDs are
@@ -143,6 +176,9 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   Annotations appear before the policy effect. As in the Cedar CLI, `@id("name")` sets the policy ID; otherwise IDs are `policy0`,
   `policy1`, and so on. Duplicate annotations or policy IDs are rejected.
   Annotations are metadata and do not change authorization decisions.
+  Templates support `?principal` and `?resource` only on the corresponding
+  scope operand of `==` or `in`, including `is Type in`. Linking requires all
+  and only the template slots. The CLI loads one template at a time.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
 - Entity tags via `.hasTag(key)` and `.getTag(key)`, where `key` can be any
@@ -201,14 +237,15 @@ separate from the store. The snapshot is used in memory and performs no I/O.
   enforcing an `Allow` result.
 
 Unsupported policy syntax is rejected rather than ignored. The profile does
-not implement Cedar schema validation, templates, or extension types besides
-IP, decimal, duration and datetime. Policy checks are syntax/profile checks,
+not implement Cedar schema validation or extension types besides IP, decimal,
+duration and datetime. Policy checks are syntax/profile checks,
 not schema validation.
 The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 4,096 entities and 65,536 parent links. Batch authorization
-is limited to 4,096 requests. A reusable `EntityStore` additionally limits
+is limited to 4,096 requests; a policy set, including links, is limited to
+1,024 policies. A reusable `EntityStore` additionally limits
 entity attribute and tag values to 131,072 total nodes and 64 nested levels;
 this also rejects cyclic values constructed through the typed API. Limits raise
 errors instead of returning a partial decision.
@@ -229,7 +266,8 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
-individual reference decisions. It reports mismatches and exits nonzero.
+individual reference decisions, and links compared with Cedar template-linked
+policies. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 inputs are checked against Cedar, and generated timestamps are checked against
@@ -238,7 +276,7 @@ Python calendar arithmetic. The MoonBit tests also compare all
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 759 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 774 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. This is evidence for the selected cases,
 not a claim of full Cedar conformance.
 

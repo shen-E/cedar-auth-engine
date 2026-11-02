@@ -22,13 +22,16 @@ def uid(value):
     return value["type"] + "::" + json.dumps(value["id"], ensure_ascii=False)
 
 
-def reference(exe, policy, entities, request, temp):
+def reference(exe, policy, entities, request, temp, template_links=None):
     transformed = {k: uid(request[k]) for k in ("principal", "action", "resource")}
     transformed["context"] = request["context"]
     path = temp / "cedar-request.json"
     path.write_text(json.dumps(transformed, ensure_ascii=False), encoding="utf-8")
-    result = run([exe, "authorize", "--policies", policy, "--entities", entities,
-                  "--request-json", path, "--verbose", "--error-format", "plain"])
+    command = [exe, "authorize", "--policies", policy, "--entities", entities,
+               "--request-json", path, "--verbose", "--error-format", "plain"]
+    if template_links is not None:
+        command.extend(["--template-linked", template_links])
+    result = run(command)
     output = result.stdout + "\n" + result.stderr
     decision = re.search(r"(?m)^\s*(ALLOW|DENY)\s*$", output)
     if not decision:
@@ -38,10 +41,10 @@ def reference(exe, policy, entities, request, temp):
     return {"decision": decision.group(1).title(), "reasons": sorted(reasons), "errors": sorted(errors)}
 
 
-def actual(exe, policy, entities, request, temp):
+def actual(exe, policy, entities, request, temp, extra_args=()):
     path = temp / "request.json"
     path.write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
-    result = run([exe, "authorize", policy, entities, path, "--format", "json"])
+    result = run([exe, "authorize", policy, entities, path, "--format", "json", *extra_args])
     if result.returncode != 0:
         raise RuntimeError("engine failed: " + result.stderr)
     value = json.loads(result.stdout)
@@ -83,6 +86,50 @@ def main():
                 expected = {"decision": item["decision"], "reasons": sorted(item.get("reasons", got["reasons"])), "errors": sorted(item.get("errors", []))}
                 if ref != got or got != expected:
                     mismatches.append({"case": name + ":" + str(i), "expected": expected, "reference": ref, "actual": got})
+        # Compare actual template links, preserving link IDs in reasons and errors.
+        sharing = ROOT / "examples" / "template-sharing"
+        linked_policy = temp / "linked-reference.cedar"
+        linked_policy.write_text((sharing / "policy.cedar").read_text(encoding="utf-8") + "\n" + (sharing / "template.cedar").read_text(encoding="utf-8"), encoding="utf-8")
+        links = json.loads((sharing / "links.json").read_text(encoding="utf-8"))
+        ref_links = temp / "cedar-links.json"
+        ref_links.write_text(json.dumps([{"template_id": "share", "link_id": link["id"], "args": {"?" + slot: uid(link[slot]) for slot in ("principal", "resource") if slot in link}} for link in links]), encoding="utf-8")
+        for index, case in enumerate(json.loads((sharing / "requests.json").read_text(encoding="utf-8"))):
+            ref = reference(args.cedar, linked_policy, sharing / "entities.json", case["request"], temp, ref_links)
+            got = actual(args.engine, sharing / "policy.cedar", sharing / "entities.json", case["request"], temp, ("--template", sharing / "template.cedar", "--links", sharing / "links.json"))
+            expected = {"decision": case["decision"], "reasons": sorted(case["reasons"]), "errors": sorted(case["errors"])}
+            count += 1
+            if ref != got or got != expected:
+                mismatches.append({"case": "template-sharing:" + str(index), "expected": expected, "reference": ref, "actual": got})
+        # Exercise single-slot, hierarchy, typed scopes and forbid links too.
+        engine_policy = temp / "template-static.cedar"
+        template_path = temp / "template.cedar"
+        engine_links = temp / "template-links.json"
+        template_entities = temp / "template-entities.json"
+        def entity(kind, ident):
+            return {"type": kind, "id": ident}
+        template_entities.write_text(json.dumps([
+            {"uid": entity("User", "alice"), "attrs": {}, "parents": [entity("Group", "team")]},
+            {"uid": entity("File", "report"), "attrs": {}, "parents": [entity("Folder", "shared")]},
+        ]), encoding="utf-8")
+        request = {"principal": entity("User", "alice"), "action": entity("Action", "read"), "resource": entity("File", "report"), "context": {}}
+        for source, slot_values, base in [
+            ('permit(principal in ?principal, action, resource in ?resource);', {"principal": entity("Group", "team"), "resource": entity("Folder", "shared")}, ''),
+            ('permit(principal is User in ?principal, action, resource is File in ?resource);', {"principal": entity("Group", "team"), "resource": entity("Folder", "shared")}, ''),
+            ('permit(principal is Group in ?principal, action, resource is File in ?resource);', {"principal": entity("Group", "team"), "resource": entity("Folder", "shared")}, ''),
+            ('permit(principal == ?principal, action, resource);', {"principal": entity("User", "alice")}, ''),
+            ('permit(principal, action, resource == ?resource);', {"resource": entity("File", "report")}, ''),
+            ('forbid(principal, action, resource == ?resource);', {"resource": entity("File", "report")}, '@id("base") permit(principal, action, resource);'),
+        ]:
+            engine_policy.write_text(base, encoding="utf-8")
+            template_path.write_text('@id("template") ' + source, encoding="utf-8")
+            linked_policy.write_text(base + '\n@id("template") ' + source, encoding="utf-8")
+            engine_links.write_text(json.dumps([{"id": "linked", **slot_values}]), encoding="utf-8")
+            ref_links.write_text(json.dumps([{"template_id": "template", "link_id": "linked", "args": {"?" + key: uid(value) for key, value in slot_values.items()}}]), encoding="utf-8")
+            ref = reference(args.cedar, linked_policy, template_entities, request, temp, ref_links)
+            got = actual(args.engine, engine_policy, template_entities, request, temp, ("--template", template_path, "--links", engine_links))
+            count += 1
+            if ref != got:
+                mismatches.append({"case": "template scope: " + source, "reference": ref, "actual": got})
         # Compare ordered batch responses with independent Cedar authorizations.
         for name in ("diagnostics", "tags", "device"):
             base = ROOT / "examples" / name
