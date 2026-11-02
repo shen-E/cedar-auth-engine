@@ -1,0 +1,35 @@
+[
+  {
+    "id": "alice-report",
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    }
+  },
+  {
+    "id": "bob-image",
+    "principal": {
+      "type": "User",
+      "id": "bob"
+    },
+    "resource": {
+      "type": "File",
+      "id": "image"
+    }
+  },
+  {
+    "id": "alice-revoked",
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "resource": {
+      "type": "File",
+      "id": "revoked"
+    }
+  }
+]

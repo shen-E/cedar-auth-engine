@@ -1,0 +1,208 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "alice-report"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "comment"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "alice-report"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "image"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "bob-image"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "image"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "write"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": false
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {}
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "alice-report"
+    ]
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "revoked"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "revoked"
+    ],
+    "errors": []
+  }
+]

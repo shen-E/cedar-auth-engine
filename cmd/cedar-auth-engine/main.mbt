@@ -75,10 +75,67 @@ fn same_policy_ids(expected : Array[String], actual : Array[String]) -> Bool {
 }
 
 ///|
+fn optional_link_uid(
+  fields : Map[String, Json],
+  name : String,
+) -> @engine.EntityId? raise CliError {
+  match fields.get(name) {
+    None => None
+    Some(Object(uid)) => {
+      if uid.length() != 2 {
+        raise CliError("link entity must contain only type and id")
+      }
+      match (uid.get("type"), uid.get("id")) {
+        (Some(String(kind)), Some(String(id))) => Some({ kind, id, })
+        _ => raise CliError("link entity requires string type and id")
+      }
+    }
+    _ => raise CliError("link slot must be an entity object")
+  }
+}
+
+///|
+fn apply_template(
+  policies : @engine.PolicySet,
+  template_path : String,
+  links_path : String,
+) -> @engine.PolicySet raise {
+  let template = @engine.parse_template(read_text(template_path))
+  let links = match load_json(links_path) {
+    Array(items) => items
+    _ => raise CliError("template links must be an array")
+  }
+  if links.length() > 1024 {
+    raise CliError("template link limit exceeded")
+  }
+  let mut result = policies
+  for item in links {
+    let fields = match item {
+      Object(fields) => fields
+      _ => raise CliError("template link must be an object")
+    }
+    for key, _ in fields {
+      if key != "id" && key != "principal" && key != "resource" {
+        raise CliError("unknown template link field")
+      }
+    }
+    let id = match fields.get("id") {
+      Some(String(id)) => id
+      _ => raise CliError("template link requires a string id")
+    }
+    result = result.link(template, id, {
+      principal: optional_link_uid(fields, "principal"),
+      resource: optional_link_uid(fields, "resource"),
+    })
+  }
+  result
+}
+
+///|
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch and test: --template TEMPLATE --links LINKS",
     )
     return 0
   }
@@ -99,6 +156,8 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut strict = false
+  let mut template_path : String? = None
+  let mut links_path : String? = None
   let mut i = required_count
   while i < args.length() {
     if args[i] == "--format" &&
@@ -112,11 +171,29 @@ fn run(args : Array[String]) -> Int32 raise {
       !strict {
       strict = true
       i += 1
+    } else if args[i] == "--template" &&
+      command != "check" &&
+      template_path is None &&
+      i + 1 < args.length() {
+      template_path = Some(args[i + 1])
+      i += 2
+    } else if args[i] == "--links" &&
+      command != "check" &&
+      links_path is None &&
+      i + 1 < args.length() {
+      links_path = Some(args[i + 1])
+      i += 2
     } else {
       raise CliError("invalid arguments; use --help")
     }
   }
-  let policies = @engine.parse_policies(read_text(args[2]))
+  let static_policies = @engine.parse_policies(read_text(args[2]))
+  let policies = match (template_path, links_path) {
+    (None, None) => static_policies
+    (Some(template), Some(links)) =>
+      apply_template(static_policies, template, links)
+    _ => raise CliError("--template and --links must be provided together")
+  }
   if command == "check" {
     if json {
       let entries : Array[Json] = []

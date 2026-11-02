@@ -246,3 +246,22 @@ test "construct datetime values through the public library" {
   }
   assert_true(@engine.authorize(policy, request, []).decision == @engine.Allow)
 }
+
+///|
+test "link a policy template through the public library" {
+  let template = @engine.parse_template(
+    "permit(principal == ?principal, action == Action::\"read\", resource == ?resource);",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let policies = @engine.parse_policies("").link(template, "share-1", {
+    principal: Some(request.principal),
+    resource: Some(request.resource),
+  })
+  let result = @engine.authorize(policies, request, [])
+  assert_true(result.decision == @engine.Allow && result.reasons == ["share-1"])
+}

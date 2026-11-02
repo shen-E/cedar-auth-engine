@@ -1,0 +1,32 @@
+[
+  {
+    "uid": {
+      "type": "File",
+      "id": "report"
+    },
+    "attrs": {
+      "revoked": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "image"
+    },
+    "attrs": {
+      "revoked": false
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "revoked"
+    },
+    "attrs": {
+      "revoked": true
+    },
+    "parents": []
+  }
+]
