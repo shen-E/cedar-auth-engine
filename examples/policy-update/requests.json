@@ -1,0 +1,123 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true,
+        "mfa": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "alice-report"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "alice-report"
+    ]
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "withdrawn"
+      },
+      "context": {
+        "authenticated": true,
+        "override": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "design-team"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true,
+        "emergency": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "emergency"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  }
+]

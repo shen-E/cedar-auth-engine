@@ -185,6 +185,78 @@ def main():
         checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        multi, update = ROOT / "examples" / "multi-template", ROOT / "examples" / "policy-update"
+        policy, entities, cases = multi / "policy.cedar", multi / "entities.json", update / "requests.json"
+        # Cross-kind options apply in the documented order, not command-line order.
+        flags = ("--replace-policies", update / "replacements.cedar",
+                 "--template", multi / "direct.cedar", "--links", multi / "direct-links.json",
+                 "--add-policies", update / "additional.cedar",
+                 "--template", multi / "team.cedar", "--links", multi / "team-links.json")
+        report = run("test", policy, entities, cases, *flags, "--format", "json")
+        assert report.returncode == 0 and json.loads(report.stdout)["failures"] == 0
+        checks += 1
+        cases_value = json.loads(cases.read_text(encoding="utf-8"))
+        batch_file = path / "updates-batch.json"
+        batch_file.write_text(json.dumps([case["request"] for case in cases_value]), encoding="utf-8")
+        batch = run("batch", policy, entities, batch_file, *flags, "--format", "json")
+        assert batch.returncode == 0
+        responses = json.loads(batch.stdout)
+        assert len(responses) == len(cases_value)
+        checks += 1
+        for index, case in enumerate(cases_value):
+            single_file = path / "update-request.json"
+            single_file.write_text(json.dumps(case["request"]), encoding="utf-8")
+            single = run("authorize", policy, entities, single_file, *flags, "--format", "json")
+            assert single.returncode == 0 and json.loads(single.stdout) == responses[index]
+            enforced = run("enforce", policy, entities, single_file, *flags, "--format", "json")
+            allowed = responses[index]["decision"] == "Allow" and not responses[index]["errors"]
+            assert enforced.returncode == (0 if allowed else 1)
+            assert json.loads(enforced.stdout) == {"allowed": allowed, "response": responses[index]}
+            checks += 2
+        enforced = run("enforce-batch", policy, entities, batch_file, *flags, "--format", "json")
+        assert enforced.returncode == 1 and json.loads(enforced.stdout) == [
+            {"allowed": item["decision"] == "Allow" and not item["errors"], "response": item}
+            for item in responses
+        ]
+        checks += 1
+        # Repeated files are applied in their own option order.
+        extra = path / "extra.cedar"
+        extra.write_text('@id("temporary") permit(principal, action, resource);', encoding="utf-8")
+        first = path / "first.cedar"
+        first.write_text('@id("temporary") forbid(principal, action, resource);', encoding="utf-8")
+        second = path / "second.cedar"
+        second.write_text('@id("temporary") permit(principal, action, resource);', encoding="utf-8")
+        ordered = run("batch", policy, entities, batch_file, "--add-policies", extra,
+                      "--replace-policies", first, "--replace-policies", second, "--format", "json")
+        assert ordered.returncode == 0 and json.loads(ordered.stdout)[0]["reasons"] == ["temporary"]
+        reversed_order = run("batch", policy, entities, batch_file, "--add-policies", extra,
+                             "--replace-policies", second, "--replace-policies", first, "--format", "json")
+        assert reversed_order.returncode == 0 and json.loads(reversed_order.stdout)[0]["reasons"] == ["temporary"]
+        assert json.loads(ordered.stdout)[0]["decision"] == "Allow"
+        assert json.loads(reversed_order.stdout)[0]["decision"] == "Deny"
+        checks += 2
+        # File updates happen before removals, including removals listed first.
+        removed = run("batch", policy, entities, batch_file, "--remove-policy", "emergency", *flags, "--format", "json")
+        assert removed.returncode == 0 and json.loads(removed.stdout)[3]["decision"] == "Allow"
+        checks += 1
+        duplicate = path / "duplicate.cedar"
+        duplicate.write_text('@id("revoked") permit(principal, action, resource);', encoding="utf-8")
+        missing = path / "missing.cedar"
+        missing.write_text('@id("revoked") permit(principal, action, resource); @id("missing") permit(principal, action, resource);', encoding="utf-8")
+        invalid = path / "invalid.cedar"
+        invalid.write_text('invalid syntax;', encoding="utf-8")
+        for option, file in (("--add-policies", duplicate), ("--replace-policies", missing), ("--replace-policies", invalid), ("--add-policies", path / "absent.cedar")):
+            for command in ("batch", "enforce-batch", "test"):
+                input_file = cases if command == "test" else batch_file
+                result = run(command, policy, entities, input_file, *flags, option, file, "--format", "json")
+                assert result.returncode == 2 and not result.stdout
+                checks += 1
+        for option in ("--add-policies", "--replace-policies"):
+            result = run("check", policy, option, duplicate)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2

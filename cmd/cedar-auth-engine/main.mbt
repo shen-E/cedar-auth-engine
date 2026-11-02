@@ -187,7 +187,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--template TEMPLATE --links LINKS]... [--remove-policy ID]...",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...",
     )
     return 0
   }
@@ -215,6 +215,8 @@ fn run(args : Array[String]) -> Int32 raise {
   let template_paths : Array[String] = []
   let links_paths : Array[String] = []
   let remove_ids : Array[String] = []
+  let add_paths : Array[String] = []
+  let replace_paths : Array[String] = []
   let mut i = required_count
   while i < args.length() {
     if args[i] == "--format" &&
@@ -238,6 +240,16 @@ fn run(args : Array[String]) -> Int32 raise {
       i + 1 < args.length() {
       links_paths.push(args[i + 1])
       i += 2
+    } else if args[i] == "--add-policies" &&
+      command != "check" &&
+      i + 1 < args.length() {
+      add_paths.push(args[i + 1])
+      i += 2
+    } else if args[i] == "--replace-policies" &&
+      command != "check" &&
+      i + 1 < args.length() {
+      replace_paths.push(args[i + 1])
+      i += 2
     } else if args[i] == "--remove-policy" &&
       command != "check" &&
       i + 1 < args.length() {
@@ -253,9 +265,18 @@ fn run(args : Array[String]) -> Int32 raise {
   if template_paths.length() > 1024 {
     raise CliError("template pair limit exceeded")
   }
+  if add_paths.length() > 1024 || replace_paths.length() > 1024 {
+    raise CliError("policy file limit exceeded")
+  }
   let mut policies = @engine.parse_policies(read_text(args[2]))
+  for path in add_paths {
+    policies = policies.merge(@engine.parse_policies(read_text(path)))
+  }
   for i in 0..<template_paths.length() {
     policies = apply_template(policies, template_paths[i], links_paths[i])
+  }
+  for path in replace_paths {
+    policies = policies.replace(@engine.parse_policies(read_text(path)))
   }
   policies = policies.remove_batch(remove_ids)
   if command == "check" {

@@ -38,3 +38,57 @@ pub fn PolicySet::remove_batch(
   }
   { policies: remaining, }
 }
+
+///|
+/// Return a new policy set with disjoint policies appended in their original order.
+pub fn PolicySet::merge(
+  self : PolicySet,
+  additional : PolicySet,
+) -> PolicySet raise PolicyError {
+  if additional.policies.length() > 1024 - self.policies.length() {
+    raise PolicyError("policy count limit exceeded")
+  }
+  let ids : Map[String, Bool] = Map([])
+  for policy in self.policies {
+    ids[policy.id] = true
+  }
+  for policy in additional.policies {
+    if ids.contains(policy.id) {
+      raise PolicyError("duplicate policy id '\{policy.id}'")
+    }
+  }
+  let policies = self.policies.copy()
+  for policy in additional.policies {
+    policies.push(policy)
+  }
+  { policies, }
+}
+
+///|
+/// Replace existing IDs with policies from `updates`, keeping their positions.
+pub fn PolicySet::replace(
+  self : PolicySet,
+  updates : PolicySet,
+) -> PolicySet raise PolicyError {
+  let existing : Map[String, Bool] = Map([])
+  for policy in self.policies {
+    existing[policy.id] = true
+  }
+  let by_id : Map[String, Policy] = Map([])
+  for policy in updates.policies {
+    if !existing.contains(policy.id) {
+      raise PolicyError("unknown policy id '\{policy.id}'")
+    }
+    by_id[policy.id] = policy
+  }
+  let policies = []
+  for policy in self.policies {
+    policies.push(
+      match by_id.get(policy.id) {
+        Some(update) => update
+        None => policy
+      },
+    )
+  }
+  { policies, }
+}
