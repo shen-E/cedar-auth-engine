@@ -31,6 +31,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.c
 moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
 moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
+moon run cmd/cedar-auth-engine --target native -- enforce-batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/approvals/policy.cedar examples/approvals/entities.json examples/approvals/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/session/policy.cedar examples/session/entities.json examples/session/requests.json
@@ -52,6 +53,20 @@ strict mode does not convert an `Allow` into a `Deny`. Without `--strict`,
 both `Allow` and `Deny` exit 0. Malformed input or usage exits 2. Each command
 accepts `--format json`; text is the default.
 
+`enforce POLICY ENTITIES REQUEST` provides a fail-closed result: it allows
+only when Cedar returns `Allow` and there are no policy evaluation errors.
+`enforce-batch POLICY ENTITIES REQUESTS` applies the same rule to each request
+and preserves input order. JSON output contains an `allowed` boolean and the
+complete original Cedar `response` for each request. The underlying decision,
+reasons and errors remain available even when enforcement denies an `Allow`
+with errors. Text output shows both the enforcement result and Cedar decision.
+
+These commands exit 0 when every request is allowed, 1 when any request is
+denied, and 2 for invalid input or usage. An empty valid batch exits 0. They
+accept `--format json`, `--template` and `--links`; `--strict` is for the
+`authorize` and `batch` commands. A policy error, including a comparison-limit
+error, prevents enforcement from allowing the request.
+
 `test POLICY ENTITIES CASES` evaluates an array of objects with `request` and
 expected `decision` fields. Optional `reasons` and `errors` fields contain
 arrays of policy IDs. Reasons are compared only when specified; errors must
@@ -64,7 +79,8 @@ all cases before printing results and evaluates them in chunks of up to 4,096
 requests, sharing one entity graph within each chunk. Empty input still checks
 the entity graph.
 
-For `authorize`, `batch` and `test`, add `--template TEMPLATE --links LINKS`
+For `authorize`, `batch`, `enforce`, `enforce-batch` and `test`, add
+`--template TEMPLATE --links LINKS`
 to evaluate static policies together with links from one template. The links
 file is an array such as:
 
@@ -112,7 +128,11 @@ let request = @engine.Request::{
   context: {},
 }
 let response = @engine.authorize(policies, request, [])
+let allowed = response.is_authorized()
 ```
+
+`response.is_authorized()` returns true only for `Allow` without policy errors.
+It does not alter the Cedar response, which remains available for diagnostics.
 
 `parse_json`, `request_from_json`, `tagged_entities_from_json` and
 `response_to_json` provide the JSON boundary. Pass tagged entities to
@@ -279,8 +299,8 @@ The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
-individual reference decisions, test-command responses, and links compared with
-Cedar template-linked policies. It reports mismatches and exits nonzero.
+individual reference decisions, fail-closed enforcement results, test-command
+responses, and links compared with Cedar template-linked policies. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -289,7 +309,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 862 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 911 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

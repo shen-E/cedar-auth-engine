@@ -100,6 +100,16 @@ def main():
             count += 1
             if ref != got or got != expected:
                 mismatches.append({"case": "template-sharing:" + str(index), "expected": expected, "reference": ref, "actual": got})
+            request_path = temp / "template-enforce-request.json"
+            request_path.write_text(json.dumps(case["request"]), encoding="utf-8")
+            enforced = run([args.engine, "enforce", sharing / "policy.cedar", sharing / "entities.json", request_path, "--template", sharing / "template.cedar", "--links", sharing / "links.json", "--format", "json"])
+            result = json.loads(enforced.stdout)
+            original = result["response"]
+            underlying = {"decision": original["decision"], "reasons": sorted(original["reasons"]), "errors": sorted(error["policy_id"] for error in original["errors"])}
+            allowed = ref["decision"] == "Allow" and not ref["errors"]
+            count += 1
+            if underlying != ref or result["allowed"] != allowed or enforced.returncode != (0 if allowed else 1):
+                mismatches.append({"case": "template enforcement:" + str(index), "reference": ref, "actual": result, "status": enforced.returncode})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
@@ -160,6 +170,36 @@ def main():
                 count += 1
                 if ref != got:
                     mismatches.append({"case": name + ":batch:" + str(i), "reference": ref, "actual": got})
+        # Verify fail-closed single and batch decisions against Cedar responses.
+        for name in ("diagnostics", "tags", "device"):
+            base = ROOT / "examples" / name
+            cases = json.loads((base / "requests.json").read_text(encoding="utf-8"))
+            input_path = temp / "enforcement-batch.json"
+            input_path.write_text(json.dumps([case["request"] for case in cases], ensure_ascii=False), encoding="utf-8")
+            batch = run([args.engine, "enforce-batch", base / "policy.cedar", base / "entities.json", input_path, "--format", "json"])
+            if batch.returncode not in (0, 1):
+                mismatches.append({"case": name + ":enforce-batch status", "status": batch.returncode, "stderr": batch.stderr})
+                continue
+            results = json.loads(batch.stdout)
+            if not isinstance(results, list) or len(results) != len(cases):
+                mismatches.append({"case": name + ":enforce-batch length", "responses": results})
+                continue
+            any_denied = False
+            for index, (case, batch_result) in enumerate(zip(cases, results)):
+                ref = reference(args.cedar, base / "policy.cedar", base / "entities.json", case["request"], temp)
+                allowed = ref["decision"] == "Allow" and not ref["errors"]
+                any_denied |= not allowed
+                request_path = temp / "enforcement-request.json"
+                request_path.write_text(json.dumps(case["request"], ensure_ascii=False), encoding="utf-8")
+                single = run([args.engine, "enforce", base / "policy.cedar", base / "entities.json", request_path, "--format", "json"])
+                result = json.loads(single.stdout)
+                original = result["response"]
+                underlying = {"decision": original["decision"], "reasons": sorted(original["reasons"]), "errors": sorted(error["policy_id"] for error in original["errors"])}
+                count += 2
+                if underlying != ref or result["allowed"] != allowed or single.returncode != (0 if allowed else 1) or batch_result != result:
+                    mismatches.append({"case": name + ":enforcement:" + str(index), "reference": ref, "actual": result, "batch": batch_result, "status": single.returncode})
+            if batch.returncode != (1 if any_denied else 0):
+                mismatches.append({"case": name + ":enforce-batch exit", "status": batch.returncode})
         # Check the case-test command against independent Cedar decisions.
         for name in ("diagnostics", "tags", "device"):
             base = ROOT / "examples" / name
