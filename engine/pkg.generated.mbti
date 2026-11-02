@@ -40,6 +40,16 @@ pub fn PolicyError::to_string(Self) -> String
 pub impl Show for PolicyError
 
 // Types and methods
+pub(all) struct AuthorizationComparison {
+  before : Response
+  after : Response
+}
+pub fn AuthorizationComparison::changed(Self) -> Bool
+pub fn AuthorizationComparison::decision_changed(Self) -> Bool
+pub fn AuthorizationComparison::enforcement_changed(Self) -> Bool
+pub fn AuthorizationComparison::errors_changed(Self) -> Bool
+pub fn AuthorizationComparison::reasons_changed(Self) -> Bool
+
 pub struct DateTime {
   // private fields
 } derive(Eq, @debug.Debug)
@@ -99,6 +109,7 @@ pub struct EntityStore {
 }
 pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
 pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
+pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError
 
