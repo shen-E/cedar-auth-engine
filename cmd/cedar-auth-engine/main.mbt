@@ -165,10 +165,26 @@ fn parse_test_case(item : Json) -> TestCase raise {
 }
 
 ///|
+fn enforcement_json(response : @engine.Response) -> Json {
+  {
+    "allowed": response.is_authorized(),
+    "response": @engine.response_to_json(response),
+  }
+}
+
+///|
+fn decision_label(response : @engine.Response) -> String {
+  match response.decision {
+    Allow => "Allow"
+    Deny => "Deny"
+  }
+}
+
+///|
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch and test: --template TEMPLATE --links LINKS",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: --template TEMPLATE --links LINKS",
     )
     return 0
   }
@@ -179,7 +195,11 @@ fn run(args : Array[String]) -> Int32 raise {
   let command = args[1]
   let required_count = if command == "check" {
     3
-  } else if command == "authorize" || command == "batch" || command == "test" {
+  } else if command == "authorize" ||
+    command == "batch" ||
+    command == "enforce" ||
+    command == "enforce-batch" ||
+    command == "test" {
     5
   } else {
     raise CliError("unknown command")
@@ -251,28 +271,44 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let entities = @engine.tagged_entities_from_json(load_json(args[3]))
   let input = load_json(args[4])
-  if command == "authorize" {
+  if command == "authorize" || command == "enforce" {
     let response = @engine.authorize_with_tags(
       policies,
       @engine.request_from_json(input),
       entities,
     )
     if json {
-      println(@engine.response_to_json(response).stringify())
-    } else {
-      let decision = match response.decision {
-        Allow => "Allow"
-        Deny => "Deny"
+      if command == "enforce" {
+        println(enforcement_json(response).stringify())
+      } else {
+        println(@engine.response_to_json(response).stringify())
       }
+    } else {
+      let decision = decision_label(response)
       let reasons = response.reasons.join(", ")
-      println("\{decision}: \{reasons}")
+      if command == "enforce" {
+        let enforced = if response.is_authorized() { "Allow" } else { "Deny" }
+        println("\{enforced} (Cedar \{decision}): \{reasons}")
+      } else {
+        println("\{decision}: \{reasons}")
+      }
       for error in response.errors {
         println("\{error.policy_id}: \{error.message}")
       }
     }
-    return if strict && !response.errors.is_empty() { 1 } else { 0 }
+    return if command == "enforce" {
+      if response.is_authorized() {
+        0
+      } else {
+        1
+      }
+    } else if strict && !response.errors.is_empty() {
+      1
+    } else {
+      0
+    }
   }
-  if command == "batch" {
+  if command == "batch" || command == "enforce-batch" {
     let items = match input {
       Array(items) => items
       _ => raise CliError("batch input must be an array")
@@ -289,20 +325,32 @@ fn run(args : Array[String]) -> Int32 raise {
     )
     let output : Array[Json] = []
     let mut has_errors = false
+    let mut has_denied = false
     for i in 0..<responses.length() {
       let response = responses[i]
       if !response.errors.is_empty() {
         has_errors = true
       }
+      if !response.is_authorized() {
+        has_denied = true
+      }
       if json {
-        output.push(@engine.response_to_json(response))
+        output.push(
+          if command == "enforce-batch" {
+            enforcement_json(response)
+          } else {
+            @engine.response_to_json(response)
+          },
+        )
       } else {
-        let decision = match response.decision {
-          Allow => "Allow"
-          Deny => "Deny"
-        }
+        let decision = decision_label(response)
         let reasons = response.reasons.join(", ")
-        println("request \{i}: \{decision}: \{reasons}")
+        if command == "enforce-batch" {
+          let enforced = if response.is_authorized() { "Allow" } else { "Deny" }
+          println("request \{i}: \{enforced} (Cedar \{decision}): \{reasons}")
+        } else {
+          println("request \{i}: \{decision}: \{reasons}")
+        }
         for error in response.errors {
           println("  \{error.policy_id}: \{error.message}")
         }
@@ -311,7 +359,17 @@ fn run(args : Array[String]) -> Int32 raise {
     if json {
       println(Json::array(output).stringify())
     }
-    return if strict && has_errors { 1 } else { 0 }
+    return if command == "enforce-batch" {
+      if has_denied {
+        1
+      } else {
+        0
+      }
+    } else if strict && has_errors {
+      1
+    } else {
+      0
+    }
   }
   let cases = match input {
     Array(items) => items

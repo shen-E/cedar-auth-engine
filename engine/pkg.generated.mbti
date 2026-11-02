@@ -141,6 +141,7 @@ pub(all) struct Response {
   reasons : Array[String]
   errors : Array[Diagnostic]
 } derive(@debug.Debug)
+pub fn Response::is_authorized(Self) -> Bool
 pub fn Response::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TaggedEntity {

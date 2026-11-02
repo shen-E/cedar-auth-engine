@@ -55,6 +55,18 @@ def main():
             single = run("authorize", policy, entities, request, *flags, "--format", "json")
             assert single.returncode == 0 and json.loads(single.stdout) == responses[index]
             checks += 1
+        for index in (0, 3, 7, 8):
+            request = path / "template-enforce-request.json"
+            request.write_text(json.dumps(cases_value[index]["request"]), encoding="utf-8")
+            original = responses[index]
+            allowed = original["decision"] == "Allow" and not original["errors"]
+            result = run("enforce", policy, entities, request, *flags, "--format", "json")
+            assert result.returncode == (0 if allowed else 1) and json.loads(result.stdout) == {"allowed": allowed, "response": original}
+            checks += 1
+        enforced = run("enforce-batch", policy, entities, batch_file, *flags, "--format", "json")
+        assert enforced.returncode == 1
+        assert json.loads(enforced.stdout) == [{"allowed": response["decision"] == "Allow" and not response["errors"], "response": response} for response in responses]
+        checks += 1
         strict = run("batch", policy, entities, batch_file, *flags, "--strict", "--format", "json")
         assert strict.returncode == 1 and json.loads(strict.stdout) == responses
         checks += 1
@@ -230,6 +242,9 @@ def main():
         assert len(value["errors"]) == 1 and value["errors"][0]["policy_id"] == "guard"
         assert "comparison budget" in value["errors"][0]["message"]
         checks += 1
+        enforced = run("enforce", comparison_policy, empty, comparison_request, "--format", "json")
+        assert enforced.returncode == 1 and json.loads(enforced.stdout) == {"allowed": False, "response": value}
+        checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}
         failed.write_text(json.dumps([{"request": request_obj, "decision": "Deny"}]), encoding="utf-8")
@@ -275,6 +290,50 @@ def main():
             checks += 1
         batch_input = diagnostics / "batch.json"
         expected = [json.loads(run("authorize", diagnostic_policy, diagnostic_entities, sample, "--format", "json").stdout) for sample in samples]
+        for index, original in enumerate(expected):
+            allowed = original["decision"] == "Allow" and not original["errors"]
+            enforced = run("enforce", diagnostic_policy, diagnostic_entities, samples[index], "--format", "json")
+            assert enforced.returncode == (0 if allowed else 1)
+            assert json.loads(enforced.stdout) == {"allowed": allowed, "response": original}
+            checks += 1
+        text_enforced = run("enforce", diagnostic_policy, diagnostic_entities, samples[2])
+        assert text_enforced.returncode == 1 and "Deny (Cedar Allow)" in text_enforced.stdout and "suspended" in text_enforced.stdout
+        checks += 1
+        text_denied = run("enforce", diagnostic_policy, diagnostic_entities, samples[1])
+        assert text_denied.returncode == 1 and "Deny (Cedar Deny)" in text_denied.stdout
+        checks += 1
+        batch_enforced = run("enforce-batch", diagnostic_policy, diagnostic_entities, batch_input, "--format", "json")
+        assert batch_enforced.returncode == 1
+        assert json.loads(batch_enforced.stdout) == [{"allowed": response["decision"] == "Allow" and not response["errors"], "response": response} for response in expected]
+        checks += 1
+        text_batch = run("enforce-batch", diagnostic_policy, diagnostic_entities, batch_input)
+        assert text_batch.returncode == 1 and "request 2: Deny (Cedar Allow)" in text_batch.stdout
+        checks += 1
+        enforcer_batch_path = path / "enforcer-batch.json"
+        for indices, status in (([], 0), ([0, 0], 0), ([0, 1], 1), ([2], 1)):
+            enforcer_batch_path.write_text(json.dumps([cases[index]["request"] for index in indices]), encoding="utf-8")
+            result = run("enforce-batch", diagnostic_policy, diagnostic_entities, enforcer_batch_path, "--format", "json")
+            assert result.returncode == status and len(json.loads(result.stdout)) == len(indices)
+            checks += 1
+        enforcer_batch_path.write_text(json.dumps([cases[0]["request"], {"bad": "request"}]), encoding="utf-8")
+        for flags in ((), ("--format", "json")):
+            result = run("enforce-batch", diagnostic_policy, diagnostic_entities, enforcer_batch_path, *flags)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        enforcer_batch_path.write_text("[]", encoding="utf-8")
+        result = run("enforce-batch", diagnostic_policy, cyclic, enforcer_batch_path, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        for flags in ((), ("--format", "json")):
+            result = run("enforce", diagnostic_policy, cyclic, samples[0], *flags)
+            assert result.returncode == 2 and not result.stdout
+            result = run("enforce", diagnostic_policy, diagnostic_entities, request, *flags)
+            assert result.returncode == 2 and not result.stdout
+            checks += 2
+        for args in (("enforce", diagnostic_policy, diagnostic_entities, samples[0], "--strict"), ("enforce-batch", diagnostic_policy, diagnostic_entities, batch_input, "--strict")):
+            result = run(*args)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--format", "json")
         assert batch.returncode == 0 and json.loads(batch.stdout) == expected
         checks += 1

@@ -110,6 +110,12 @@ pub(all) struct Response {
 pub extend Response with Debug::{to_repr}
 
 ///|
+/// Permit enforcement only when Cedar returns Allow without policy errors.
+pub fn Response::is_authorized(self : Response) -> Bool {
+  self.decision == Allow && self.errors.is_empty()
+}
+
+///|
 priv enum Expr {
   Literal(Value)
   Variable(String)
