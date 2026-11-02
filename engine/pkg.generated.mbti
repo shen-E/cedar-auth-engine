@@ -123,6 +123,8 @@ pub struct PolicySet {
 pub fn PolicySet::link(Self, PolicyTemplate, String, TemplateBindings) -> Self raise PolicyError
 pub fn PolicySet::link_batch(Self, PolicyTemplate, Array[TemplateLink]) -> Self raise PolicyError
 pub fn PolicySet::metadata(Self) -> Array[PolicyInfo]
+pub fn PolicySet::remove(Self, String) -> Self raise PolicyError
+pub fn PolicySet::remove_batch(Self, Array[String]) -> Self raise PolicyError
 
 pub struct PolicyTemplate {
   // private fields

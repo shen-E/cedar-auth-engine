@@ -187,7 +187,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--template TEMPLATE --links LINKS]...",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--template TEMPLATE --links LINKS]... [--remove-policy ID]...",
     )
     return 0
   }
@@ -214,6 +214,7 @@ fn run(args : Array[String]) -> Int32 raise {
   let mut strict = false
   let template_paths : Array[String] = []
   let links_paths : Array[String] = []
+  let remove_ids : Array[String] = []
   let mut i = required_count
   while i < args.length() {
     if args[i] == "--format" &&
@@ -237,6 +238,11 @@ fn run(args : Array[String]) -> Int32 raise {
       i + 1 < args.length() {
       links_paths.push(args[i + 1])
       i += 2
+    } else if args[i] == "--remove-policy" &&
+      command != "check" &&
+      i + 1 < args.length() {
+      remove_ids.push(args[i + 1])
+      i += 2
     } else {
       raise CliError("invalid arguments; use --help")
     }
@@ -251,6 +257,7 @@ fn run(args : Array[String]) -> Int32 raise {
   for i in 0..<template_paths.length() {
     policies = apply_template(policies, template_paths[i], links_paths[i])
   }
+  policies = policies.remove_batch(remove_ids)
   if command == "check" {
     if json {
       let entries : Array[Json] = []

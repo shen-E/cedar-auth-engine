@@ -96,6 +96,12 @@ are checked before any result is produced. A linked policy's ID appears in
 authorization reasons and errors. See [template sharing](examples/template-sharing/)
 and [multiple templates](examples/multi-template/) for complete inputs.
 
+The same commands accept `--remove-policy ID` to evaluate without that policy.
+Repeat it for multiple IDs. Removal happens after all templates are linked and
+only affects that invocation; the input files are unchanged. IDs must exist and
+must not be repeated. Removing a `forbid` policy may allow requests previously
+denied by it.
+
 The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
 `parents`, and optional `tags`; entity-valued attributes use
@@ -195,6 +201,20 @@ time. When a template changes, parse it and rebuild its links to apply the
 change. The application owns template storage and the mapping from template
 versions to links.
 
+Revoke a policy by ID when an application updates access:
+
+```moonbit
+let without_share = linked.remove("share-1")
+```
+
+`remove_batch(["share-1", "share-2"])` removes several IDs at once. Both
+methods return a new policy set and leave the original unchanged. Batch removal
+requires distinct, existing IDs and fails as a whole on invalid input.
+Remaining policies retain their order and annotations. Static policies and
+linked policies can both be removed; removing a `forbid` can expose a matching
+`permit`. The host must use the returned set for subsequent authorization calls
+and distribute any update to its own policy storage or other workers.
+
 For services that make authorization calls over time, construct a reusable
 entity snapshot and pass a policy set to each call:
 
@@ -289,7 +309,8 @@ The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 4,096 entities and 65,536 parent links. Batch authorization
 is limited to 4,096 requests; a policy set, including links, is limited to
-1,024 policies. A reusable `EntityStore` additionally limits entity attribute
+1,024 policies. A removal operation accepts at most 1,024 policy IDs. A reusable
+`EntityStore` additionally limits entity attribute
 and tag values to 131,072 total nodes and 64 nested levels. Input and graph
 limits raise errors instead of returning a partial decision.
 
@@ -316,8 +337,8 @@ decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
-responses, and links from single and multiple templates compared with Cedar
-template-linked policies. It reports mismatches and exits nonzero.
+responses, links from single and multiple templates, and policy removal
+compared with the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -326,7 +347,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 956 comparisons, 36 invalid-syntax cases and 5 invalid
+the current run made 1,010 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

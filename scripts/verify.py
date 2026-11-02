@@ -150,6 +150,28 @@ def main():
                 test_results[index]["response"] != raw_batch or enforced_results[index] != single_value or
                 single_value != {"allowed": allowed, "response": raw_batch} or single_enforced.returncode != (0 if allowed else 1)):
                 mismatches.append({"case": "multi-template:" + str(index), "expected": expected, "reference": ref, "actual": got, "batch": raw_batch, "enforced": single_value})
+        # Compare policy removal with the corresponding Cedar policy set.
+        for removed_ids in (("alice-report",), ("carol-report", "design-team"), ("revoked",)):
+            removed_policy = temp / "removed-reference.cedar"
+            policy_files = ("direct.cedar", "team.cedar") if "revoked" in removed_ids else ("policy.cedar", "direct.cedar", "team.cedar")
+            removed_policy.write_text("\n".join((multi / name).read_text(encoding="utf-8") for name in policy_files), encoding="utf-8")
+            removed_links = temp / "removed-reference-links.json"
+            removed_links.write_text(json.dumps([link for link in reference_links if link["link_id"] not in removed_ids]), encoding="utf-8")
+            remove_flags = tuple(value for ident in removed_ids for value in ("--remove-policy", ident))
+            batch = run([args.engine, "batch", multi / "policy.cedar", multi / "entities.json", multi_input, *multi_flags, *remove_flags, "--format", "json"])
+            if batch.returncode != 0:
+                raise RuntimeError("removed policy batch failed: " + batch.stderr)
+            results = json.loads(batch.stdout)
+            if len(results) != len(multi_cases):
+                raise RuntimeError("removed policy batch length mismatch")
+            for index, case in enumerate(multi_cases):
+                ref = reference(args.cedar, removed_policy, multi / "entities.json", case["request"], temp, removed_links)
+                got = actual(args.engine, multi / "policy.cedar", multi / "entities.json", case["request"], temp, (*multi_flags, *remove_flags))
+                raw = results[index]
+                batch_got = {"decision": raw["decision"], "reasons": sorted(raw["reasons"]), "errors": sorted(error["policy_id"] for error in raw["errors"])}
+                count += 2
+                if got != ref or batch_got != ref:
+                    mismatches.append({"case": "removal:" + ",".join(removed_ids) + ":" + str(index), "reference": ref, "actual": got, "batch": batch_got})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
