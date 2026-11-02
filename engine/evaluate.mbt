@@ -1,14 +1,36 @@
 ///|
-fn same_value(a : Value, b : Value) -> Bool {
+// A comparison budget is shared by all equality operations in one policy.
+fn same_value(
+  a : Value,
+  b : Value,
+  budget : Ref[Int32],
+  depth : Int32,
+) -> Bool raise PolicyError {
+  if depth > 128 {
+    raise PolicyError("value comparison nesting limit exceeded")
+  }
+  if budget.val <= 0 {
+    raise PolicyError("value comparison budget exceeded")
+  }
+  budget.val -= 1
   match (a, b) {
     (SetValue(xs), SetValue(ys)) => {
+      let covered = Array::make(ys.length(), false)
       for x in xs {
-        if !ys.any(fn(y) { same_value(x, y) }) {
+        let mut found = false
+        for i in 0..<ys.length() {
+          if same_value(x, ys[i], budget, depth + 1) {
+            covered[i] = true
+            found = true
+            break
+          }
+        }
+        if !found {
           return false
         }
       }
-      for y in ys {
-        if !xs.any(fn(x) { same_value(x, y) }) {
+      for i in 0..<ys.length() {
+        if !covered[i] && !set_contains(xs, ys[i], budget, depth + 1) {
           return false
         }
       }
@@ -20,7 +42,10 @@ fn same_value(a : Value, b : Value) -> Bool {
       }
       for key, value in xs {
         match ys.get(key) {
-          Some(other) => if !same_value(value, other) { return false }
+          Some(other) =>
+            if !same_value(value, other, budget, depth + 1) {
+              return false
+            }
           None => return false
         }
       }
@@ -28,6 +53,49 @@ fn same_value(a : Value, b : Value) -> Bool {
     }
     _ => a == b
   }
+}
+
+///|
+fn set_contains(
+  values : Array[Value],
+  needle : Value,
+  budget : Ref[Int32],
+  depth : Int32,
+) -> Bool raise PolicyError {
+  for item in values {
+    if same_value(item, needle, budget, depth) {
+      return true
+    }
+  }
+  false
+}
+
+///|
+fn set_contains_all(
+  values : Array[Value],
+  needles : Array[Value],
+  budget : Ref[Int32],
+) -> Bool raise PolicyError {
+  for needle in needles {
+    if !set_contains(values, needle, budget, 0) {
+      return false
+    }
+  }
+  true
+}
+
+///|
+fn set_contains_any(
+  values : Array[Value],
+  needles : Array[Value],
+  budget : Ref[Int32],
+) -> Bool raise PolicyError {
+  for needle in needles {
+    if set_contains(values, needle, budget, 0) {
+      return true
+    }
+  }
+  false
 }
 
 ///|
@@ -109,6 +177,7 @@ fn evaluate(
   expr : Expr,
   request : Request,
   entities : EntityGraph,
+  budget : Ref[Int32],
 ) -> Value raise PolicyError {
   match expr {
     Literal(value) => value
@@ -119,28 +188,29 @@ fn evaluate(
     Variable(_) => raise PolicyError("unknown variable")
     Slot(_) => raise PolicyError("unbound template slot")
     Like(value, pattern) =>
-      match evaluate(value, request, entities) {
+      match evaluate(value, request, entities, budget) {
         StringValue(text) => BoolValue(match_pattern(text, pattern))
         _ => raise PolicyError("like requires a string value")
       }
     IsType(value, kind) =>
-      match evaluate(value, request, entities) {
+      match evaluate(value, request, entities, budget) {
         EntityValue(uid) => BoolValue(uid.kind == kind)
         _ => raise PolicyError("is requires an entity value")
       }
     Conditional(condition, when_true, when_false) =>
-      if boolean(evaluate(condition, request, entities)) {
-        evaluate(when_true, request, entities)
+      if boolean(evaluate(condition, request, entities, budget)) {
+        evaluate(when_true, request, entities, budget)
       } else {
-        evaluate(when_false, request, entities)
+        evaluate(when_false, request, entities, budget)
       }
     Attribute(base, name) =>
-      match attribute(evaluate(base, request, entities), name, entities) {
+      match
+        attribute(evaluate(base, request, entities, budget), name, entities) {
         Some(value) => value
         None => raise PolicyError("missing attribute '\{name}'")
       }
     HasPath(base, path) => {
-      let mut current = evaluate(base, request, entities)
+      let mut current = evaluate(base, request, entities, budget)
       for name in path {
         match attribute(current, name, entities) {
           Some(value) => current = value
@@ -149,46 +219,49 @@ fn evaluate(
       }
       BoolValue(true)
     }
-    Not(inner) => BoolValue(!boolean(evaluate(inner, request, entities)))
+    Not(inner) =>
+      BoolValue(!boolean(evaluate(inner, request, entities, budget)))
     Negate(inner) =>
-      match evaluate(inner, request, entities) {
+      match evaluate(inner, request, entities, budget) {
         LongValue(value) => LongValue(checked_arithmetic(0L, Subtract, value))
         _ => raise PolicyError("arithmetic requires signed 64-bit integers")
       }
     Arithmetic(left, op, right) => {
-      let l = evaluate(left, request, entities)
-      let r = evaluate(right, request, entities)
+      let l = evaluate(left, request, entities, budget)
+      let r = evaluate(right, request, entities, budget)
       match (l, r) {
         (LongValue(a), LongValue(b)) => LongValue(checked_arithmetic(a, op, b))
         _ => raise PolicyError("arithmetic requires signed 64-bit integers")
       }
     }
     And(left, right) => {
-      let first = boolean(evaluate(left, request, entities))
+      let first = boolean(evaluate(left, request, entities, budget))
       if first {
-        BoolValue(boolean(evaluate(right, request, entities)))
+        BoolValue(boolean(evaluate(right, request, entities, budget)))
       } else {
         BoolValue(false)
       }
     }
     Or(left, right) => {
-      let first = boolean(evaluate(left, request, entities))
+      let first = boolean(evaluate(left, request, entities, budget))
       if first {
         BoolValue(true)
       } else {
-        BoolValue(boolean(evaluate(right, request, entities)))
+        BoolValue(boolean(evaluate(right, request, entities, budget)))
       }
     }
     Equal(left, right) =>
       BoolValue(
         same_value(
-          evaluate(left, request, entities),
-          evaluate(right, request, entities),
+          evaluate(left, request, entities, budget),
+          evaluate(right, request, entities, budget),
+          budget,
+          0,
         ),
       )
     Compare(left, op, right) => {
-      let l = evaluate(left, request, entities)
-      let r = evaluate(right, request, entities)
+      let l = evaluate(left, request, entities, budget)
+      let r = evaluate(right, request, entities, budget)
       match (l, r) {
         (LongValue(a), LongValue(b)) => BoolValue(compare_long(a, op, b))
         (DurationValue(a), DurationValue(b)) =>
@@ -199,8 +272,8 @@ fn evaluate(
       }
     }
     TagCall(receiver, presence, key) => {
-      let value = evaluate(receiver, request, entities)
-      let name = evaluate(key, request, entities)
+      let value = evaluate(receiver, request, entities, budget)
+      let name = evaluate(key, request, entities, budget)
       match (value, name) {
         (EntityValue(uid), StringValue(tag)) => {
           let found = match find_entity(entities, uid) {
@@ -220,14 +293,15 @@ fn evaluate(
       }
     }
     DateTimeConstructor(argument) =>
-      match evaluate(argument, request, entities) {
+      match evaluate(argument, request, entities, budget) {
         StringValue(text) => DateTimeValue(DateTime::parse(text))
         _ => raise PolicyError("datetime requires a string value")
       }
     DateTimeCall(receiver, operation, argument) => {
-      let value = evaluate(receiver, request, entities)
+      let value = evaluate(receiver, request, entities, budget)
       let arg = match argument {
-        Some(expression) => Some(evaluate(expression, request, entities))
+        Some(expression) =>
+          Some(evaluate(expression, request, entities, budget))
         None => None
       }
       match (value, operation, arg) {
@@ -264,23 +338,23 @@ fn evaluate(
       }
     }
     DurationConstructor(argument) =>
-      match evaluate(argument, request, entities) {
+      match evaluate(argument, request, entities, budget) {
         StringValue(text) => DurationValue(Duration::parse(text))
         _ => raise PolicyError("duration requires a string value")
       }
     DurationCall(receiver, divisor) =>
-      match evaluate(receiver, request, entities) {
+      match evaluate(receiver, request, entities, budget) {
         DurationValue(duration) => LongValue(duration.milliseconds / divisor)
         _ => raise PolicyError("duration conversion requires a duration")
       }
     DecimalConstructor(argument) =>
-      match evaluate(argument, request, entities) {
+      match evaluate(argument, request, entities, budget) {
         StringValue(text) => DecimalValue(Decimal::parse(text))
         _ => raise PolicyError("decimal requires a string value")
       }
     DecimalCall(receiver, operation, argument) => {
-      let left = evaluate(receiver, request, entities)
-      let right = evaluate(argument, request, entities)
+      let left = evaluate(receiver, request, entities, budget)
+      let right = evaluate(argument, request, entities, budget)
       match (left, right) {
         (DecimalValue(a), DecimalValue(b)) =>
           BoolValue(
@@ -295,14 +369,15 @@ fn evaluate(
       }
     }
     IpConstructor(argument) =>
-      match evaluate(argument, request, entities) {
+      match evaluate(argument, request, entities, budget) {
         StringValue(text) => IpValue(IpAddress::parse(text))
         _ => raise PolicyError("ip requires a string value")
       }
     IpCall(receiver, op, argument) => {
-      let value = evaluate(receiver, request, entities)
+      let value = evaluate(receiver, request, entities, budget)
       let arg = match argument {
-        Some(expression) => Some(evaluate(expression, request, entities))
+        Some(expression) =>
+          Some(evaluate(expression, request, entities, budget))
         None => None
       }
       match (value, op, arg) {
@@ -316,33 +391,26 @@ fn evaluate(
       }
     }
     SetCall(receiver, op, argument) => {
-      let value = evaluate(receiver, request, entities)
+      let value = evaluate(receiver, request, entities, budget)
       let arg = match argument {
-        Some(expression) => Some(evaluate(expression, request, entities))
+        Some(expression) =>
+          Some(evaluate(expression, request, entities, budget))
         None => None
       }
       match (value, op, arg) {
         (SetValue(values), IsEmpty, None) => BoolValue(values.is_empty())
         (SetValue(values), Contains, Some(needle)) =>
-          BoolValue(values.any(fn(item) { same_value(item, needle) }))
+          BoolValue(set_contains(values, needle, budget, 0))
         (SetValue(values), ContainsAll, Some(SetValue(needles))) =>
-          BoolValue(
-            needles.all(fn(needle) {
-              values.any(fn(item) { same_value(item, needle) })
-            }),
-          )
+          BoolValue(set_contains_all(values, needles, budget))
         (SetValue(values), ContainsAny, Some(SetValue(needles))) =>
-          BoolValue(
-            needles.any(fn(needle) {
-              values.any(fn(item) { same_value(item, needle) })
-            }),
-          )
+          BoolValue(set_contains_any(values, needles, budget))
         _ => raise PolicyError("set method received incompatible operand types")
       }
     }
     In(left, right) => {
-      let l = evaluate(left, request, entities)
-      let r = evaluate(right, request, entities)
+      let l = evaluate(left, request, entities, budget)
+      let r = evaluate(right, request, entities, budget)
       match (l, r) {
         (EntityValue(child), EntityValue(parent)) =>
           BoolValue(is_descendant(entities, child, parent))
@@ -371,7 +439,7 @@ fn evaluate(
     SetExpr(items) => {
       let values = []
       for item in items {
-        values.push(evaluate(item, request, entities))
+        values.push(evaluate(item, request, entities, budget))
       }
       SetValue(values)
     }
@@ -382,7 +450,7 @@ fn evaluate(
         if values.contains(key) {
           raise PolicyError("duplicate record field '\{key}'")
         }
-        values[key] = evaluate(item, request, entities)
+        values[key] = evaluate(item, request, entities, budget)
       }
       RecordValue(values)
     }
@@ -465,7 +533,8 @@ fn authorize_in_graph(
   let forbids = []
   let errors = []
   for policy in policies.policies {
-    let matched = boolean(evaluate(policy.condition, request, graph)) catch {
+    let budget = Ref(1000000)
+    let matched = boolean(evaluate(policy.condition, request, graph, budget)) catch {
       PolicyError(message) => {
         errors.push({ policy_id: policy.id, message, })
         false

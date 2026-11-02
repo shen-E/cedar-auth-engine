@@ -253,10 +253,15 @@ The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 4,096 entities and 65,536 parent links. Batch authorization
 is limited to 4,096 requests; a policy set, including links, is limited to
-1,024 policies. A reusable `EntityStore` additionally limits
-entity attribute and tag values to 131,072 total nodes and 64 nested levels;
-this also rejects cyclic values constructed through the typed API. Limits raise
-errors instead of returning a partial decision.
+1,024 policies. A reusable `EntityStore` additionally limits entity attribute
+and tag values to 131,072 total nodes and 64 nested levels. Input and graph
+limits raise errors instead of returning a partial decision.
+
+Each policy evaluation allows at most 1,000,000 value-comparison steps and 128
+nested comparison levels. These limits also stop cyclic values constructed
+through the typed API. Exceeding a comparison limit records a policy error and
+skips that policy under Cedar's error semantics. Applications should inspect
+`errors` before enforcing a decision; CLI callers can use `--strict`.
 
 ## Verify
 
@@ -278,13 +283,13 @@ individual reference decisions, test-command responses, and links compared with
 Cedar template-linked policies. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
-inputs are checked against Cedar, and generated timestamps are checked against
-Python calendar arithmetic. The MoonBit tests also compare all
+entity graphs are checked against Cedar, generated timestamps are checked
+against Python calendar arithmetic, and small sets against Python sets. The MoonBit tests also compare all
 512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current comparison ran 794 requests, 36 invalid-syntax cases and 5 invalid
+the current comparison ran 862 requests, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

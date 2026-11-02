@@ -190,6 +190,37 @@ def main():
         count += 1
         if ref != got:
             mismatches.append({"case": "skip-on-error", "reference": ref, "actual": got})
+        # Compare set equality and membership, including duplicate values.
+        set_rng = random.Random(20261104)
+        set_cases = [([], []), ([1, 1, 2], [2, 1]), ([1], [1, 2]), ([0, 1, 2], [2, 1, 0])]
+        set_cases.extend(([set_rng.randrange(4) for _ in range(set_rng.randrange(7))], [set_rng.randrange(4) for _ in range(set_rng.randrange(7))]) for _ in range(12))
+        set_expressions = (
+            ("context.left == context.right", lambda a, b: set(a) == set(b)),
+            ("context.left.containsAll(context.right)", lambda a, b: set(b) <= set(a)),
+            ("context.left.containsAny(context.right)", lambda a, b: bool(set(a) & set(b))),
+            ("context.left.contains(context.needle)", lambda a, b: 2 in a),
+        )
+        for left, right in set_cases:
+            for expression, oracle in set_expressions:
+                policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+                candidate = {**request, "context": {"left": left, "right": right, "needle": 2}}
+                ref = reference(args.cedar, policy, entities, candidate, temp)
+                got = actual(args.engine, policy, entities, candidate, temp)
+                expected = "Allow" if oracle(left, right) else "Deny"
+                count += 1
+                if ref != got or ref["decision"] != expected or ref["errors"]:
+                    mismatches.append({"case": "set comparison: " + expression, "left": left, "right": right, "reference": ref, "actual": got, "expected": expected})
+        for levels, same in ((1, True), (10, True), (26, True), (50, False)):
+            left, right = 1, (1 if same else 2)
+            for _ in range(levels):
+                left, right = [left], [right]
+            policy.write_text('permit(principal, action, resource) when { context.left == context.right };', encoding="utf-8")
+            candidate = {**request, "context": {"left": left, "right": right}}
+            ref = reference(args.cedar, policy, entities, candidate, temp)
+            got = actual(args.engine, policy, entities, candidate, temp)
+            count += 1
+            if ref != got or got["decision"] != ("Allow" if same else "Deny"):
+                mismatches.append({"case": "nested set comparison", "depth": levels, "reference": ref, "actual": got})
         # Compare datetime parsing and operations with Cedar 4.13.0.
         datetime_values = [
             "1970-01-01", "0000-01-01", "9999-12-31", "2000-02-29", "1900-02-28",
