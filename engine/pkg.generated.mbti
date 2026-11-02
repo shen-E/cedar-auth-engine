@@ -121,6 +121,7 @@ pub struct PolicySet {
   // private fields
 }
 pub fn PolicySet::link(Self, PolicyTemplate, String, TemplateBindings) -> Self raise PolicyError
+pub fn PolicySet::link_batch(Self, PolicyTemplate, Array[TemplateLink]) -> Self raise PolicyError
 pub fn PolicySet::metadata(Self) -> Array[PolicyInfo]
 
 pub struct PolicyTemplate {
@@ -153,6 +154,11 @@ pub fn TaggedEntity::to_repr(Self) -> @debug.Repr
 pub(all) struct TemplateBindings {
   principal : EntityId?
   resource : EntityId?
+}
+
+pub(all) struct TemplateLink {
+  id : String
+  bindings : TemplateBindings
 }
 
 pub(all) enum Value {

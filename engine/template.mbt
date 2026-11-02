@@ -14,6 +14,13 @@ pub(all) struct TemplateBindings {
 }
 
 ///|
+/// A policy ID and the values to bind to one template.
+pub(all) struct TemplateLink {
+  id : String
+  bindings : TemplateBindings
+}
+
+///|
 /// Parse exactly one policy template containing at least one supported slot.
 pub fn parse_template(text : String) -> PolicyTemplate raise PolicyError {
   let (set, principal_slot, resource_slot) = parse_policy_data(text, true)
@@ -76,30 +83,50 @@ pub fn PolicySet::link(
   id : String,
   bindings : TemplateBindings,
 ) -> PolicySet raise PolicyError {
-  if template.principal_slot != (bindings.principal is Some(_)) ||
-    template.resource_slot != (bindings.resource is Some(_)) {
-    raise PolicyError("template bindings must match required slots")
-  }
-  match bindings.principal {
-    Some(uid) => uid.validate()
-    None => ()
-  }
-  match bindings.resource {
-    Some(uid) => uid.validate()
-    None => ()
-  }
-  if self.policies.length() >= 1024 {
+  self.link_batch(template, [{ id, bindings, }])
+}
+
+///|
+/// Return a new policy set containing all links, or an error without changes.
+pub fn PolicySet::link_batch(
+  self : PolicySet,
+  template : PolicyTemplate,
+  links : Array[TemplateLink],
+) -> PolicySet raise PolicyError {
+  if links.length() > 1024 - self.policies.length() {
     raise PolicyError("policy count limit exceeded")
   }
-  if self.policies.any(fn(policy) { policy.id == id }) {
-    raise PolicyError("duplicate policy id '\{id}'")
+  let seen : Map[String, Bool] = Map([])
+  for policy in self.policies {
+    seen[policy.id] = true
+  }
+  for link in links {
+    let bindings = link.bindings
+    if template.principal_slot != (bindings.principal is Some(_)) ||
+      template.resource_slot != (bindings.resource is Some(_)) {
+      raise PolicyError("template bindings must match required slots")
+    }
+    match bindings.principal {
+      Some(uid) => uid.validate()
+      None => ()
+    }
+    match bindings.resource {
+      Some(uid) => uid.validate()
+      None => ()
+    }
+    if seen.contains(link.id) {
+      raise PolicyError("duplicate policy id '\{link.id}'")
+    }
+    seen[link.id] = true
   }
   let policies = self.policies.copy()
-  policies.push({
-    id,
-    forbid: template.policy.forbid,
-    condition: bind_scope_slots(template.policy.condition, bindings),
-    annotations: template.policy.annotations,
-  })
+  for link in links {
+    policies.push({
+      id: link.id,
+      forbid: template.policy.forbid,
+      condition: bind_scope_slots(template.policy.condition, link.bindings),
+      annotations: template.policy.annotations,
+    })
+  }
   { policies, }
 }

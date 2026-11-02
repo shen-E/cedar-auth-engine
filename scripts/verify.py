@@ -110,6 +110,46 @@ def main():
             count += 1
             if underlying != ref or result["allowed"] != allowed or enforced.returncode != (0 if allowed else 1):
                 mismatches.append({"case": "template enforcement:" + str(index), "reference": ref, "actual": result, "status": enforced.returncode})
+        # Compare two independently linked templates in one policy set.
+        multi = ROOT / "examples" / "multi-template"
+        multi_policy = temp / "multi-reference.cedar"
+        multi_policy.write_text("\n".join((multi / name).read_text(encoding="utf-8") for name in ("policy.cedar", "direct.cedar", "team.cedar")), encoding="utf-8")
+        multi_links = temp / "multi-reference-links.json"
+        reference_links = []
+        for template_id, file_name in (("direct", "direct-links.json"), ("team", "team-links.json")):
+            for link in json.loads((multi / file_name).read_text(encoding="utf-8")):
+                reference_links.append({"template_id": template_id, "link_id": link["id"], "args": {"?" + slot: uid(link[slot]) for slot in ("principal", "resource") if slot in link}})
+        multi_links.write_text(json.dumps(reference_links), encoding="utf-8")
+        multi_flags = ("--template", multi / "direct.cedar", "--links", multi / "direct-links.json", "--template", multi / "team.cedar", "--links", multi / "team-links.json")
+        multi_cases = json.loads((multi / "requests.json").read_text(encoding="utf-8"))
+        multi_input = temp / "multi-batch.json"
+        multi_input.write_text(json.dumps([case["request"] for case in multi_cases]), encoding="utf-8")
+        multi_batch = run([args.engine, "batch", multi / "policy.cedar", multi / "entities.json", multi_input, *multi_flags, "--format", "json"])
+        multi_enforced = run([args.engine, "enforce-batch", multi / "policy.cedar", multi / "entities.json", multi_input, *multi_flags, "--format", "json"])
+        multi_test = run([args.engine, "test", multi / "policy.cedar", multi / "entities.json", multi / "requests.json", *multi_flags, "--format", "json"])
+        if multi_batch.returncode != 0 or multi_enforced.returncode != 1 or multi_test.returncode != 0:
+            raise RuntimeError("multi-template CLI failed: " + multi_batch.stderr + multi_enforced.stderr + multi_test.stderr)
+        batch_results = json.loads(multi_batch.stdout)
+        enforced_results = json.loads(multi_enforced.stdout)
+        test_results = json.loads(multi_test.stdout)["cases"]
+        if any(len(items) != len(multi_cases) for items in (batch_results, enforced_results, test_results)):
+            raise RuntimeError("multi-template report length mismatch")
+        for index, case in enumerate(multi_cases):
+            ref = reference(args.cedar, multi_policy, multi / "entities.json", case["request"], temp, multi_links)
+            got = actual(args.engine, multi / "policy.cedar", multi / "entities.json", case["request"], temp, multi_flags)
+            expected = {"decision": case["decision"], "reasons": sorted(case["reasons"]), "errors": sorted(case["errors"])}
+            single_path = temp / "multi-enforce-request.json"
+            single_path.write_text(json.dumps(case["request"]), encoding="utf-8")
+            single_enforced = run([args.engine, "enforce", multi / "policy.cedar", multi / "entities.json", single_path, *multi_flags, "--format", "json"])
+            single_value = json.loads(single_enforced.stdout)
+            raw_batch = batch_results[index]
+            normalized = {"decision": raw_batch["decision"], "reasons": sorted(raw_batch["reasons"]), "errors": sorted(error["policy_id"] for error in raw_batch["errors"])}
+            allowed = ref["decision"] == "Allow" and not ref["errors"]
+            count += 5
+            if (ref != expected or got != ref or normalized != ref or not test_results[index]["passed"] or
+                test_results[index]["response"] != raw_batch or enforced_results[index] != single_value or
+                single_value != {"allowed": allowed, "response": raw_batch} or single_enforced.returncode != (0 if allowed else 1)):
+                mismatches.append({"case": "multi-template:" + str(index), "expected": expected, "reference": ref, "actual": got, "batch": raw_batch, "enforced": single_value})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
