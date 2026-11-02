@@ -234,6 +234,42 @@ def main():
                 any(case[key] != value for key, value in expected_flags.items()) or
                 case["changed"] != any(expected_flags.values())):
                 mismatches.append({"case": "compare:" + str(index), "before": old, "after": new, "actual": case})
+        # Compose both comparison sides with additions, replacements and removals.
+        composed_before = temp / "composed-before.cedar"
+        composed_before.write_text(multi_policy.read_text(encoding="utf-8") + "\n" + (update / "additional.cedar").read_text(encoding="utf-8"), encoding="utf-8")
+        composed_before_links = temp / "composed-before-links.json"
+        composed_before_links.write_text(json.dumps([link for link in reference_links if link["link_id"] != "carol-report"]), encoding="utf-8")
+        composed_after_links = temp / "composed-after-links.json"
+        composed_after_links.write_text(json.dumps([link for link in reference_links if link["link_id"] not in ("alice-report", "design-team")]), encoding="utf-8")
+        composed_flags = ("--before-template", multi / "direct.cedar", "--before-links", multi / "direct-links.json",
+                          "--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                          "--before-add-policies", update / "additional.cedar", "--before-remove-policy", "carol-report",
+                          "--after-template", multi / "direct.cedar", "--after-links", multi / "direct-links.json",
+                          "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json",
+                          "--after-add-policies", update / "additional.cedar", "--after-replace-policies", update / "replacements.cedar",
+                          "--after-remove-policy", "design-team")
+        composed_run = run([args.engine, "compare", multi / "policy.cedar", multi / "policy.cedar", multi / "entities.json", comparison / "requests.json", *composed_flags, "--format", "json"])
+        if composed_run.returncode:
+            raise RuntimeError("composed policy comparison failed: " + composed_run.stderr)
+        composed_report = json.loads(composed_run.stdout)
+        if composed_report["total"] != len(compare_cases) or len(composed_report["cases"]) != len(compare_cases):
+            raise RuntimeError("composed comparison length mismatch")
+        for index, request in enumerate(compare_cases):
+            old = reference(args.cedar, composed_before, multi / "entities.json", request, temp, composed_before_links)
+            new = reference(args.cedar, update_policy, multi / "entities.json", request, temp, composed_after_links)
+            case = composed_report["cases"][index]
+            old_allowed = old["decision"] == "Allow" and not old["errors"]
+            new_allowed = new["decision"] == "Allow" and not new["errors"]
+            expected_flags = {"decision_changed": old["decision"] != new["decision"],
+                              "enforcement_changed": old_allowed != new_allowed,
+                              "reasons_changed": old["reasons"] != new["reasons"],
+                              "errors_changed": old["errors"] != new["errors"]}
+            count += 2
+            if (normalize(case["before"]) != old or normalize(case["after"]) != new or
+                case["before_allowed"] != old_allowed or case["after_allowed"] != new_allowed or
+                any(case[key] != value for key, value in expected_flags.items()) or
+                case["changed"] != any(expected_flags.values())):
+                mismatches.append({"case": "composed-compare:" + str(index), "before": old, "after": new, "actual": case})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"

@@ -187,7 +187,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--format json] [--fail-on-change]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-template TEMPLATE --before-links LINKS]... [--after-template TEMPLATE --after-links LINKS]...",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--format json] [--fail-on-change]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
     )
     return 0
   }
@@ -215,11 +215,7 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut strict = false
-  let template_paths : Array[String] = []
-  let links_paths : Array[String] = []
-  let remove_ids : Array[String] = []
-  let add_paths : Array[String] = []
-  let replace_paths : Array[String] = []
+  let inputs = policy_inputs()
   let mut i = required_count
   while i < args.length() {
     if args[i] == "--format" &&
@@ -236,52 +232,33 @@ fn run(args : Array[String]) -> Int32 raise {
     } else if args[i] == "--template" &&
       command != "check" &&
       i + 1 < args.length() {
-      template_paths.push(args[i + 1])
+      inputs.templates.push(args[i + 1])
       i += 2
     } else if args[i] == "--links" &&
       command != "check" &&
       i + 1 < args.length() {
-      links_paths.push(args[i + 1])
+      inputs.links.push(args[i + 1])
       i += 2
     } else if args[i] == "--add-policies" &&
       command != "check" &&
       i + 1 < args.length() {
-      add_paths.push(args[i + 1])
+      inputs.additions.push(args[i + 1])
       i += 2
     } else if args[i] == "--replace-policies" &&
       command != "check" &&
       i + 1 < args.length() {
-      replace_paths.push(args[i + 1])
+      inputs.replacements.push(args[i + 1])
       i += 2
     } else if args[i] == "--remove-policy" &&
       command != "check" &&
       i + 1 < args.length() {
-      remove_ids.push(args[i + 1])
+      inputs.removals.push(args[i + 1])
       i += 2
     } else {
       raise CliError("invalid arguments; use --help")
     }
   }
-  if template_paths.length() != links_paths.length() {
-    raise CliError("--template and --links counts must match")
-  }
-  if template_paths.length() > 1024 {
-    raise CliError("template pair limit exceeded")
-  }
-  if add_paths.length() > 1024 || replace_paths.length() > 1024 {
-    raise CliError("policy file limit exceeded")
-  }
-  let mut policies = @engine.parse_policies(read_text(args[2]))
-  for path in add_paths {
-    policies = policies.merge(@engine.parse_policies(read_text(path)))
-  }
-  for i in 0..<template_paths.length() {
-    policies = apply_template(policies, template_paths[i], links_paths[i])
-  }
-  for path in replace_paths {
-    policies = policies.replace(@engine.parse_policies(read_text(path)))
-  }
-  policies = policies.remove_batch(remove_ids)
+  let policies = inputs.load(args[2])
   if command == "check" {
     if json {
       let entries : Array[Json] = []

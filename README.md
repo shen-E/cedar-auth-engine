@@ -85,9 +85,25 @@ Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
 `--after-template` / `--after-links` options for linked policies. Repeat pairs
 as needed; each side pairs templates and link files by their respective order
 of appearance, with up to 1,024 pairs per side. Each side starts from its own
-static policy file. See [policy comparison](examples/policy-comparison/) for
-a case where an evaluation error changes enforcement while Cedar still returns
-`Allow`. Comparisons cover the supplied requests and entity snapshot.
+static policy file. Each side also accepts `--before-add-policies FILE`,
+`--before-replace-policies FILE` and `--before-remove-policy ID`, or the
+corresponding `--after-*` options. They can be repeated up to 1,024 times per
+option and side. As with the authorization commands below, each side loads its
+base file, additions, template links, replacements and removals in that order;
+file order is preserved within additions and within replacements. Duplicate or
+unknown IDs and invalid input fail the entire comparison before output.
+
+For example, evaluate the existing sharing policies before and after applying
+the [policy update](examples/policy-update/):
+
+```sh
+moon run cmd/cedar-auth-engine --target native -- compare examples/multi-template/policy.cedar examples/multi-template/policy.cedar examples/multi-template/entities.json examples/policy-comparison/requests.json --before-template examples/multi-template/direct.cedar --before-links examples/multi-template/direct-links.json --before-template examples/multi-template/team.cedar --before-links examples/multi-template/team-links.json --after-template examples/multi-template/direct.cedar --after-links examples/multi-template/direct-links.json --after-template examples/multi-template/team.cedar --after-links examples/multi-template/team-links.json --before-remove-policy carol-report --after-add-policies examples/policy-update/additional.cedar --after-replace-policies examples/policy-update/replacements.cedar --after-remove-policy design-team --format json
+```
+
+See [policy comparison](examples/policy-comparison/) for a case where an
+evaluation error changes enforcement while Cedar still returns `Allow`.
+Comparisons cover the supplied requests and entity snapshot; they do not modify
+policy files or deploy an update.
 
 `test POLICY ENTITIES CASES` evaluates an array of objects with `request` and
 expected `decision` fields. Optional `reasons` and `errors` fields contain
@@ -409,8 +425,8 @@ including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
-policy updates and both sides of comparison reports against the corresponding
-Cedar policy sets. It reports mismatches and exits nonzero.
+policy updates and both independently composed sides of comparison reports
+against the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -419,7 +435,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 1,036 comparisons, 36 invalid-syntax cases and 5 invalid
+the current run made 1,052 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

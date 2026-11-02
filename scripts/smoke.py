@@ -285,6 +285,83 @@ def main():
         unchanged = run("compare", before, before, entities, requests, *unchanged_flags, "--fail-on-change", "--format", "json")
         assert unchanged.returncode == 0 and json.loads(unchanged.stdout)["changed"] == 0
         checks += 1
+        # Compare independently composed sides against ordinary batch evaluation.
+        update = ROOT / "examples" / "policy-update"
+        templates = ("--template", multi / "direct.cedar", "--links", multi / "direct-links.json",
+                     "--template", multi / "team.cedar", "--links", multi / "team-links.json")
+        old_options = (*templates, "--add-policies", update / "additional.cedar", "--remove-policy", "carol-report")
+        new_options = (*templates, "--add-policies", update / "additional.cedar",
+                       "--replace-policies", update / "replacements.cedar", "--remove-policy", "design-team")
+        def side_options(options, prefix):
+            return tuple(("--" + prefix + "-" + value[2:]) if isinstance(value, str) and value.startswith("--") else value for value in options)
+        composed = run("compare", before, before, entities, requests,
+                       *side_options(old_options, "before"), *side_options(new_options, "after"), "--format", "json")
+        old_batch = run("batch", before, entities, requests, *old_options, "--format", "json")
+        new_batch = run("batch", before, entities, requests, *new_options, "--format", "json")
+        assert composed.returncode == old_batch.returncode == new_batch.returncode == 0
+        composed_cases = json.loads(composed.stdout)["cases"]
+        assert [case["before"] for case in composed_cases] == json.loads(old_batch.stdout)
+        assert [case["after"] for case in composed_cases] == json.loads(new_batch.stdout)
+        assert any(case["changed"] for case in composed_cases)
+        checks += 1
+        # Cross-kind options apply in the documented order even when interleaved.
+        scrambled = ("--after-remove-policy", "design-team", "--before-remove-policy", "carol-report",
+                     "--after-replace-policies", update / "replacements.cedar",
+                     *side_options(templates, "after"), "--before-add-policies", update / "additional.cedar",
+                     *side_options(templates, "before"), "--after-add-policies", update / "additional.cedar")
+        result = run("compare", before, before, entities, requests, *scrambled, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == json.loads(composed.stdout)
+        checks += 1
+        bad_policy = path / "bad-policy.cedar"
+        bad_policy.write_text('invalid syntax;', encoding="utf-8")
+        duplicate_policy = path / "duplicate-policy.cedar"
+        duplicate_policy.write_text('@id("revoked") permit(principal, action, resource);', encoding="utf-8")
+        unknown_policy = path / "unknown-policy.cedar"
+        unknown_policy.write_text('@id("missing") permit(principal, action, resource);', encoding="utf-8")
+        for side in ("before", "after"):
+            for bad in (("--" + side + "-add-policies", duplicate_policy),
+                        ("--" + side + "-add-policies", bad_policy),
+                        ("--" + side + "-add-policies", path / "absent.cedar"),
+                        ("--" + side + "-replace-policies", unknown_policy),
+                        ("--" + side + "-replace-policies", bad_policy),
+                        ("--" + side + "-remove-policy", "missing"),
+                        ("--" + side + "-remove-policy", "revoked", "--" + side + "-remove-policy", "revoked")):
+                result = run("compare", before, before, entities, requests, *bad, "--format", "json")
+                assert result.returncode == 2 and not result.stdout
+                checks += 1
+            for option in ("add-policies", "replace-policies", "remove-policy"):
+                result = run("compare", before, before, entities, requests, *(("--" + side + "-" + option, "x") * 1025))
+                assert result.returncode == 2 and not result.stdout and "limit exceeded" in result.stderr
+                checks += 1
+        # Additions remain independent and policy order does not change the report.
+        add_a = path / "add-a.cedar"
+        add_b = path / "add-b.cedar"
+        add_a.write_text('@id("a") permit(principal, action, resource);', encoding="utf-8")
+        add_b.write_text('@id("b") permit(principal, action, resource);', encoding="utf-8")
+        reordered = run("compare", before, before, entities, requests,
+                        "--before-add-policies", add_a, "--before-add-policies", add_b,
+                        "--after-add-policies", add_b, "--after-add-policies", add_a,
+                        "--fail-on-change", "--format", "json")
+        assert reordered.returncode == 0 and json.loads(reordered.stdout)["changed"] == 0
+        checks += 1
+        # A removal cannot make an earlier conflicting addition valid.
+        duplicate_before_remove = run("compare", before, before, entities, requests,
+                                      "--before-add-policies", duplicate_policy,
+                                      "--before-remove-policy", "revoked", "--format", "json")
+        assert duplicate_before_remove.returncode == 2 and not duplicate_before_remove.stdout
+        checks += 1
+        # Repeated replacement files apply in order on each side.
+        first = path / "first-replacement.cedar"
+        second = path / "second-replacement.cedar"
+        first.write_text('@id("revoked") forbid(principal, action, resource);', encoding="utf-8")
+        second.write_text('@id("revoked") forbid(principal, action, resource) when { false };', encoding="utf-8")
+        ordered = run("compare", before, before, entities, requests, "--before-replace-policies", first,
+                      "--before-replace-policies", second, "--after-replace-policies", second,
+                      "--after-replace-policies", first, "--format", "json")
+        assert ordered.returncode == 0
+        ordered_cases = json.loads(ordered.stdout)["cases"]
+        assert ordered_cases[0]["before"]["reasons"] == [] and ordered_cases[0]["after"]["reasons"] == ["revoked"]
+        checks += 1
         empty = path / "empty.json"
         empty.write_text("[]", encoding="utf-8")
         result = run("compare", before, after, entities, empty, "--format", "json")
