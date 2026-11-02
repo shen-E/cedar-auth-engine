@@ -208,6 +208,28 @@ def main():
             result = run("test", deny_policy, empty, batch_cases, *flags)
             assert result.returncode == 2 and not result.stdout
             checks += 1
+        # Deep sets should complete without exponential duplicate comparisons.
+        comparison_policy = path / "comparison.cedar"
+        comparison_request = path / "comparison-request.json"
+        comparison_policy.write_text('permit(principal, action, resource) when { context.left == context.right };', encoding="utf-8")
+        nested = 0
+        for _ in range(50):
+            nested = [nested]
+        comparison_request.write_text(json.dumps({**valid, "context": {"left": nested, "right": nested}}), encoding="utf-8")
+        result = run("authorize", comparison_policy, empty, comparison_request, "--strict", "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
+        checks += 1
+        # Exceeding the limit remains a policy error with standard skip semantics.
+        comparison_policy.write_text('@id("base") permit(principal, action, resource); @id("guard") forbid(principal, action, resource) when { context.left == context.right };', encoding="utf-8")
+        comparison_request.write_text(json.dumps({**valid, "context": {"left": list(range(1500)), "right": list(reversed(range(1500)))}}), encoding="utf-8")
+        normal = run("authorize", comparison_policy, empty, comparison_request, "--format", "json")
+        strict = run("authorize", comparison_policy, empty, comparison_request, "--strict", "--format", "json")
+        value = json.loads(normal.stdout)
+        assert normal.returncode == 0 and strict.returncode == 1 and json.loads(strict.stdout) == value
+        assert value["decision"] == "Allow" and value["reasons"] == ["base"]
+        assert len(value["errors"]) == 1 and value["errors"][0]["policy_id"] == "guard"
+        assert "comparison budget" in value["errors"][0]["message"]
+        checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}
         failed.write_text(json.dumps([{"request": request_obj, "decision": "Deny"}]), encoding="utf-8")
