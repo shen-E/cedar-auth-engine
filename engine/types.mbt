@@ -113,6 +113,7 @@ pub extend Response with Debug::{to_repr}
 priv enum Expr {
   Literal(Value)
   Variable(String)
+  Slot(String)
   Attribute(Expr, String)
   HasPath(Expr, Array[String])
   Not(Expr)

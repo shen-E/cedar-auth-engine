@@ -3,6 +3,9 @@ priv struct Parser {
   tokens : Array[String]
   mut pos : Int32
   mut depth : Int32
+  allow_slots : Bool
+  mut principal_slot : Bool
+  mut resource_slot : Bool
 }
 
 ///|
@@ -44,6 +47,23 @@ fn tokenize(text : String) -> Array[String] raise PolicyError {
       }
       if !closed {
         raise PolicyError("unterminated string")
+      }
+      out.push(b.to_string())
+    } else if c == '?' {
+      let b = StringBuilder()
+      b.write_char(c)
+      i += 1
+      while i < chars.length() {
+        let d = chars[i]
+        if (d >= 'a' && d <= 'z') ||
+          (d >= 'A' && d <= 'Z') ||
+          (d >= '0' && d <= '9') ||
+          d == '_' {
+          b.write_char(d)
+          i += 1
+        } else {
+          break
+        }
       }
       out.push(b.to_string())
     } else if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' {
@@ -576,6 +596,30 @@ fn Parser::expression(self : Parser) -> Expr raise PolicyError {
 }
 
 ///|
+fn Parser::scope_value(
+  self : Parser,
+  variable : String,
+) -> Expr raise PolicyError {
+  let token = self.peek()
+  if token.has_prefix("?") {
+    let _ = self.take()
+    if !self.allow_slots ||
+      (variable != "principal" && variable != "resource") ||
+      token != "?" + variable {
+      raise PolicyError("invalid template slot in scope")
+    }
+    if variable == "principal" {
+      self.principal_slot = true
+    } else {
+      self.resource_slot = true
+    }
+    Slot(variable)
+  } else {
+    self.primary()
+  }
+}
+
+///|
 fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
   self.expect(variable)
   if self.accept("is") {
@@ -584,8 +628,8 @@ fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
     }
     let type_test = IsType(Variable(variable), self.type_path())
     if self.accept("in") {
-      let parent = self.primary()
-      if !(parent is Literal(EntityValue(_))) {
+      let parent = self.scope_value(variable)
+      if !(parent is Literal(EntityValue(_))) && !(parent is Slot(_)) {
         raise PolicyError("scope membership requires an entity literal")
       }
       And(type_test, In(Variable(variable), parent))
@@ -593,15 +637,15 @@ fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
       type_test
     }
   } else if self.accept("==") {
-    let value = self.primary()
-    if !(value is Literal(EntityValue(_))) {
+    let value = self.scope_value(variable)
+    if !(value is Literal(EntityValue(_))) && !(value is Slot(_)) {
       raise PolicyError("scope equality requires an entity literal")
     }
     Equal(Variable(variable), value)
   } else if self.accept("in") {
-    let value = self.primary()
+    let value = self.scope_value(variable)
     match value {
-      Literal(EntityValue(_)) => ()
+      Literal(EntityValue(_)) | Slot(_) => ()
       SetExpr(items) if variable == "action" =>
         for item in items {
           if !(item is Literal(EntityValue(_))) {
@@ -618,7 +662,23 @@ fn Parser::scope(self : Parser, variable : String) -> Expr raise PolicyError {
 
 ///|
 pub fn parse_policies(text : String) -> PolicySet raise PolicyError {
-  let parser = { tokens: tokenize(text), pos: 0, depth: 0, }
+  let (policies, _, _) = parse_policy_data(text, false)
+  policies
+}
+
+///|
+fn parse_policy_data(
+  text : String,
+  allow_slots : Bool,
+) -> (PolicySet, Bool, Bool) raise PolicyError {
+  let parser = {
+    tokens: tokenize(text),
+    pos: 0,
+    depth: 0,
+    allow_slots,
+    principal_slot: false,
+    resource_slot: false,
+  }
   let policies : Array[Policy] = []
   while parser.peek() != "" {
     let annotations : Map[String, String] = Map([])
@@ -672,5 +732,5 @@ pub fn parse_policies(text : String) -> PolicySet raise PolicyError {
       raise PolicyError("policy count limit exceeded")
     }
   }
-  { policies, }
+  ({ policies, }, parser.principal_slot, parser.resource_slot)
 }

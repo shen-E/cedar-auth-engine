@@ -20,6 +20,8 @@ pub fn parse_json(String) -> Json raise PolicyError
 
 pub fn parse_policies(String) -> PolicySet raise PolicyError
 
+pub fn parse_template(String) -> PolicyTemplate raise PolicyError
+
 pub fn request_from_json(Json) -> Request raise PolicyError
 
 pub fn response_to_json(Response) -> Json
@@ -117,7 +119,13 @@ pub fn PolicyInfo::to_repr(Self) -> @debug.Repr
 pub struct PolicySet {
   // private fields
 }
+pub fn PolicySet::link(Self, PolicyTemplate, String, TemplateBindings) -> Self raise PolicyError
 pub fn PolicySet::metadata(Self) -> Array[PolicyInfo]
+
+pub struct PolicyTemplate {
+  // private fields
+}
+pub fn PolicyTemplate::slots(Self) -> Array[String]
 
 pub(all) struct Request {
   principal : EntityId
@@ -139,6 +147,11 @@ pub(all) struct TaggedEntity {
   tags : Map[String, Value]
 } derive(@debug.Debug)
 pub fn TaggedEntity::to_repr(Self) -> @debug.Repr
+
+pub(all) struct TemplateBindings {
+  principal : EntityId?
+  resource : EntityId?
+}
 
 pub(all) enum Value {
   BoolValue(Bool)

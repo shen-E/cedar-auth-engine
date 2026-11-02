@@ -35,6 +35,47 @@ def main():
                 checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        sharing = ROOT / "examples" / "template-sharing"
+        template = sharing / "template.cedar"
+        links = sharing / "links.json"
+        policy, entities, cases = sharing / "policy.cedar", sharing / "entities.json", sharing / "requests.json"
+        flags = ("--template", template, "--links", links)
+        cases_value = json.loads(cases.read_text(encoding="utf-8"))
+        result = run("test", policy, entities, cases, *flags, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["failures"] == 0
+        checks += 1
+        batch_file = path / "template-batch.json"
+        batch_file.write_text(json.dumps([case["request"] for case in cases_value]), encoding="utf-8")
+        batch = run("batch", policy, entities, batch_file, "--links", links, "--format", "json", "--template", template)
+        responses = json.loads(batch.stdout)
+        assert batch.returncode == 0 and len(responses) == len(cases_value)
+        for index, case in enumerate(cases_value):
+            request = path / "template-request.json"
+            request.write_text(json.dumps(case["request"]), encoding="utf-8")
+            single = run("authorize", policy, entities, request, *flags, "--format", "json")
+            assert single.returncode == 0 and json.loads(single.stdout) == responses[index]
+            checks += 1
+        strict = run("batch", policy, entities, batch_file, *flags, "--strict", "--format", "json")
+        assert strict.returncode == 1 and json.loads(strict.stdout) == responses
+        checks += 1
+        invalid_links = path / "invalid-links.json"
+        valid_links = json.loads(links.read_text(encoding="utf-8"))
+        for value in (
+            {}, [None], [{"id": "x", "principal": valid_links[0]["principal"]}],
+            [{**valid_links[0], "extra": True}], [{**valid_links[0], "principal": None}],
+            [{**valid_links[0], "principal": {"type": "User", "id": "a", "extra": 1}}],
+            [valid_links[0], valid_links[0]], [{**valid_links[0], "id": "revoked"}],
+        ):
+            invalid_links.write_text(json.dumps(value), encoding="utf-8")
+            result = run("batch", policy, entities, batch_file, "--template", template, "--links", invalid_links, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        for bad_flags in (("--template", template), ("--links", links), ("--template", template, "--template", template, "--links", links)):
+            result = run("batch", policy, entities, batch_file, *bad_flags)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2
