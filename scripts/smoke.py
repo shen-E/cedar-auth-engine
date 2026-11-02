@@ -391,6 +391,73 @@ def main():
             checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        multi, example = ROOT / "examples" / "multi-template", ROOT / "examples" / "entity-comparison"
+        policy, before, after, requests = multi / "policy.cedar", multi / "entities.json", example / "after-entities.json", example / "requests.json"
+        flags = ("--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                 "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json")
+        result = run("compare", policy, policy, before, requests, *flags, "--after-entities", after, "--format", "json")
+        assert result.returncode == 0
+        report = json.loads(result.stdout)
+        assert {key: report[key] for key in ("total", "changed", "decisions_changed", "enforcement_changed", "reasons_changed", "errors_changed")} == {
+            "total": 6, "changed": 4, "decisions_changed": 3, "enforcement_changed": 3, "reasons_changed": 3, "errors_changed": 1}
+        assert report["cases"][0]["before"]["decision"] == "Deny" and report["cases"][0]["after"]["decision"] == "Allow"
+        assert report["cases"][1]["before"]["decision"] == "Allow" and report["cases"][1]["after"]["decision"] == "Deny"
+        assert report["cases"][5]["errors_changed"] and not report["cases"][5]["decision_changed"]
+        checks += 1
+        fail = run("compare", policy, policy, before, requests, *flags, "--after-entities", after, "--fail-on-change", "--format", "json")
+        assert fail.returncode == 1 and json.loads(fail.stdout) == report
+        checks += 1
+        swapped = run("compare", policy, policy, after, requests, *flags, "--after-entities", before, "--format", "json")
+        reversed_cases = json.loads(swapped.stdout)["cases"]
+        assert swapped.returncode == 0
+        assert all(old["before"] == new["after"] and old["after"] == new["before"] for old, new in zip(report["cases"], reversed_cases))
+        checks += 1
+        same = run("compare", policy, policy, before, requests, *flags, "--format", "json")
+        explicit_same = run("compare", policy, policy, before, requests, *flags, "--after-entities", before, "--format", "json")
+        assert same.returncode == explicit_same.returncode == 0 and json.loads(same.stdout) == json.loads(explicit_same.stdout)
+        checks += 1
+        # Policy composition and entity changes are applied to their own sides.
+        removed = run("compare", policy, policy, before, requests, *flags, "--after-entities", after,
+                      "--after-remove-policy", "design-team", "--format", "json")
+        assert removed.returncode == 0 and json.loads(removed.stdout)["cases"][0]["after"]["decision"] == "Deny"
+        checks += 1
+        empty = path / "empty.json"
+        empty.write_text("[]", encoding="utf-8")
+        cycle = path / "cycle.json"
+        cycle.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[{"type":"User","id":"a"}]}]), encoding="utf-8")
+        duplicate = path / "duplicate.json"
+        duplicate.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[]}] * 2), encoding="utf-8")
+        malformed = path / "malformed.json"
+        malformed.write_text('{"wrong": true}', encoding="utf-8")
+        for invalid in (cycle, duplicate, malformed, path / "missing.json"):
+            for input_file in (requests, empty):
+                bad = run("compare", policy, policy, before, input_file, "--after-entities", invalid, "--format", "json")
+                assert bad.returncode == 2 and not bad.stdout
+                checks += 1
+        duplicated_option = run("compare", policy, policy, before, requests, "--after-entities", after, "--after-entities", after)
+        assert duplicated_option.returncode == 2 and not duplicated_option.stdout
+        checks += 1
+        invalid_before = run("compare", policy, policy, cycle, empty, "--after-entities", after, "--format", "json")
+        assert invalid_before.returncode == 2 and not invalid_before.stdout
+        checks += 1
+        # A missing tag changes fail-closed enforcement even when Cedar still permits.
+        tag_policy = path / "tags.cedar"
+        tag_policy.write_text('@id("allow") permit(principal, action, resource); @id("guard") forbid(principal, action, resource) when { resource.getTag("blocked") };', encoding="utf-8")
+        tag_before = path / "tags-before.json"
+        tag_after = path / "tags-after.json"
+        tag_entity = {"uid":{"type":"File","id":"report"},"attrs":{},"parents":[],"tags":{"blocked":False}}
+        tag_before.write_text(json.dumps([tag_entity]), encoding="utf-8")
+        tag_entity["tags"] = {}
+        tag_after.write_text(json.dumps([tag_entity]), encoding="utf-8")
+        tag_request = path / "tag-request.json"
+        tag_request.write_text(json.dumps([json.loads(requests.read_text(encoding="utf-8"))[0]]), encoding="utf-8")
+        tagged = run("compare", tag_policy, tag_policy, tag_before, tag_request, "--after-entities", tag_after, "--format", "json")
+        case = json.loads(tagged.stdout)["cases"][0]
+        assert tagged.returncode == 0 and case["before"]["decision"] == case["after"]["decision"] == "Allow"
+        assert case["before_allowed"] and not case["after_allowed"] and case["errors_changed"] and case["enforcement_changed"]
+        checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2

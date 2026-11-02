@@ -5,6 +5,7 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut fail_on_change = false
+  let mut after_entities_path : String? = None
   let before_inputs = policy_inputs()
   let after_inputs = policy_inputs()
   let mut i = 6
@@ -18,6 +19,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     } else if args[i] == "--fail-on-change" && !fail_on_change {
       fail_on_change = true
       i += 1
+    } else if args[i] == "--after-entities" &&
+      after_entities_path is None &&
+      i + 1 < args.length() {
+      after_entities_path = Some(args[i + 1])
+      i += 2
     } else if args[i] == "--before-template" && i + 1 < args.length() {
       before_inputs.templates.push(args[i + 1])
       i += 2
@@ -73,7 +79,16 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     requests.push(@engine.request_from_json(item))
   }
   let store = @engine.EntityStore::new_with_tags(entities)
-  let comparisons = store.compare(before, after, requests)
+  let after_store = match after_entities_path {
+    None => store
+    Some(path) =>
+      @engine.EntityStore::new_with_tags(
+        @engine.tagged_entities_from_json(load_json(path)),
+      )
+  }
+  let comparisons = store.compare_with_entities(
+    after_store, before, after, requests,
+  )
   let cases : Array[Json] = []
   let mut changed = 0
   let mut decisions = 0

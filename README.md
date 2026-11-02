@@ -70,16 +70,17 @@ accept `--format json`, `--template` and `--links`; `--strict` is for the
 `authorize` and `batch` commands. A policy error, including a comparison-limit
 error, prevents enforcement from allowing the request.
 
-`compare BEFORE AFTER ENTITIES REQUESTS` evaluates two policy sets against the
-same entity snapshot and array of requests. JSON output includes both full
-responses and flags for changes to the Cedar decision, fail-closed enforcement,
-determining policy IDs, and errors. Error comparisons include policy IDs and
+`compare BEFORE AFTER ENTITIES REQUESTS` evaluates two policy sets against an
+array of requests. By default both sides use `ENTITIES`; add
+`--after-entities FILE` to evaluate the after side with a separate entity
+snapshot. Both snapshots are validated, even when the request array is empty.
+JSON output includes both full responses and flags for changes to the Cedar
+decision, fail-closed enforcement, determining policy IDs, and errors. Error comparisons include policy IDs and
 messages; reasons and errors are compared without regard to order. The summary
 counts requests in each category. A request can count in multiple categories.
 `--fail-on-change` exits 1 when any decision, reason or error changes; otherwise
-it exits 0. Invalid input exits 2 without a partial report. An empty request
-array still validates entities. The command compares up to 4,096 requests and
-uses the `EntityStore` snapshot limits described below.
+it exits 0. Invalid input exits 2 without a partial report. The command compares
+up to 4,096 requests and uses the `EntityStore` snapshot limits described below.
 
 Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
 `--after-template` / `--after-links` options for linked policies. Repeat pairs
@@ -101,9 +102,16 @@ moon run cmd/cedar-auth-engine --target native -- compare examples/multi-templat
 ```
 
 See [policy comparison](examples/policy-comparison/) for a case where an
-evaluation error changes enforcement while Cedar still returns `Allow`.
-Comparisons cover the supplied requests and entity snapshot; they do not modify
-policy files or deploy an update.
+evaluation error changes enforcement while Cedar still returns `Allow`. The
+[entity comparison](examples/entity-comparison/) uses the same policy on both
+sides to inspect team membership and resource hierarchy changes:
+
+```sh
+moon run cmd/cedar-auth-engine --target native -- compare examples/multi-template/policy.cedar examples/multi-template/policy.cedar examples/multi-template/entities.json examples/entity-comparison/requests.json --before-template examples/multi-template/team.cedar --before-links examples/multi-template/team-links.json --after-template examples/multi-template/team.cedar --after-links examples/multi-template/team-links.json --after-entities examples/entity-comparison/after-entities.json --format json
+```
+
+Comparisons cover the supplied requests and entity snapshots; they do not
+modify policy files, update entity storage or deploy changes.
 
 `test POLICY ENTITIES CASES` evaluates an array of objects with `request` and
 expected `decision` fields. Optional `reasons` and `errors` fields contain
@@ -314,8 +322,18 @@ let enforcement_changed = comparisons[0].enforcement_changed()
 
 Each comparison retains both responses. The `decision_changed`,
 `reasons_changed` and `errors_changed` methods expose individual differences;
-`enforcement_changed` uses `Response::is_authorized()` on both sides. The host
-chooses the requests and controls when the new policy set is activated.
+`enforcement_changed` uses `Response::is_authorized()` on both sides. When
+entity data also changes, create a second store and compare both snapshots:
+
+```moonbit
+let next_store = @engine.EntityStore::new_with_tags(updated_entities)
+let comparisons = store.compare_with_entities(next_store, policies, updated, [request])
+```
+
+The before policy uses the original store and the after policy uses `next_store`.
+Both stores are validated snapshots, and each comparison accepts at most 4,096
+requests. The host chooses the requests and controls when the new policy set
+and entity data are activated.
 
 ## Supported policy profile
 
@@ -425,8 +443,8 @@ including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
-policy updates and both independently composed sides of comparison reports
-against the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
+policy updates and both independently composed sides of comparison reports,
+including different entity snapshots, against the corresponding Cedar inputs. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -435,7 +453,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 1,052 comparisons, 36 invalid-syntax cases and 5 invalid
+the current run made 1,064 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

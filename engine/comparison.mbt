@@ -86,6 +86,18 @@ pub fn EntityStore::compare(
   after : PolicySet,
   requests : Array[Request],
 ) -> Array[AuthorizationComparison] raise PolicyError {
+  self.compare_with_entities(self, before, after, requests)
+}
+
+///|
+/// Compare up to 4,096 requests using separate before and after entity snapshots.
+pub fn EntityStore::compare_with_entities(
+  self : EntityStore,
+  after_entities : EntityStore,
+  before : PolicySet,
+  after : PolicySet,
+  requests : Array[Request],
+) -> Array[AuthorizationComparison] raise PolicyError {
   if requests.length() > 4096 {
     raise PolicyError("request batch limit exceeded")
   }
@@ -93,7 +105,7 @@ pub fn EntityStore::compare(
   for request in requests {
     comparisons.push({
       before: authorize_in_graph(before, request, self.graph),
-      after: authorize_in_graph(after, request, self.graph),
+      after: authorize_in_graph(after, request, after_entities.graph),
     })
   }
   comparisons
