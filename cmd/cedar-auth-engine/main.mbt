@@ -108,7 +108,7 @@ fn apply_template(
   if links.length() > 1024 {
     raise CliError("template link limit exceeded")
   }
-  let mut result = policies
+  let pending : Array[@engine.TemplateLink] = []
   for item in links {
     let fields = match item {
       Object(fields) => fields
@@ -123,12 +123,15 @@ fn apply_template(
       Some(String(id)) => id
       _ => raise CliError("template link requires a string id")
     }
-    result = result.link(template, id, {
-      principal: optional_link_uid(fields, "principal"),
-      resource: optional_link_uid(fields, "resource"),
+    pending.push({
+      id,
+      bindings: {
+        principal: optional_link_uid(fields, "principal"),
+        resource: optional_link_uid(fields, "resource"),
+      },
     })
   }
-  result
+  policies.link_batch(template, pending)
 }
 
 ///|
@@ -184,7 +187,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: --template TEMPLATE --links LINKS",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--template TEMPLATE --links LINKS]...",
     )
     return 0
   }
@@ -209,8 +212,8 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut strict = false
-  let mut template_path : String? = None
-  let mut links_path : String? = None
+  let template_paths : Array[String] = []
+  let links_paths : Array[String] = []
   let mut i = required_count
   while i < args.length() {
     if args[i] == "--format" &&
@@ -226,26 +229,27 @@ fn run(args : Array[String]) -> Int32 raise {
       i += 1
     } else if args[i] == "--template" &&
       command != "check" &&
-      template_path is None &&
       i + 1 < args.length() {
-      template_path = Some(args[i + 1])
+      template_paths.push(args[i + 1])
       i += 2
     } else if args[i] == "--links" &&
       command != "check" &&
-      links_path is None &&
       i + 1 < args.length() {
-      links_path = Some(args[i + 1])
+      links_paths.push(args[i + 1])
       i += 2
     } else {
       raise CliError("invalid arguments; use --help")
     }
   }
-  let static_policies = @engine.parse_policies(read_text(args[2]))
-  let policies = match (template_path, links_path) {
-    (None, None) => static_policies
-    (Some(template), Some(links)) =>
-      apply_template(static_policies, template, links)
-    _ => raise CliError("--template and --links must be provided together")
+  if template_paths.length() != links_paths.length() {
+    raise CliError("--template and --links counts must match")
+  }
+  if template_paths.length() > 1024 {
+    raise CliError("template pair limit exceeded")
+  }
+  let mut policies = @engine.parse_policies(read_text(args[2]))
+  for i in 0..<template_paths.length() {
+    policies = apply_template(policies, template_paths[i], links_paths[i])
   }
   if command == "check" {
     if json {

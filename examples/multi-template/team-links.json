@@ -1,0 +1,13 @@
+[
+  {
+    "id": "design-team",
+    "principal": {
+      "type": "Group",
+      "id": "designers"
+    },
+    "resource": {
+      "type": "Folder",
+      "id": "design"
+    }
+  }
+]

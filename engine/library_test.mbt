@@ -314,3 +314,37 @@ test "enforcement requires Allow with no policy errors" {
     allow_with_error.reasons == ["permit"],
   )
 }
+
+///|
+test "batch link templates through the public library" {
+  let template = @engine.parse_template(
+    "permit(principal == ?principal, action, resource);",
+  )
+  let base = @engine.parse_policies("")
+  let links : Array[@engine.TemplateLink] = [
+    {
+      id: "a",
+      bindings: {
+        principal: Some({ kind: "User", id: "alice", }),
+        resource: None,
+      },
+    },
+    {
+      id: "b",
+      bindings: {
+        principal: Some({ kind: "User", id: "bob", }),
+        resource: None,
+      },
+    },
+  ]
+  let linked = base.link_batch(template, links)
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "bob", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let response = @engine.authorize(linked, request, [])
+  assert_true(response.is_authorized() && response.reasons == ["b"])
+  assert_true(base.metadata().is_empty())
+}

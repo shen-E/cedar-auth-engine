@@ -1,0 +1,71 @@
+[
+  {
+    "uid": {
+      "type": "User",
+      "id": "alice"
+    },
+    "attrs": {},
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "carol"
+    },
+    "attrs": {},
+    "parents": [
+      {
+        "type": "Group",
+        "id": "designers"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bob"
+    },
+    "attrs": {},
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "report"
+    },
+    "attrs": {
+      "revoked": false
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "design"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "withdrawn"
+    },
+    "attrs": {
+      "revoked": true
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "design"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "File",
+      "id": "private"
+    },
+    "attrs": {
+      "revoked": false
+    },
+    "parents": []
+  }
+]

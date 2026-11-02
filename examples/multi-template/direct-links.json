@@ -1,0 +1,24 @@
+[
+  {
+    "id": "alice-report",
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    }
+  },
+  {
+    "id": "carol-report",
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    }
+  }
+]

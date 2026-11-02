@@ -1,0 +1,208 @@
+[
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "alice-report"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Allow",
+    "reasons": [
+      "carol-report",
+      "design-team"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "alice"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "private"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "private"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "withdrawn"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [
+      "revoked"
+    ],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "bob"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "write"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": true
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {
+        "authenticated": false
+      }
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": []
+  },
+  {
+    "request": {
+      "principal": {
+        "type": "User",
+        "id": "carol"
+      },
+      "action": {
+        "type": "Action",
+        "id": "read"
+      },
+      "resource": {
+        "type": "File",
+        "id": "report"
+      },
+      "context": {}
+    },
+    "decision": "Deny",
+    "reasons": [],
+    "errors": [
+      "carol-report",
+      "design-team"
+    ]
+  }
+]

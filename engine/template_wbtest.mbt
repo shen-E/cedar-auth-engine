@@ -159,3 +159,117 @@ test "linked policies obey the same policy count limit" {
   }
   assert_true(rejected)
 }
+
+///|
+test "batch template links match individual links and preserve input order" {
+  let template = parse_template(
+    "@owner(\"sharing\") permit(principal == ?principal, action, resource == ?resource);",
+  )
+  let base = parse_policies(
+    "@id(\"base\") forbid(principal, action == Action::\"delete\", resource);",
+  )
+  let file = Some({ kind: "File", id: "report", })
+  let links : Array[TemplateLink] = [
+    {
+      id: "alice",
+      bindings: {
+        principal: Some({ kind: "User", id: "alice", }),
+        resource: file,
+      },
+    },
+    {
+      id: "bob",
+      bindings: {
+        principal: Some({ kind: "User", id: "bob", }),
+        resource: file,
+      },
+    },
+    {
+      id: "carol",
+      bindings: {
+        principal: Some({ kind: "User", id: "carol", }),
+        resource: file,
+      },
+    },
+  ]
+  let batch = base.link_batch(template, links)
+  let mut sequential = base
+  for link in links {
+    sequential = sequential.link(template, link.id, link.bindings)
+  }
+  assert_true(base.metadata().length() == 1)
+  assert_true(batch.metadata().length() == 4)
+  assert_true(
+    batch.metadata()[1].id == "alice" && batch.metadata()[3].id == "carol",
+  )
+  assert_true(batch.metadata()[2].annotations.get("owner") == Some("sharing"))
+  assert_true(base.link_batch(template, []).metadata().length() == 1)
+  for name in ["alice", "bob", "carol", "nobody"] {
+    let request = {
+      ..sample_request(),
+      principal: { kind: "User", id: name, },
+    }
+    let a = authorize(batch, request, [])
+    let b = authorize(sequential, request, [])
+    assert_true(
+      response_to_json(a).stringify() == response_to_json(b).stringify(),
+    )
+  }
+}
+
+///|
+test "batch template linking rejects the whole operation on invalid input" {
+  let template = parse_template(
+    "permit(principal == ?principal, action, resource);",
+  )
+  let base = parse_policies(
+    "@id(\"existing\") forbid(principal, action == Action::\"delete\", resource);",
+  )
+  let valid : TemplateLink = {
+    id: "first",
+    bindings: {
+      principal: Some({ kind: "User", id: "alice", }),
+      resource: None,
+    },
+  }
+  let invalid : Array[Array[TemplateLink]] = [
+    [valid, { id: "second", bindings: { principal: None, resource: None, }, }],
+    [
+      valid,
+      {
+        id: "second",
+        bindings: {
+          principal: Some({ kind: "bad name", id: "x", }),
+          resource: None,
+        },
+      },
+    ],
+    [valid, valid],
+    [valid, { ..valid, id: "existing", }],
+  ]
+  for links in invalid {
+    let rejected = try {
+      let _ = base.link_batch(template, links)
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+    assert_true(
+      base.metadata().length() == 1 && base.metadata()[0].id == "existing",
+    )
+  }
+  let large : Array[TemplateLink] = []
+  for i in 0..<1023 {
+    large.push({ ..valid, id: "link-" + i.to_string(), })
+  }
+  assert_true(base.link_batch(template, large).metadata().length() == 1024)
+  large.push({ ..valid, id: "overflow", })
+  let rejected = try {
+    let _ = base.link_batch(template, large)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected && base.metadata().length() == 1)
+}

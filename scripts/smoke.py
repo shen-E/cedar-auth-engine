@@ -88,6 +88,56 @@ def main():
             checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        example = ROOT / "examples" / "multi-template"
+        policy, entities, cases = example / "policy.cedar", example / "entities.json", example / "requests.json"
+        direct, team = example / "direct.cedar", example / "team.cedar"
+        direct_links, team_links = example / "direct-links.json", example / "team-links.json"
+        flags = ("--template", direct, "--links", direct_links, "--template", team, "--links", team_links)
+        ordered_flags = ("--links", direct_links, "--links", team_links, "--template", direct, "--template", team)
+        cases_value = json.loads(cases.read_text(encoding="utf-8"))
+        report = run("test", policy, entities, cases, *flags, "--format", "json")
+        assert report.returncode == 0 and json.loads(report.stdout)["failures"] == 0
+        checks += 1
+        batch_file = path / "multi-batch.json"
+        batch_file.write_text(json.dumps([case["request"] for case in cases_value]), encoding="utf-8")
+        batch = run("batch", policy, entities, batch_file, *ordered_flags, "--format", "json")
+        responses = json.loads(batch.stdout)
+        assert batch.returncode == 0 and len(responses) == len(cases_value)
+        checks += 1
+        for index, case in enumerate(cases_value):
+            request = path / "multi-request.json"
+            request.write_text(json.dumps(case["request"]), encoding="utf-8")
+            single = run("authorize", policy, entities, request, *flags, "--format", "json")
+            assert single.returncode == 0 and json.loads(single.stdout) == responses[index]
+            checks += 1
+        enforced = run("enforce-batch", policy, entities, batch_file, *flags, "--format", "json")
+        assert enforced.returncode == 1 and json.loads(enforced.stdout) == [
+            {"allowed": response["decision"] == "Allow" and not response["errors"], "response": response}
+            for response in responses
+        ]
+        checks += 1
+        bad_links = path / "duplicate-cross-template.json"
+        duplicate = json.loads(team_links.read_text(encoding="utf-8"))
+        duplicate[0]["id"] = "alice-report"
+        bad_links.write_text(json.dumps(duplicate), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            result = run(command, policy, entities, batch_file, "--template", direct, "--links", direct_links, "--template", team, "--links", bad_links, "--format", "json")
+            assert result.returncode == 2 and not result.stdout and "duplicate policy id" in result.stderr
+            checks += 1
+        missing = path / "missing-links.json"
+        for flags in (("--template", direct, "--links", direct_links, "--template", team),
+                      ("--template", direct, "--links", direct_links, "--links", team_links),
+                      ("--template", direct, "--links", direct_links, "--template", team, "--links", missing)):
+            result = run("batch", policy, entities, batch_file, *flags, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        no_links = path / "empty-links.json"
+        no_links.write_text("[]", encoding="utf-8")
+        result = run("batch", policy, entities, batch_file, "--template", direct, "--links", direct_links, "--template", team, "--links", no_links, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)[1]["reasons"] == ["carol-report"]
+        checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2
