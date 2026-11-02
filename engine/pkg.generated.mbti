@@ -92,6 +92,7 @@ pub(all) struct EntityId {
 pub fn EntityId::equal(Self, Self) -> Bool
 pub fn EntityId::not_equal(Self, Self) -> Bool
 pub fn EntityId::to_repr(Self) -> @debug.Repr
+pub fn EntityId::validate(Self) -> Unit raise PolicyError
 
 pub struct EntityStore {
   // private fields

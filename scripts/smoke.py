@@ -126,6 +126,48 @@ def main():
             result = run("authorize", window / "policy.cedar", window / "entities.json", datetime_request, "--format", "json")
             assert result.returncode == 2 and not result.stdout
             checks += 1
+        # Invalid entity types must never reach an unconditional permit.
+        entity_policy = path / "entity-validation.cedar"
+        entity_policy.write_text("permit(principal, action, resource);", encoding="utf-8")
+        entity_file = path / "entity-validation-entities.json"
+        entity_file.write_text("[]", encoding="utf-8")
+        entity_request = path / "entity-validation-request.json"
+        valid = {"principal": {"type": "User", "id": "a"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "r"}, "context": {}}
+        for key in ("principal", "action", "resource"):
+            bad = {**valid, key: {"type": "invalid type", "id": "x"}}
+            entity_request.write_text(json.dumps(bad), encoding="utf-8")
+            result = run("authorize", entity_policy, entity_file, entity_request, "--format", "json")
+            assert result.returncode == 2 and not result.stdout and "invalid entity type" in result.stderr
+            checks += 1
+        invalid_nested = {**valid, "context": {"owner": {"__entity": {"type": "App::if", "id": "x"}}}}
+        entity_request.write_text(json.dumps(invalid_nested), encoding="utf-8")
+        result = run("authorize", entity_policy, entity_file, entity_request, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        batch_input = path / "invalid-uid-batch.json"
+        batch_input.write_text(json.dumps([valid, invalid_nested]), encoding="utf-8")
+        result = run("batch", entity_policy, entity_file, batch_input, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        entity_request.write_text(json.dumps(valid), encoding="utf-8")
+        for invalid in (
+            {"uid": {"type": "1User", "id": "x"}, "attrs": {}, "parents": []},
+            {"uid": {"type": "User", "id": "x"}, "attrs": {}, "parents": [{"type": "Group::", "id": "x"}]},
+            {"uid": {"type": "User", "id": "x"}, "attrs": {"owner": {"__entity": {"type": "if", "id": "x"}}}, "parents": []},
+            {"uid": {"type": "User", "id": "x"}, "attrs": {}, "parents": [], "tags": {"owner": {"__entity": {"type": "bad name", "id": "x"}}}},
+        ):
+            entity_file.write_text(json.dumps([invalid]), encoding="utf-8")
+            result = run("authorize", entity_policy, entity_file, entity_request, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        sharing = ROOT / "examples" / "template-sharing"
+        bad_links = json.loads((sharing / "links.json").read_text(encoding="utf-8"))
+        bad_links[0]["principal"]["type"] = "invalid type"
+        link_path = path / "invalid-type-links.json"
+        link_path.write_text(json.dumps(bad_links), encoding="utf-8")
+        result = run("authorize", sharing / "policy.cedar", sharing / "entities.json", entity_request, "--template", sharing / "template.cedar", "--links", link_path, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
         failed = path / "failed.json"
         request_obj = {"principal":{"type":"User","id":"a"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"r"},"context":{}}
         failed.write_text(json.dumps([{"request": request_obj, "decision": "Deny"}]), encoding="utf-8")

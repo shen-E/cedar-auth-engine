@@ -265,3 +265,16 @@ test "link a policy template through the public library" {
   let result = @engine.authorize(policies, request, [])
   assert_true(result.decision == @engine.Allow && result.reasons == ["share-1"])
 }
+
+///|
+test "validate entity type names through the public library" {
+  @engine.EntityId::{ kind: "Acme::User", id: "", }.validate()
+  let invalid = @engine.EntityId::{ kind: "Acme::bad type", id: "alice", }
+  let rejected = try {
+    invalid.validate()
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
