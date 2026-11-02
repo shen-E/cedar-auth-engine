@@ -39,6 +39,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/access-window/po
 moon run cmd/cedar-auth-engine --target native -- test examples/template-sharing/policy.cedar examples/template-sharing/entities.json examples/template-sharing/requests.json --template examples/template-sharing/template.cedar --links examples/template-sharing/links.json
 moon run cmd/cedar-auth-engine --target native -- test examples/multi-template/policy.cedar examples/multi-template/entities.json examples/multi-template/requests.json --template examples/multi-template/direct.cedar --links examples/multi-template/direct-links.json --template examples/multi-template/team.cedar --links examples/multi-template/team-links.json
 moon run cmd/cedar-auth-engine --target native -- test examples/multi-template/policy.cedar examples/multi-template/entities.json examples/policy-update/requests.json --add-policies examples/policy-update/additional.cedar --template examples/multi-template/direct.cedar --links examples/multi-template/direct-links.json --template examples/multi-template/team.cedar --links examples/multi-template/team-links.json --replace-policies examples/policy-update/replacements.cedar
+moon run cmd/cedar-auth-engine --target native -- compare examples/multi-template/policy.cedar examples/policy-comparison/after.cedar examples/multi-template/entities.json examples/policy-comparison/requests.json --before-template examples/multi-template/direct.cedar --before-links examples/multi-template/direct-links.json --before-template examples/multi-template/team.cedar --before-links examples/multi-template/team-links.json --after-template examples/policy-comparison/direct.cedar --after-links examples/multi-template/direct-links.json --after-template examples/multi-template/team.cedar --after-links examples/multi-template/team-links.json --format json
 python scripts/smoke.py
 ```
 
@@ -68,6 +69,25 @@ denied, and 2 for invalid input or usage. An empty valid batch exits 0. They
 accept `--format json`, `--template` and `--links`; `--strict` is for the
 `authorize` and `batch` commands. A policy error, including a comparison-limit
 error, prevents enforcement from allowing the request.
+
+`compare BEFORE AFTER ENTITIES REQUESTS` evaluates two policy sets against the
+same entity snapshot and array of requests. JSON output includes both full
+responses and flags for changes to the Cedar decision, fail-closed enforcement,
+determining policy IDs, and errors. Error comparisons include policy IDs and
+messages; reasons and errors are compared without regard to order. The summary
+counts requests in each category. A request can count in multiple categories.
+`--fail-on-change` exits 1 when any decision, reason or error changes; otherwise
+it exits 0. Invalid input exits 2 without a partial report. An empty request
+array still validates entities. The command compares up to 4,096 requests and
+uses the `EntityStore` snapshot limits described below.
+
+Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
+`--after-template` / `--after-links` options for linked policies. Repeat pairs
+as needed; each side pairs templates and link files by their respective order
+of appearance, with up to 1,024 pairs per side. Each side starts from its own
+static policy file. See [policy comparison](examples/policy-comparison/) for
+a case where an evaluation error changes enforcement while Cedar still returns
+`Allow`. Comparisons cover the supplied requests and entity snapshot.
 
 `test POLICY ENTITIES CASES` evaluates an array of objects with `request` and
 expected `decision` fields. Optional `reasons` and `errors` fields contain
@@ -267,6 +287,19 @@ hierarchy and copy the parent links, attributes and tags, including nested sets
 and records. Later mutations to the input entities do not change the snapshot;
 construct a new store to apply entity updates. Requests and policy sets remain
 separate from the store. The snapshot is used in memory and performs no I/O.
+For a set of representative requests, compare two policy snapshots against the
+same store before switching the active set:
+
+```moonbit
+let comparisons = store.compare(policies, updated, [request])
+let changed = comparisons[0].changed()
+let enforcement_changed = comparisons[0].enforcement_changed()
+```
+
+Each comparison retains both responses. The `decision_changed`,
+`reasons_changed` and `errors_changed` methods expose individual differences;
+`enforcement_changed` uses `Response::is_authorized()` on both sides. The host
+chooses the requests and controls when the new policy set is activated.
 
 ## Supported policy profile
 
@@ -376,7 +409,8 @@ including selected [upstream fixtures](fixtures/cedar/README.md), local
 examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
-policy updates compared with the corresponding Cedar policy sets. It reports mismatches and exits nonzero.
+policy updates and both sides of comparison reports against the corresponding
+Cedar policy sets. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -385,7 +419,7 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
 On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 1,020 comparisons, 36 invalid-syntax cases and 5 invalid
+the current run made 1,036 comparisons, 36 invalid-syntax cases and 5 invalid
 entity-graph cases with no mismatches. Another 41 checks compare accepted and
 rejected entity type names in entity data, requests and template bindings. These
 results cover the selected cases, rather than all Cedar behavior.

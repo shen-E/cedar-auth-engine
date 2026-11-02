@@ -257,6 +257,63 @@ def main():
             checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        multi, example = ROOT / "examples" / "multi-template", ROOT / "examples" / "policy-comparison"
+        before, after, entities, requests = multi / "policy.cedar", example / "after.cedar", multi / "entities.json", example / "requests.json"
+        flags = ("--before-template", multi / "direct.cedar", "--before-links", multi / "direct-links.json",
+                 "--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                 "--after-template", example / "direct.cedar", "--after-links", multi / "direct-links.json",
+                 "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json")
+        report = run("compare", before, after, entities, requests, *flags, "--format", "json")
+        assert report.returncode == 0
+        output = json.loads(report.stdout)
+        assert {key: output[key] for key in ("total", "changed", "decisions_changed", "enforcement_changed", "reasons_changed", "errors_changed")} == {
+            "total": 8, "changed": 5, "decisions_changed": 3, "enforcement_changed": 4, "reasons_changed": 5, "errors_changed": 2}
+        assert output["cases"][1]["before"]["decision"] == output["cases"][1]["after"]["decision"] == "Allow"
+        assert output["cases"][1]["enforcement_changed"] and not output["cases"][1]["after_allowed"]
+        assert output["cases"][7]["reasons_changed"] and not output["cases"][7]["enforcement_changed"]
+        checks += 1
+        failed = run("compare", before, after, entities, requests, *flags, "--fail-on-change", "--format", "json")
+        assert failed.returncode == 1 and json.loads(failed.stdout) == output
+        checks += 1
+        textual = run("compare", before, after, entities, requests, *flags, "--fail-on-change")
+        assert textual.returncode == 1 and "5/8 changed" in textual.stdout and "missing attribute" in textual.stdout
+        checks += 1
+        unchanged_flags = ("--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                           "--before-template", multi / "direct.cedar", "--before-links", multi / "direct-links.json",
+                           "--after-template", multi / "direct.cedar", "--after-links", multi / "direct-links.json",
+                           "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json")
+        unchanged = run("compare", before, before, entities, requests, *unchanged_flags, "--fail-on-change", "--format", "json")
+        assert unchanged.returncode == 0 and json.loads(unchanged.stdout)["changed"] == 0
+        checks += 1
+        empty = path / "empty.json"
+        empty.write_text("[]", encoding="utf-8")
+        result = run("compare", before, after, entities, empty, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["total"] == 0
+        checks += 1
+        invalid_graph = path / "cycle.json"
+        invalid_graph.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[{"type":"User","id":"a"}]}]), encoding="utf-8")
+        result = run("compare", before, after, invalid_graph, empty, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        invalid_requests = path / "invalid-requests.json"
+        sample = json.loads(requests.read_text(encoding="utf-8"))[0]
+        invalid_requests.write_text(json.dumps([sample, {}]), encoding="utf-8")
+        result = run("compare", before, after, entities, invalid_requests, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        invalid_requests.write_text(json.dumps([sample] * 4097), encoding="utf-8")
+        result = run("compare", before, after, entities, invalid_requests, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        for bad in (("--before-template", multi / "direct.cedar"),
+                    ("--after-links", multi / "direct-links.json"),
+                    ("--before-links", multi / "direct-links.json", "--after-template", multi / "direct.cedar"),
+                    ("--fail-on-change", "--fail-on-change"), ("--format", "xml")):
+            result = run("compare", before, after, entities, requests, *bad)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2

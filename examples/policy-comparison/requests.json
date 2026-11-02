@@ -1,0 +1,141 @@
+[
+  {
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "withdrawn"
+    },
+    "context": {
+      "authenticated": true
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {}
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true,
+      "mfa": true
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "alice"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true,
+      "mfa": false
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true,
+      "mfa": true,
+      "blocked": true
+    }
+  },
+  {
+    "principal": {
+      "type": "User",
+      "id": "carol"
+    },
+    "action": {
+      "type": "Action",
+      "id": "read"
+    },
+    "resource": {
+      "type": "File",
+      "id": "report"
+    },
+    "context": {
+      "authenticated": true,
+      "mfa": false
+    }
+  }
+]
