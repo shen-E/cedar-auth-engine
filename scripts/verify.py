@@ -270,6 +270,38 @@ def main():
                 any(case[key] != value for key, value in expected_flags.items()) or
                 case["changed"] != any(expected_flags.values())):
                 mismatches.append({"case": "composed-compare:" + str(index), "before": old, "after": new, "actual": case})
+        # Compare entity snapshots with Cedar using the same linked policy set.
+        entities_example = ROOT / "examples" / "entity-comparison"
+        entity_policy = temp / "entity-comparison.cedar"
+        entity_policy.write_text("\n".join((multi / name).read_text(encoding="utf-8") for name in ("policy.cedar", "team.cedar")), encoding="utf-8")
+        entity_links = temp / "entity-comparison-links.json"
+        entity_links.write_text(json.dumps([link for link in reference_links if link["link_id"] == "design-team"]), encoding="utf-8")
+        entity_flags = ("--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                        "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json",
+                        "--after-entities", entities_example / "after-entities.json")
+        entity_run = run([args.engine, "compare", multi / "policy.cedar", multi / "policy.cedar", multi / "entities.json", entities_example / "requests.json", *entity_flags, "--format", "json"])
+        if entity_run.returncode:
+            raise RuntimeError("entity comparison failed: " + entity_run.stderr)
+        entity_requests = json.loads((entities_example / "requests.json").read_text(encoding="utf-8"))
+        entity_report = json.loads(entity_run.stdout)
+        if entity_report["total"] != len(entity_requests) or len(entity_report["cases"]) != len(entity_requests):
+            raise RuntimeError("entity comparison length mismatch")
+        for index, request in enumerate(entity_requests):
+            old = reference(args.cedar, entity_policy, multi / "entities.json", request, temp, entity_links)
+            new = reference(args.cedar, entity_policy, entities_example / "after-entities.json", request, temp, entity_links)
+            case = entity_report["cases"][index]
+            old_allowed = old["decision"] == "Allow" and not old["errors"]
+            new_allowed = new["decision"] == "Allow" and not new["errors"]
+            expected_flags = {"decision_changed": old["decision"] != new["decision"],
+                              "enforcement_changed": old_allowed != new_allowed,
+                              "reasons_changed": old["reasons"] != new["reasons"],
+                              "errors_changed": old["errors"] != new["errors"]}
+            count += 2
+            if (normalize(case["before"]) != old or normalize(case["after"]) != new or
+                case["before_allowed"] != old_allowed or case["after_allowed"] != new_allowed or
+                any(case[key] != value for key, value in expected_flags.items()) or
+                case["changed"] != any(expected_flags.values())):
+                mismatches.append({"case": "entity-compare:" + str(index), "before": old, "after": new, "actual": case})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
