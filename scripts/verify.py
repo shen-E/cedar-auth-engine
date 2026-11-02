@@ -199,6 +199,41 @@ def main():
             count += 2
             if got != ref or batch_got != ref or ref != expected:
                 mismatches.append({"case": "updates:" + str(index), "expected": expected, "reference": ref, "actual": got, "batch": batch_got})
+        # Compare both sides of the impact report against Cedar independently.
+        comparison = ROOT / "examples" / "policy-comparison"
+        compare_before = multi_policy
+        compare_after = temp / "comparison-after.cedar"
+        compare_after.write_text("\n".join(p.read_text(encoding="utf-8") for p in (
+            comparison / "after.cedar", comparison / "direct.cedar", multi / "team.cedar")), encoding="utf-8")
+        compare_flags = ("--before-template", multi / "direct.cedar", "--before-links", multi / "direct-links.json",
+                         "--before-template", multi / "team.cedar", "--before-links", multi / "team-links.json",
+                         "--after-template", comparison / "direct.cedar", "--after-links", multi / "direct-links.json",
+                         "--after-template", multi / "team.cedar", "--after-links", multi / "team-links.json")
+        compare_run = run([args.engine, "compare", multi / "policy.cedar", comparison / "after.cedar", multi / "entities.json", comparison / "requests.json", *compare_flags, "--format", "json"])
+        if compare_run.returncode:
+            raise RuntimeError("policy comparison failed: " + compare_run.stderr)
+        compare_cases = json.loads((comparison / "requests.json").read_text(encoding="utf-8"))
+        compare_report = json.loads(compare_run.stdout)
+        if compare_report["total"] != len(compare_cases) or len(compare_report["cases"]) != len(compare_cases):
+            raise RuntimeError("policy comparison length mismatch")
+        for index, request in enumerate(compare_cases):
+            old = reference(args.cedar, compare_before, multi / "entities.json", request, temp, multi_links)
+            new = reference(args.cedar, compare_after, multi / "entities.json", request, temp, multi_links)
+            case = compare_report["cases"][index]
+            def normalize(response):
+                return {"decision": response["decision"], "reasons": sorted(response["reasons"]), "errors": sorted(error["policy_id"] for error in response["errors"])}
+            old_allowed = old["decision"] == "Allow" and not old["errors"]
+            new_allowed = new["decision"] == "Allow" and not new["errors"]
+            expected_flags = {"decision_changed": old["decision"] != new["decision"],
+                              "enforcement_changed": old_allowed != new_allowed,
+                              "reasons_changed": old["reasons"] != new["reasons"],
+                              "errors_changed": old["errors"] != new["errors"]}
+            count += 2
+            if (normalize(case["before"]) != old or normalize(case["after"]) != new or
+                case["before_allowed"] != old_allowed or case["after_allowed"] != new_allowed or
+                any(case[key] != value for key, value in expected_flags.items()) or
+                case["changed"] != any(expected_flags.values())):
+                mismatches.append({"case": "compare:" + str(index), "before": old, "after": new, "actual": case})
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"
