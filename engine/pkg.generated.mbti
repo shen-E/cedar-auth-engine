@@ -119,6 +119,9 @@ pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> 
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::compare_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
+pub fn EntityStore::entities(Self) -> Array[TaggedEntity]
+pub fn EntityStore::get(Self, EntityId) -> TaggedEntity?
+pub fn EntityStore::length(Self) -> Int32
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_checked(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError

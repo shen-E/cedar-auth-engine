@@ -276,6 +276,46 @@ test "update entity snapshots through the public library" {
 }
 
 ///|
+test "inspect and update a stored entity through the public library" {
+  let policies = @engine.parse_policies(
+    "permit(principal, action, resource) when { resource.getTag(\"sharing\") == \"team\" };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "Document", id: "report", },
+    context: {},
+  }
+  let store = @engine.EntityStore::new_with_tags_checked([
+    {
+      entity: {
+        uid: request.resource,
+        attrs: { "title": @engine.StringValue("report") },
+        parents: [],
+      },
+      tags: { "sharing": @engine.StringValue("team") },
+    },
+  ])
+  assert_true(store.length() == 1)
+  let edited = store.get(request.resource).unwrap()
+  edited.tags["sharing"] = @engine.StringValue("private")
+  assert_true(store.authorize_checked(policies, request).is_authorized())
+  let updated = store.upsert([edited])
+  assert_false(updated.authorize_checked(policies, request).is_authorized())
+  edited.tags.clear()
+  assert_true(
+    updated.get(request.resource).unwrap().tags.get("sharing") ==
+    Some(@engine.StringValue("private")),
+  )
+  let exported = updated.entities()
+  let rebuilt = @engine.EntityStore::new_with_tags_checked(exported)
+  assert_true(
+    @engine.response_to_json(updated.authorize(policies, request)).stringify() ==
+    @engine.response_to_json(rebuilt.authorize(policies, request)).stringify(),
+  )
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
