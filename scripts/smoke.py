@@ -515,6 +515,66 @@ def main():
         checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        policy = path / "guard.cedar"
+        policy.write_text('@id("grant") permit(principal, action, resource); @id("suspended") forbid(principal, action, resource) when { resource.hasTag("suspended") };', encoding="utf-8")
+        entity = {"uid": {"type": "File", "id": "report"}, "attrs": {}, "parents": [], "tags": {"suspended": True}}
+        request = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}
+        entity_file, request_file, batch_file, cases_file = (path / name for name in ("entities.json", "request.json", "batch.json", "cases.json"))
+        entity_file.write_text(json.dumps([entity]), encoding="utf-8")
+        request_file.write_text(json.dumps(request), encoding="utf-8")
+        batch_file.write_text(json.dumps([request]), encoding="utf-8")
+        cases_file.write_text(json.dumps([{"request": request, "decision": "Deny", "reasons": ["suspended"]}]), encoding="utf-8")
+        valid = run("authorize", policy, entity_file, request_file, "--format", "json")
+        assert valid.returncode == 0 and json.loads(valid.stdout)["reasons"] == ["suspended"]
+        checks += 1
+        # Misspelled tags previously disappeared silently and could expose an Allow.
+        typo = {key: value for key, value in entity.items() if key != "tags"}
+        typo["tagz"] = {"suspended": True}
+        invalid_entity = path / "invalid-entity.json"
+        invalid_entity.write_text(json.dumps([entity, typo]), encoding="utf-8")
+        for command, input_file in (("authorize", request_file), ("enforce", request_file),
+                                    ("batch", batch_file), ("enforce-batch", batch_file), ("test", cases_file)):
+            for formatting in ((), ("--format", "json")):
+                result = run(command, policy, invalid_entity, input_file, *formatting)
+                assert result.returncode == 2 and not result.stdout and "unknown entity field 'tagz'" in result.stderr
+                checks += 1
+        for before, after in ((invalid_entity, entity_file), (entity_file, invalid_entity)):
+            result = run("compare", policy, policy, before, batch_file, "--after-entities", after, "--format", "json")
+            assert result.returncode == 2 and not result.stdout and "unknown entity field 'tagz'" in result.stderr
+            checks += 1
+        # Validate the complete batch before printing any result.
+        invalid_request = {**request, "contextt": {"authenticated": True}}
+        invalid_uid = {**request, "principal": {**request["principal"], "tenant": "x"}}
+        for bad in (invalid_request, invalid_uid):
+            request_file.write_text(json.dumps(bad), encoding="utf-8")
+            batch_file.write_text(json.dumps([request, bad]), encoding="utf-8")
+            cases_file.write_text(json.dumps([{"request": request, "decision": "Deny"}, {"request": bad, "decision": "Deny"}]), encoding="utf-8")
+            for command, input_file in (("authorize", request_file), ("enforce", request_file),
+                                        ("batch", batch_file), ("enforce-batch", batch_file), ("test", cases_file)):
+                result = run(command, policy, entity_file, input_file, "--format", "json")
+                assert result.returncode == 2 and not result.stdout
+                checks += 1
+            result = run("compare", policy, policy, entity_file, batch_file, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        # A typo in an optional expectation must not silently turn into a passing test.
+        for bad_case in ({"request": request, "decision": "Deny", "reason": ["suspended"]},
+                         {"request": request, "decision": "Deny", "error": []},
+                         {"request": request, "decision": "Deny", "description": "unrecognized metadata"}):
+            cases_file.write_text(json.dumps([{"request": request, "decision": "Deny"}, bad_case]), encoding="utf-8")
+            result = run("test", policy, entity_file, cases_file, "--format", "json")
+            assert result.returncode == 2 and not result.stdout and "unknown test case field" in result.stderr
+            checks += 1
+        # Domain records are open-ended and are not treated as structural objects.
+        open_request = {**request, "context": {"tagz": True, "record": {"type": "free", "id": 1, "extra": True}}}
+        open_entity = {**entity, "attrs": {"tagz": True, "record": {"type": "free", "id": 1, "extra": True}}}
+        request_file.write_text(json.dumps(open_request), encoding="utf-8")
+        entity_file.write_text(json.dumps([open_entity]), encoding="utf-8")
+        result = run("authorize", policy, entity_file, request_file, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Deny"
+        checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2

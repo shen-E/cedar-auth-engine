@@ -136,7 +136,8 @@ makes the command exit 1. The [diagnostics example](examples/diagnostics/)
 includes a deliberate policy error and its expected ID. The command validates
 all cases before printing results and evaluates them in chunks of up to 4,096
 requests, sharing one entity graph within each chunk. Empty input still checks
-the entity graph.
+the entity graph. Case objects accept only `request`, `decision`, `reasons` and
+`errors`; an unrecognized field is rejected rather than ignored.
 
 For `authorize`, `batch`, `enforce`, `enforce-batch` and `test`, add
 `--template TEMPLATE --links LINKS` to evaluate static policies together with
@@ -180,6 +181,13 @@ The request uses `principal`, `action` and `resource` objects with `type` and
 `id`, plus a `context` object. Entities are an array of `uid`, `attrs`,
 `parents`, and optional `tags`; entity-valued attributes use
 `{"__entity":{"type":"User","id":"alice"}}`.
+
+Request objects, entity objects and entity ID objects reject unrecognized
+structural fields, including fields inside entity references. This catches
+misspelled input such as `tagz` instead of `tags`. Applications that attach
+extra metadata to these objects must remove it before passing them to the JSON
+input functions or CLI. Context, entity attribute and tag names remain open to
+the application, as do ordinary nested record fields.
 See [examples](examples/) for complete inputs. Entity type names in requests,
 entity data and template bindings must use valid Cedar identifiers and
 namespaces; entity IDs may be arbitrary strings. Duplicate JSON keys, unsupported
@@ -460,8 +468,8 @@ examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
 policy updates and both independently composed sides of comparison reports,
-including different entity snapshots and directional checks, against the
-corresponding Cedar inputs. It reports mismatches and exits nonzero.
+including different entity snapshots, directional checks and open-ended domain
+fields, against the corresponding Cedar inputs. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked

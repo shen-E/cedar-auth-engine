@@ -94,6 +94,19 @@ fn object(value : Json, label : String) -> Map[String, Json] raise PolicyError {
 }
 
 ///|
+fn check_fields(
+  fields : Map[String, Json],
+  allowed : Array[String],
+  label : String,
+) -> Unit raise PolicyError {
+  for key, _ in fields {
+    if !allowed.contains(key) {
+      raise PolicyError("unknown \{label} field '\{key}'")
+    }
+  }
+}
+
+///|
 fn required(
   fields : Map[String, Json],
   name : String,
@@ -118,6 +131,7 @@ fn string_field(
 ///|
 fn entity_id(value : Json) -> EntityId raise PolicyError {
   let fields = object(value, "entity id")
+  check_fields(fields, ["type", "id"], "entity id")
   let uid : EntityId = {
     kind: string_field(fields, "type"),
     id: string_field(fields, "id"),
@@ -206,6 +220,11 @@ fn value_map(
 ///|
 pub fn request_from_json(value : Json) -> Request raise PolicyError {
   let fields = object(value, "request")
+  check_fields(
+    fields,
+    ["principal", "action", "resource", "context"],
+    "request",
+  )
   {
     principal: entity_id(required(fields, "principal")),
     action: entity_id(required(fields, "action")),
@@ -226,6 +245,7 @@ pub fn tagged_entities_from_json(
   let result = []
   for item in items {
     let fields = object(item, "entity")
+    check_fields(fields, ["uid", "attrs", "parents", "tags"], "entity")
     let parents = match required(fields, "parents") {
       Array(items) => {
         let result = []

@@ -86,6 +86,23 @@ def main():
                 expected = {"decision": item["decision"], "reasons": sorted(item.get("reasons", got["reasons"])), "errors": sorted(item.get("errors", []))}
                 if ref != got or got != expected:
                     mismatches.append({"case": name + ":" + str(i), "expected": expected, "reference": ref, "actual": got})
+        # Domain context, attributes and tags remain open-ended data.
+        open_policy = temp / "open-data-policy.cedar"
+        open_entities = temp / "open-data-entities.json"
+        open_entities.write_text(json.dumps([{"uid": {"type": "File", "id": "report"}, "attrs": {"tagz": True}, "parents": [], "tags": {"tagz": True}}]), encoding="utf-8")
+        open_request = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"},
+                        "resource": {"type": "File", "id": "report"}, "context": {"tagz": True, "detail": {"id": 1, "extra": True}, "owner": {"__entity": {"type": "User", "id": "alice"}}}}
+        for policy_id, condition in (("attrs", "resource.tagz && context.tagz"),
+                                     ("record", "context.detail.extra && context.detail.id == 1"),
+                                     ("tags", 'resource.hasTag("tagz") && resource.getTag("tagz")'),
+                                     ("owner", "context.owner == principal")):
+            open_policy.write_text('@id("' + policy_id + '") permit(principal, action, resource) when { ' + condition + ' };', encoding="utf-8")
+            ref = reference(args.cedar, open_policy, open_entities, open_request, temp)
+            got = actual(args.engine, open_policy, open_entities, open_request, temp)
+            expected = {"decision": "Allow", "reasons": [policy_id], "errors": []}
+            count += 1
+            if ref != expected or got != expected:
+                mismatches.append({"case": "open-data:" + policy_id, "expected": expected, "reference": ref, "actual": got})
         # Compare actual template links, preserving link IDs in reasons and errors.
         sharing = ROOT / "examples" / "template-sharing"
         linked_policy = temp / "linked-reference.cedar"
