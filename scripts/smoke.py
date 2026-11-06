@@ -416,6 +416,22 @@ def main():
         explicit_same = run("compare", policy, policy, before, requests, *flags, "--after-entities", before, "--format", "json")
         assert same.returncode == explicit_same.returncode == 0 and json.loads(same.stdout) == json.loads(explicit_same.stdout)
         checks += 1
+        # Repeated hierarchy checks must match separate graph evaluations.
+        repeated = path / "repeated-requests.json"
+        repeated.write_text(json.dumps(json.loads(requests.read_text(encoding="utf-8")) * 3), encoding="utf-8")
+        team_flags = ("--template", multi / "team.cedar", "--links", multi / "team-links.json")
+        old_batch = run("batch", policy, before, repeated, *team_flags, "--format", "json")
+        new_batch = run("batch", policy, after, repeated, *team_flags, "--format", "json")
+        repeated_compare = run("compare", policy, policy, before, repeated, *flags, "--after-entities", after, "--format", "json")
+        assert old_batch.returncode == new_batch.returncode == repeated_compare.returncode == 0
+        old_values, new_values = json.loads(old_batch.stdout), json.loads(new_batch.stdout)
+        pairs = json.loads(repeated_compare.stdout)["cases"]
+        assert len(pairs) == len(old_values) == len(new_values) == 18
+        for i, pair in enumerate(pairs):
+            assert pair["before"] == old_values[i] and pair["after"] == new_values[i]
+            assert pair["before"] == report["cases"][i % 6]["before"]
+            assert pair["after"] == report["cases"][i % 6]["after"]
+            checks += 1
         # Policy composition and entity changes are applied to their own sides.
         removed = run("compare", policy, policy, before, requests, *flags, "--after-entities", after,
                       "--after-remove-policy", "design-team", "--format", "json")

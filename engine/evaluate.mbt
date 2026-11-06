@@ -176,7 +176,7 @@ fn compare_long(a : Int64, op : CompareOp, b : Int64) -> Bool {
 fn evaluate(
   expr : Expr,
   request : Request,
-  entities : EntityGraph,
+  entities : EvaluationContext,
   budget : Ref[Int32],
 ) -> Value raise PolicyError {
   match expr {
@@ -205,14 +205,18 @@ fn evaluate(
       }
     Attribute(base, name) =>
       match
-        attribute(evaluate(base, request, entities, budget), name, entities) {
+        attribute(
+          evaluate(base, request, entities, budget),
+          name,
+          entities.graph,
+        ) {
         Some(value) => value
         None => raise PolicyError("missing attribute '\{name}'")
       }
     HasPath(base, path) => {
       let mut current = evaluate(base, request, entities, budget)
       for name in path {
-        match attribute(current, name, entities) {
+        match attribute(current, name, entities.graph) {
           Some(value) => current = value
           None => return BoolValue(false)
         }
@@ -276,7 +280,7 @@ fn evaluate(
       let name = evaluate(key, request, entities, budget)
       match (value, name) {
         (EntityValue(uid), StringValue(tag)) => {
-          let found = match find_entity(entities, uid) {
+          let found = match find_entity(entities.graph, uid) {
             Some(entity) => entity.tags.get(tag)
             None => None
           }
@@ -413,13 +417,13 @@ fn evaluate(
       let r = evaluate(right, request, entities, budget)
       match (l, r) {
         (EntityValue(child), EntityValue(parent)) =>
-          BoolValue(is_descendant(entities, child, parent))
+          BoolValue(entities.is_descendant(child, parent))
         (EntityValue(child), SetValue(parents)) => {
           let mut found = false
           for item in parents {
             match item {
               EntityValue(parent) =>
-                if is_descendant(entities, child, parent) {
+                if entities.is_descendant(child, parent) {
                   found = true
                 }
               _ =>
@@ -516,9 +520,10 @@ pub fn authorize_batch_with_tags(
     raise PolicyError("request batch limit exceeded")
   }
   let graph = build_entity_graph(entities)
+  let context = EvaluationContext::new(graph)
   let responses = []
   for request in requests {
-    responses.push(authorize_in_graph(policies, request, graph))
+    responses.push(authorize_in_context(policies, request, context))
   }
   responses
 }
@@ -529,12 +534,21 @@ fn authorize_in_graph(
   request : Request,
   graph : EntityGraph,
 ) -> Response {
+  authorize_in_context(policies, request, EvaluationContext::new(graph))
+}
+
+///|
+fn authorize_in_context(
+  policies : PolicySet,
+  request : Request,
+  context : EvaluationContext,
+) -> Response {
   let permits = []
   let forbids = []
   let errors = []
   for policy in policies.policies {
     let budget = Ref(1000000)
-    let matched = boolean(evaluate(policy.condition, request, graph, budget)) catch {
+    let matched = boolean(evaluate(policy.condition, request, context, budget)) catch {
       PolicyError(message) => {
         errors.push({ policy_id: policy.id, message, })
         false
