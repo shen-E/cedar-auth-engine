@@ -219,3 +219,58 @@ test "different entity comparison respects the request batch limit" {
   }
   assert_true(rejected)
 }
+
+///|
+test "direction distinguishes Cedar decisions from fail-closed enforcement" {
+  let diagnostic = @engine.Diagnostic::{
+    policy_id: "guard",
+    message: "missing attribute",
+  }
+  let deny = @engine.Response::{
+    decision: @engine.Deny,
+    reasons: [],
+    errors: [],
+  }
+  let allow = @engine.Response::{
+    decision: @engine.Allow,
+    reasons: ["permit"],
+    errors: [],
+  }
+  let deny_error = { ..deny, errors: [diagnostic], }
+  let allow_error = { ..allow, errors: [diagnostic], }
+  let cases : Array[
+    (@engine.Response, @engine.Response, Bool, Bool, Bool, Bool),
+  ] = [
+    (deny, allow, true, false, true, false),
+    (allow, deny, false, true, false, true),
+    (deny, allow_error, true, false, false, false),
+    (allow_error, allow, false, false, true, false),
+    (allow, allow_error, false, false, false, true),
+    (allow_error, deny, false, true, false, false),
+    (deny_error, allow, true, false, true, false),
+    (allow, deny_error, false, true, false, true),
+    (allow, allow, false, false, false, false),
+    (deny_error, deny, false, false, false, false),
+  ]
+  for
+    (
+      before,
+      after,
+      decision_grant,
+      decision_revoke,
+      enforcement_grant,
+      enforcement_revoke,
+    ) in cases {
+    let result = @engine.AuthorizationComparison::{ before, after, }
+    assert_true(result.decision_granted() == decision_grant)
+    assert_true(result.decision_revoked() == decision_revoke)
+    assert_true(result.enforcement_granted() == enforcement_grant)
+    assert_true(result.enforcement_revoked() == enforcement_revoke)
+    assert_true(
+      result.decision_changed() == (decision_grant || decision_revoke),
+    )
+    assert_true(
+      result.enforcement_changed() == (enforcement_grant || enforcement_revoke),
+    )
+  }
+}
