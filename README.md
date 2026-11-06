@@ -469,10 +469,11 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
-On Windows, a reference run before the directional checks used
-`moon 0.1.20261028` / `moonc v0.10.18` and completed 1,064 comparisons,
-36 invalid syntax cases, 5 invalid entity graphs and 41 entity type name checks
-without mismatches. See the workflow logs for the latest reference run. These checks
-cover the selected cases, rather than all Cedar behavior.
+A [GitHub Actions reference run](https://github.com/shen-E/cedar-auth-engine/actions/runs/42235564376/job/127952120898)
+completed 1,082 comparisons, 36 invalid syntax cases, 5 invalid entity graphs
+and 41 entity type name checks without mismatches. These checks cover the
+selected cases, rather than all Cedar behavior. CI pins `moonc v0.10.18+6c83a7f62`
+for portable tests and formatting; native builds also run with the latest
+available toolchain on Linux, macOS and Windows.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
