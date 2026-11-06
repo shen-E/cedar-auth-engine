@@ -94,7 +94,7 @@ test "duration JSON values support context attributes tags and snapshots" {
   for invalid in ["1", "1s1h", "9223372036854775808ms"] {
     let json = "{\"__extn\":{\"fn\":\"duration\",\"arg\":\"" + invalid + "\"}}"
     let rejected = try {
-      let _ = json_value(parse_json(json), 0)
+      let _ = json_value(parse_json(json), 0, Ref(0))
       false
     } catch {
       _ => true

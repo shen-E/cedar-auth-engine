@@ -926,6 +926,31 @@ def main():
             asserted.write_text(json.dumps([{**cases[0], field: value}]), encoding="utf-8")
             assert run("test", diagnostic_policy, diagnostic_entities, asserted).returncode == 2
             checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request, batch = (path / name for name in ("policy.cedar", "entities.json", "request.json", "batch.json"))
+        policy.write_text("permit(principal, action, resource);", encoding="utf-8")
+        entities.write_text("[]", encoding="utf-8")
+        input_request = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"},
+                         "resource": {"type": "File", "id": "report"}, "context": {"values": [False] * 131071}}
+        request.write_text(json.dumps(input_request, separators=(",", ":")), encoding="utf-8")
+        result = run("authorize", policy, entities, request, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
+        checks += 1
+        input_request["context"]["values"].append(False)
+        request.write_text(json.dumps(input_request, separators=(",", ":")), encoding="utf-8")
+        result = run("authorize", policy, entities, request, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "value limit exceeded" in result.stderr
+        checks += 1
+        batch.write_text(json.dumps([{**input_request, "context": {}}, input_request], separators=(",", ":")), encoding="utf-8")
+        result = run("batch", policy, entities, batch, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "value limit exceeded" in result.stderr
+        checks += 1
+        entities.write_text(json.dumps([{"uid": {"type": "File", "id": str(i)}, "attrs": {}, "parents": []} for i in range(4097)], separators=(",", ":")), encoding="utf-8")
+        request.write_text(json.dumps({**input_request, "context": {}}), encoding="utf-8")
+        result = run("authorize", policy, entities, request, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "entity limit exceeded" in result.stderr
+        checks += 1
     print("CLI checks passed:", checks)
 
 

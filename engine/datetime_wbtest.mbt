@@ -142,7 +142,7 @@ test "datetime JSON values work in context, attributes, tags and snapshots" {
   for invalid in ["2023-02-29", "2026-11-01T00:00:00", "2026-11-01T24:00:00Z"] {
     let json = "{\"__extn\":{\"fn\":\"datetime\",\"arg\":\"" + invalid + "\"}}"
     let rejected = try {
-      let _ = json_value(parse_json(json), 0)
+      let _ = json_value(parse_json(json), 0, Ref(0))
       false
     } catch {
       _ => true

@@ -73,7 +73,7 @@ test "IP extension JSON values and typed library inputs" {
       "{\"__extn\":{\"fn\":\"ip\",\"arg\":\"1.2.3.4\",\"extra\":1}}", "{\"__extn\":{\"fn\":\"ip\",\"arg\":1}}",
     ] {
     let rejected = try {
-      let _ = json_value(parse_json(text), 0)
+      let _ = json_value(parse_json(text), 0, Ref(0))
       false
     } catch {
       _ => true
