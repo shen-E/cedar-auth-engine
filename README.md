@@ -449,6 +449,13 @@ through the typed API. Exceeding a comparison limit records a policy error and
 skips that policy under Cedar's error semantics. Applications should inspect
 `errors` before enforcing a decision; CLI callers can use `--strict`.
 
+Authorization keeps a temporary ancestry cache for each entity graph during a
+single request, batch or comparison. It holds at most 4,096 entity pairs and
+262,144 UTF-16 code units of keys; entity type and ID combinations longer than
+65,536 code units bypass the cache. When a cache limit is reached, the engine
+continues by traversing the graph. Caches are discarded after the operation and
+are not shared between different entity snapshots.
+
 ## Verify
 
 ```sh
@@ -468,8 +475,9 @@ examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
 policy updates and both independently composed sides of comparison reports,
-including different entity snapshots, directional checks and open-ended domain
-fields, against the corresponding Cedar inputs. It reports mismatches and exits nonzero.
+including different entity snapshots, directional checks, open-ended domain
+fields and repeated hierarchy queries, against the corresponding Cedar inputs.
+It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -477,8 +485,8 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
-A [GitHub Actions reference run](https://github.com/shen-E/cedar-auth-engine/actions/runs/42235564376/job/127952120898)
-completed 1,082 comparisons, 36 invalid syntax cases, 5 invalid entity graphs
+A [GitHub Actions reference run](https://github.com/shen-E/cedar-auth-engine/actions/runs/42241338986/job/127972096071)
+completed 1,086 comparisons, 36 invalid syntax cases, 5 invalid entity graphs
 and 41 entity type name checks without mismatches. These checks cover the
 selected cases, rather than all Cedar behavior. CI pins `moonc v0.10.18+6c83a7f62`
 for portable tests and formatting; native builds also run with the latest

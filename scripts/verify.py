@@ -319,6 +319,26 @@ def main():
                 any(case[key] != value for key, value in expected_flags.items()) or
                 case["changed"] != any(expected_flags.values())):
                 mismatches.append({"case": "entity-compare:" + str(index), "before": old, "after": new, "actual": case})
+        # Repeated requests share hierarchy lookups but retain independent diagnostics.
+        repeated_requests = entity_requests * 2
+        repeated_file = temp / "repeated-hierarchy-requests.json"
+        repeated_file.write_text(json.dumps(repeated_requests), encoding="utf-8")
+        team_flags = ("--template", multi / "team.cedar", "--links", multi / "team-links.json")
+        for graph_name, graph_path in (("before", multi / "entities.json"), ("after", entities_example / "after-entities.json")):
+            repeated_batch = run([args.engine, "batch", multi / "policy.cedar", graph_path, repeated_file, *team_flags, "--format", "json"])
+            if repeated_batch.returncode:
+                raise RuntimeError("hierarchy batch failed: " + repeated_batch.stderr)
+            repeated_results = json.loads(repeated_batch.stdout)
+            if len(repeated_results) != len(repeated_requests):
+                raise RuntimeError("hierarchy batch length mismatch")
+            for index, request in enumerate(repeated_requests):
+                ref = reference(args.cedar, entity_policy, graph_path, request, temp, entity_links)
+                got = actual(args.engine, multi / "policy.cedar", graph_path, request, temp, team_flags)
+                raw = repeated_results[index]
+                batch_got = {"decision": raw["decision"], "reasons": sorted(raw["reasons"]), "errors": sorted(error["policy_id"] for error in raw["errors"])}
+                count += 2
+                if got != ref or batch_got != ref:
+                    mismatches.append({"case": "repeated-hierarchy:" + graph_name + ":" + str(index), "reference": ref, "single": got, "batch": batch_got})
         # Check directional gates against independent Cedar decisions and errors.
         direction_before = temp / "direction-before.cedar"
         direction_after = temp / "direction-after.cedar"
