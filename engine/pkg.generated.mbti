@@ -46,7 +46,11 @@ pub(all) struct AuthorizationComparison {
 }
 pub fn AuthorizationComparison::changed(Self) -> Bool
 pub fn AuthorizationComparison::decision_changed(Self) -> Bool
+pub fn AuthorizationComparison::decision_granted(Self) -> Bool
+pub fn AuthorizationComparison::decision_revoked(Self) -> Bool
 pub fn AuthorizationComparison::enforcement_changed(Self) -> Bool
+pub fn AuthorizationComparison::enforcement_granted(Self) -> Bool
+pub fn AuthorizationComparison::enforcement_revoked(Self) -> Bool
 pub fn AuthorizationComparison::errors_changed(Self) -> Bool
 pub fn AuthorizationComparison::reasons_changed(Self) -> Bool
 

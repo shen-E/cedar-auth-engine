@@ -78,9 +78,22 @@ JSON output includes both full responses and flags for changes to the Cedar
 decision, fail-closed enforcement, determining policy IDs, and errors. Error comparisons include policy IDs and
 messages; reasons and errors are compared without regard to order. The summary
 counts requests in each category. A request can count in multiple categories.
-`--fail-on-change` exits 1 when any decision, reason or error changes; otherwise
-it exits 0. Invalid input exits 2 without a partial report. The command compares
-up to 4,096 requests and uses the `EntityStore` snapshot limits described below.
+It also counts grants and revocations for Cedar decisions and for fail-closed
+enforcement separately; each case includes the corresponding direction flags.
+
+`--fail-on-change` exits 1 when any decision, reason or error changes. For
+selective checks, use `--fail-on-decision-grant`, `--fail-on-decision-revoke`,
+`--fail-on-enforcement-grant` or `--fail-on-enforcement-revoke`. Each exits 1
+when at least one request has that transition. `--fail-on-after-error` exits 1
+if the after side has any evaluation errors, even when those errors are unchanged;
+`after_error_requests` counts affected requests. Combine options to check several
+conditions. With no matching condition, the command exits 0; invalid input exits 2
+without a partial report. A decision grant means Cedar changed from Deny to
+Allow even if evaluation errors remain. An enforcement grant requires the after
+response to be Allow with no errors; an enforcement revocation includes an
+Allow response that gains errors. Choose the check that matches how the host
+uses the response. The command compares up to 4,096 requests and uses the
+`EntityStore` snapshot limits described below.
 
 Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
 `--after-template` / `--after-links` options for linked policies. Repeat pairs
@@ -322,8 +335,11 @@ let enforcement_changed = comparisons[0].enforcement_changed()
 
 Each comparison retains both responses. The `decision_changed`,
 `reasons_changed` and `errors_changed` methods expose individual differences;
-`enforcement_changed` uses `Response::is_authorized()` on both sides. When
-entity data also changes, create a second store and compare both snapshots:
+`enforcement_changed` uses `Response::is_authorized()` on both sides.
+`decision_granted` and `decision_revoked` identify changes in the raw Cedar
+decision; `enforcement_granted` and `enforcement_revoked` identify changes in
+fail-closed access. When entity data also changes, create a second store and
+compare both snapshots:
 
 ```moonbit
 let next_store = @engine.EntityStore::new_with_tags(updated_entities)
@@ -444,7 +460,8 @@ examples and error/condition cases, including batch responses compared with
 individual reference decisions, fail-closed enforcement results, test-command
 responses, links from single and multiple templates, policy removal, and
 policy updates and both independently composed sides of comparison reports,
-including different entity snapshots, against the corresponding Cedar inputs. It reports mismatches and exits nonzero.
+including different entity snapshots and directional checks, against the
+corresponding Cedar inputs. It reports mismatches and exits nonzero.
 IP range cases are also checked against Python `ipaddress` with a fixed seed.
 Hierarchy cases are checked against an independent reachability walk, cyclic
 entity graphs are checked against Cedar, generated timestamps are checked
@@ -452,10 +469,10 @@ against Python calendar arithmetic, and small sets against Python sets. The Moon
 512 three-entity graphs with a transitive-closure oracle on each backend.
 The MoonBit tests also compare wildcard matching against an independent
 exhaustive oracle over 41,261 short pattern/input pairs per backend.
-On Windows, the checked toolchain was `moon 0.1.20261028` / `moonc v0.10.18`;
-the current run made 1,064 comparisons, 36 invalid-syntax cases and 5 invalid
-entity-graph cases with no mismatches. Another 41 checks compare accepted and
-rejected entity type names in entity data, requests and template bindings. These
-results cover the selected cases, rather than all Cedar behavior.
+On Windows, a reference run before the directional checks used
+`moon 0.1.20261028` / `moonc v0.10.18` and completed 1,064 comparisons,
+36 invalid syntax cases, 5 invalid entity graphs and 41 entity type name checks
+without mismatches. See the workflow logs for the latest reference run. These checks
+cover the selected cases, rather than all Cedar behavior.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.

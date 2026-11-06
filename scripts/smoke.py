@@ -458,6 +458,63 @@ def main():
         checks += 1
     with tempfile.TemporaryDirectory() as tmp:
         path = pathlib.Path(tmp)
+        before, after, entities, requests = (path / name for name in ("before.cedar", "after.cedar", "entities.json", "requests.json"))
+        entities.write_text("[]", encoding="utf-8")
+        request = {"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"report"},"context":{}}
+        requests.write_text(json.dumps([request]), encoding="utf-8")
+        permit = '@id("permit") permit(principal, action, resource);'
+        guard_error = '@id("guard") forbid(principal, action, resource) when { context.missing };'
+        # decision grant, decision revoke, enforcement grant, enforcement revoke, any change
+        scenarios = (("", permit, (True, False, True, False, True)),
+                     (permit, "", (False, True, False, True, True)),
+                     ("", permit + guard_error, (True, False, False, False, True)),
+                     (permit + guard_error, permit, (False, False, True, False, True)),
+                     (permit, permit + guard_error, (False, False, False, True, True)),
+                     (permit + guard_error, "", (False, True, False, False, True)),
+                     ("", guard_error, (False, False, False, False, True)),
+                     ("", "", (False, False, False, False, False)),
+                     (permit + guard_error, permit + guard_error, (False, False, False, False, False)),
+                     (permit, '@id("other") permit(principal, action, resource);', (False, False, False, False, True)))
+        fields = ("decision_granted", "decision_revoked", "enforcement_granted", "enforcement_revoked", "changed")
+        summary = ("decision_grants", "decision_revocations", "enforcement_grants", "enforcement_revocations", "changed")
+        switches = ("--fail-on-decision-grant", "--fail-on-decision-revoke", "--fail-on-enforcement-grant", "--fail-on-enforcement-revoke", "--fail-on-change")
+        for old_source, new_source, expected in scenarios:
+            before.write_text(old_source, encoding="utf-8")
+            after.write_text(new_source, encoding="utf-8")
+            normal = run("compare", before, after, entities, requests, "--format", "json")
+            report = json.loads(normal.stdout)
+            assert normal.returncode == 0
+            assert tuple(report["cases"][0][field] for field in fields) == expected
+            assert tuple(report[field] for field in summary) == tuple(int(value) for value in expected)
+            checks += 1
+            for flag, should_fail in zip(switches, expected):
+                result = run("compare", before, after, entities, requests, flag, "--format", "json")
+                assert result.returncode == (1 if should_fail else 0) and json.loads(result.stdout) == report
+                checks += 1
+            after_error = bool(guard_error and guard_error in new_source)
+            assert report["after_error_requests"] == int(after_error)
+            error_gate = run("compare", before, after, entities, requests, "--fail-on-after-error", "--format", "json")
+            assert error_gate.returncode == (1 if after_error else 0) and json.loads(error_gate.stdout) == report
+            checks += 1
+            combined = run("compare", before, after, entities, requests, *switches[:4], "--format", "json")
+            assert combined.returncode == (1 if any(expected[:4]) else 0) and json.loads(combined.stdout) == report
+            checks += 1
+        for flag in (*switches[0:4], "--fail-on-after-error"):
+            duplicate = run("compare", before, after, entities, requests, flag, flag)
+            assert duplicate.returncode == 2 and not duplicate.stdout
+            checks += 1
+        empty = path / "empty.json"
+        empty.write_text("[]", encoding="utf-8")
+        empty_result = run("compare", before, after, entities, empty, *switches, "--fail-on-after-error", "--format", "json")
+        assert empty_result.returncode == 0 and json.loads(empty_result.stdout)["total"] == 0
+        checks += 1
+        before.write_text("", encoding="utf-8")
+        after.write_text(permit, encoding="utf-8")
+        text_report = run("compare", before, after, entities, requests, "--fail-on-enforcement-grant")
+        assert text_report.returncode == 1 and "grants=1" in text_report.stdout
+        checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
         policy = path / "invalid.cedar"
         policy.write_text("permit(principal, action, resource) when { context.x / 1 > 1 };", encoding="utf-8")
         assert run("check", policy).returncode == 2

@@ -302,6 +302,53 @@ def main():
                 any(case[key] != value for key, value in expected_flags.items()) or
                 case["changed"] != any(expected_flags.values())):
                 mismatches.append({"case": "entity-compare:" + str(index), "before": old, "after": new, "actual": case})
+        # Check directional gates against independent Cedar decisions and errors.
+        direction_before = temp / "direction-before.cedar"
+        direction_after = temp / "direction-after.cedar"
+        direction_entities = temp / "direction-entities.json"
+        direction_requests = temp / "direction-requests.json"
+        direction_entities.write_text("[]", encoding="utf-8")
+        direction_request = {"principal":{"type":"User","id":"alice"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"report"},"context":{}}
+        direction_requests.write_text(json.dumps([direction_request]), encoding="utf-8")
+        permit = '@id("permit") permit(principal, action, resource);'
+        guard_error = '@id("guard") forbid(principal, action, resource) when { context.missing };'
+        direction_pairs = (("", permit), (permit, ""), ("", permit + guard_error),
+                           (permit + guard_error, permit), (permit, permit + guard_error),
+                           (permit + guard_error, ""), ("", guard_error), ("", ""),
+                           (permit + guard_error, permit + guard_error))
+        gate_flags = {"decision_granted": "--fail-on-decision-grant", "decision_revoked": "--fail-on-decision-revoke",
+                      "enforcement_granted": "--fail-on-enforcement-grant", "enforcement_revoked": "--fail-on-enforcement-revoke"}
+        for index, (old_source, new_source) in enumerate(direction_pairs):
+            direction_before.write_text(old_source, encoding="utf-8")
+            direction_after.write_text(new_source, encoding="utf-8")
+            old = reference(args.cedar, direction_before, direction_entities, direction_request, temp)
+            new = reference(args.cedar, direction_after, direction_entities, direction_request, temp)
+            old_allowed = old["decision"] == "Allow" and not old["errors"]
+            new_allowed = new["decision"] == "Allow" and not new["errors"]
+            expected_directions = {"decision_granted": old["decision"] == "Deny" and new["decision"] == "Allow",
+                                   "decision_revoked": old["decision"] == "Allow" and new["decision"] == "Deny",
+                                   "enforcement_granted": not old_allowed and new_allowed,
+                                   "enforcement_revoked": old_allowed and not new_allowed}
+            command = [args.engine, "compare", direction_before, direction_after, direction_entities, direction_requests, "--format", "json"]
+            result = run(command)
+            if result.returncode:
+                raise RuntimeError("direction comparison failed: " + result.stderr)
+            report = json.loads(result.stdout)
+            if len(report["cases"]) != 1:
+                raise RuntimeError("direction comparison length mismatch")
+            case = report["cases"][0]
+            if (normalize(case["before"]) != old or normalize(case["after"]) != new or
+                any(case[key] != value for key, value in expected_directions.items())):
+                mismatches.append({"case": "directions:" + str(index), "before": old, "after": new, "actual": case})
+            for key, flag in gate_flags.items():
+                gated = run([*command, flag])
+                if gated.returncode != (1 if expected_directions[key] else 0) or json.loads(gated.stdout) != report:
+                    mismatches.append({"case": "direction-gate:" + str(index) + ":" + key, "actual_status": gated.returncode})
+            after_error_gate = run([*command, "--fail-on-after-error"])
+            if (report["after_error_requests"] != int(bool(new["errors"])) or
+                after_error_gate.returncode != (1 if new["errors"] else 0) or json.loads(after_error_gate.stdout) != report):
+                mismatches.append({"case": "after-error-gate:" + str(index), "actual_status": after_error_gate.returncode})
+            count += 2
         # Exercise single-slot, hierarchy, typed scopes and forbid links too.
         engine_policy = temp / "template-static.cedar"
         template_path = temp / "template.cedar"

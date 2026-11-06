@@ -54,6 +54,38 @@ pub fn AuthorizationComparison::enforcement_changed(
 }
 
 ///|
+/// Whether the Cedar decision changed from Deny to Allow, regardless of errors.
+pub fn AuthorizationComparison::decision_granted(
+  self : AuthorizationComparison,
+) -> Bool {
+  self.before.decision == Deny && self.after.decision == Allow
+}
+
+///|
+/// Whether the Cedar decision changed from Allow to Deny, regardless of errors.
+pub fn AuthorizationComparison::decision_revoked(
+  self : AuthorizationComparison,
+) -> Bool {
+  self.before.decision == Allow && self.after.decision == Deny
+}
+
+///|
+/// Whether fail-closed enforcement changed from denied to allowed.
+pub fn AuthorizationComparison::enforcement_granted(
+  self : AuthorizationComparison,
+) -> Bool {
+  !self.before.is_authorized() && self.after.is_authorized()
+}
+
+///|
+/// Whether fail-closed enforcement changed from allowed to denied.
+pub fn AuthorizationComparison::enforcement_revoked(
+  self : AuthorizationComparison,
+) -> Bool {
+  self.before.is_authorized() && !self.after.is_authorized()
+}
+
+///|
 /// Whether the determining policy IDs differ, ignoring order.
 pub fn AuthorizationComparison::reasons_changed(
   self : AuthorizationComparison,

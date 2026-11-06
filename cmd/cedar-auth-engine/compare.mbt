@@ -5,6 +5,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   let mut json = false
   let mut fail_on_change = false
+  let mut fail_decision_grant = false
+  let mut fail_decision_revoke = false
+  let mut fail_enforcement_grant = false
+  let mut fail_enforcement_revoke = false
+  let mut fail_after_error = false
   let mut after_entities_path : String? = None
   let before_inputs = policy_inputs()
   let after_inputs = policy_inputs()
@@ -18,6 +23,23 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       i += 2
     } else if args[i] == "--fail-on-change" && !fail_on_change {
       fail_on_change = true
+      i += 1
+    } else if args[i] == "--fail-on-decision-grant" && !fail_decision_grant {
+      fail_decision_grant = true
+      i += 1
+    } else if args[i] == "--fail-on-decision-revoke" && !fail_decision_revoke {
+      fail_decision_revoke = true
+      i += 1
+    } else if args[i] == "--fail-on-enforcement-grant" &&
+      !fail_enforcement_grant {
+      fail_enforcement_grant = true
+      i += 1
+    } else if args[i] == "--fail-on-enforcement-revoke" &&
+      !fail_enforcement_revoke {
+      fail_enforcement_revoke = true
+      i += 1
+    } else if args[i] == "--fail-on-after-error" && !fail_after_error {
+      fail_after_error = true
       i += 1
     } else if args[i] == "--after-entities" &&
       after_entities_path is None &&
@@ -95,12 +117,21 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   let mut enforcement = 0
   let mut reasons = 0
   let mut errors = 0
+  let mut decision_grants = 0
+  let mut decision_revocations = 0
+  let mut enforcement_grants = 0
+  let mut enforcement_revocations = 0
+  let mut after_error_requests = 0
   for index in 0..<comparisons.length() {
     let item = comparisons[index]
     let decision_changed = item.decision_changed()
     let enforcement_changed = item.enforcement_changed()
     let reasons_changed = item.reasons_changed()
     let errors_changed = item.errors_changed()
+    let decision_granted = item.decision_granted()
+    let decision_revoked = item.decision_revoked()
+    let enforcement_granted = item.enforcement_granted()
+    let enforcement_revoked = item.enforcement_revoked()
     let any_changed = decision_changed || reasons_changed || errors_changed
     if any_changed {
       changed += 1
@@ -117,6 +148,21 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     if errors_changed {
       errors += 1
     }
+    if !item.after.errors.is_empty() {
+      after_error_requests += 1
+    }
+    if decision_granted {
+      decision_grants += 1
+    }
+    if decision_revoked {
+      decision_revocations += 1
+    }
+    if enforcement_granted {
+      enforcement_grants += 1
+    }
+    if enforcement_revoked {
+      enforcement_revocations += 1
+    }
     if json {
       let result : Json = {
         "index": index,
@@ -129,6 +175,10 @@ fn run_compare(args : Array[String]) -> Int32 raise {
         "enforcement_changed": enforcement_changed,
         "reasons_changed": reasons_changed,
         "errors_changed": errors_changed,
+        "decision_granted": decision_granted,
+        "decision_revoked": decision_revoked,
+        "enforcement_granted": enforcement_granted,
+        "enforcement_revoked": enforcement_revoked,
       }
       cases.push(result)
     } else {
@@ -162,14 +212,24 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       "enforcement_changed": enforcement,
       "reasons_changed": reasons,
       "errors_changed": errors,
+      "decision_grants": decision_grants,
+      "decision_revocations": decision_revocations,
+      "enforcement_grants": enforcement_grants,
+      "enforcement_revocations": enforcement_revocations,
+      "after_error_requests": after_error_requests,
     }
     println(report.stringify())
   } else {
     println(
-      "\{changed}/\{comparisons.length()} changed; decision=\{decisions}, enforcement=\{enforcement}, reasons=\{reasons}, errors=\{errors}",
+      "\{changed}/\{comparisons.length()} changed; decision=\{decisions} (grants=\{decision_grants}, revocations=\{decision_revocations}), enforcement=\{enforcement} (grants=\{enforcement_grants}, revocations=\{enforcement_revocations}), reasons=\{reasons}, errors=\{errors}, after errors=\{after_error_requests}",
     )
   }
-  if fail_on_change && changed > 0 {
+  if (fail_on_change && changed > 0) ||
+    (fail_decision_grant && decision_grants > 0) ||
+    (fail_decision_revoke && decision_revocations > 0) ||
+    (fail_enforcement_grant && enforcement_grants > 0) ||
+    (fail_enforcement_revoke && enforcement_revocations > 0) ||
+    (fail_after_error && after_error_requests > 0) {
     1
   } else {
     0
