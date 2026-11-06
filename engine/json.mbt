@@ -141,10 +141,18 @@ fn entity_id(value : Json) -> EntityId raise PolicyError {
 }
 
 ///|
-fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
+fn json_value(
+  value : Json,
+  depth : Int32,
+  count : Ref[Int32],
+) -> Value raise PolicyError {
   if depth > 64 {
     raise PolicyError("value nesting limit exceeded")
   }
+  if count.val >= 131072 {
+    raise PolicyError("value limit exceeded")
+  }
+  count.val += 1
   match value {
     True => BoolValue(true)
     False => BoolValue(false)
@@ -156,9 +164,12 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
       LongValue(n)
     }
     Array(items) => {
+      if items.length() > 131072 - count.val {
+        raise PolicyError("value limit exceeded")
+      }
       let result = []
       for item in items {
-        result.push(json_value(item, depth + 1))
+        result.push(json_value(item, depth + 1, count))
       }
       SetValue(result)
     }
@@ -192,9 +203,12 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
           EntityValue(entity_id(uid))
         }
         None => {
+          if fields.length() > 131072 - count.val {
+            raise PolicyError("value limit exceeded")
+          }
           let result : Map[String, Value] = Map([])
           for key, item in fields {
-            result[key] = json_value(item, depth + 1)
+            result[key] = json_value(item, depth + 1, count)
           }
           RecordValue(result)
         }
@@ -208,11 +222,15 @@ fn json_value(value : Json, depth : Int32) -> Value raise PolicyError {
 fn value_map(
   value : Json,
   label : String,
+  count : Ref[Int32],
 ) -> Map[String, Value] raise PolicyError {
   let fields = object(value, label)
+  if fields.length() > 131072 - count.val {
+    raise PolicyError("value limit exceeded")
+  }
   let result : Map[String, Value] = Map([])
   for key, item in fields {
-    result[key] = json_value(item, 0)
+    result[key] = json_value(item, 0, count)
   }
   result
 }
@@ -229,7 +247,7 @@ pub fn request_from_json(value : Json) -> Request raise PolicyError {
     principal: entity_id(required(fields, "principal")),
     action: entity_id(required(fields, "action")),
     resource: entity_id(required(fields, "resource")),
-    context: value_map(required(fields, "context"), "context"),
+    context: value_map(required(fields, "context"), "context", Ref(0)),
   }
 }
 
@@ -242,12 +260,21 @@ pub fn tagged_entities_from_json(
     Array(items) => items
     _ => raise PolicyError("entities must be an array")
   }
+  if items.length() > 4096 {
+    raise PolicyError("entity limit exceeded")
+  }
   let result = []
+  let count = Ref(0)
+  let mut edges = 0
   for item in items {
     let fields = object(item, "entity")
     check_fields(fields, ["uid", "attrs", "parents", "tags"], "entity")
     let parents = match required(fields, "parents") {
       Array(items) => {
+        if items.length() > 65536 - edges {
+          raise PolicyError("entity parent limit exceeded")
+        }
+        edges += items.length()
         let result = []
         for item in items {
           result.push(entity_id(item))
@@ -257,13 +284,13 @@ pub fn tagged_entities_from_json(
       _ => raise PolicyError("entity parents must be an array")
     }
     let tags = match fields.get("tags") {
-      Some(tags) => value_map(tags, "entity tags")
+      Some(tags) => value_map(tags, "entity tags", count)
       None => Map([])
     }
     result.push({
       entity: {
         uid: entity_id(required(fields, "uid")),
-        attrs: value_map(required(fields, "attrs"), "entity attrs"),
+        attrs: value_map(required(fields, "attrs"), "entity attrs", count),
         parents,
       },
       tags,

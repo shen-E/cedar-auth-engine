@@ -120,3 +120,24 @@ test "unknown structural field reports its location and name" {
   }
   assert_true(untagged_rejected)
 }
+
+///|
+test "direct JSON inputs enforce request value limits" {
+  let values = Array::make(131071, Json::boolean(true))
+  let request : Json = {
+    "principal": { "type": "User", "id": "alice" },
+    "action": { "type": "Action", "id": "read" },
+    "resource": { "type": "File", "id": "report" },
+    "context": { "values": Json::array(values) },
+  }
+  let parsed = @engine.request_from_json(request)
+  parsed.validate()
+  values.push(Json::boolean(true))
+  let rejected = try {
+    let _ = @engine.request_from_json(request)
+    false
+  } catch {
+    error => error.to_string() == "value limit exceeded"
+  }
+  assert_true(rejected)
+}
