@@ -148,6 +148,14 @@ fn parse_test_case(item : Json) -> TestCase raise {
     Object(fields) => fields
     _ => raise CliError("test case must be an object")
   }
+  for key, _ in fields {
+    if key != "request" &&
+      key != "decision" &&
+      key != "reasons" &&
+      key != "errors" {
+      raise CliError("unknown test case field '\{key}'")
+    }
+  }
   let request = match fields.get("request") {
     Some(request) => @engine.request_from_json(request)
     None => raise CliError("test case missing request")
