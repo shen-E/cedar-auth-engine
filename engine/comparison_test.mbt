@@ -137,7 +137,9 @@ test "compare team memberships across independent entity snapshots" {
   ]
   let before = @engine.EntityStore::new(before_entities)
   let after = @engine.EntityStore::new(after_entities)
-  let cases = before.compare_with_entities(after, policy, policy, [alice, bob])
+  let cases = before.compare_with_entities(after, policy, policy, [
+    alice, bob, bob,
+  ])
   assert_true(
     cases[0].before.decision == @engine.Allow &&
     cases[0].after.decision == @engine.Deny,
@@ -147,6 +149,10 @@ test "compare team memberships across independent entity snapshots" {
     cases[1].after.decision == @engine.Allow,
   )
   assert_true(cases[0].decision_changed() && cases[1].enforcement_changed())
+  assert_true(
+    cases[2].before.decision == @engine.Deny &&
+    cases[2].after.decision == @engine.Allow,
+  )
   assert_true(
     before.compare_with_entities(after, policy, policy, []).is_empty(),
   )

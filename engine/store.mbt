@@ -104,9 +104,10 @@ pub fn EntityStore::authorize_batch(
   if requests.length() > 4096 {
     raise PolicyError("request batch limit exceeded")
   }
+  let context = EvaluationContext::new(self.graph)
   let responses = []
   for request in requests {
-    responses.push(authorize_in_graph(policies, request, self.graph))
+    responses.push(authorize_in_context(policies, request, context))
   }
   responses
 }

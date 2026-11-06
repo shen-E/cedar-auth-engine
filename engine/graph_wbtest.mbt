@@ -106,16 +106,26 @@ test "all three-entity graphs match independent reachability" {
     let graph = Some(build_entity_graph(entities)) catch { _ => None }
     assert_true((graph is None) == cyclic, msg="mask \{mask}")
     match graph {
-      Some(value) =>
+      Some(value) => {
+        let context = EvaluationContext::new(value)
         for i in 0..<3 {
           for j in 0..<3 {
+            let expected = i == j || reach[i * 3 + j]
             assert_true(
-              is_descendant(value, ids[i], ids[j]) ==
-              (i == j || reach[i * 3 + j]),
+              is_descendant(value, ids[i], ids[j]) == expected,
               msg="mask \{mask}",
+            )
+            assert_true(
+              context.is_descendant(ids[i], ids[j]) == expected,
+              msg="mask \{mask}",
+            )
+            assert_true(
+              context.is_descendant(ids[i], ids[j]) == expected,
+              msg="cached mask \{mask}",
             )
           }
         }
+      }
       None => ()
     }
   }

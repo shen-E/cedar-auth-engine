@@ -133,11 +133,13 @@ pub fn EntityStore::compare_with_entities(
   if requests.length() > 4096 {
     raise PolicyError("request batch limit exceeded")
   }
+  let before_context = EvaluationContext::new(self.graph)
+  let after_context = EvaluationContext::new(after_entities.graph)
   let comparisons = []
   for request in requests {
     comparisons.push({
-      before: authorize_in_graph(before, request, self.graph),
-      after: authorize_in_graph(after, request, after_entities.graph),
+      before: authorize_in_context(before, request, before_context),
+      after: authorize_in_context(after, request, after_context),
     })
   }
   comparisons
