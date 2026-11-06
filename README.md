@@ -360,6 +360,30 @@ limits also reject cyclic MoonBit value containers. Existing unchecked methods
 retain their behavior and are useful when the application already validates its
 inputs. In particular, `validate_entities` checks the graph structure only.
 
+Update a snapshot when a user changes teams or a resource is deleted:
+
+```moonbit
+let next_store = store.upsert(updated_entities)
+let without_deleted = next_store.remove(deleted_resource)
+let cleaned = without_deleted.remove_batch(other_deleted_entities)
+```
+
+`upsert` accepts tagged entities and inserts new IDs or replaces existing
+entities in full, including their attributes, parents and tags. Use an empty
+tag map for an entity without tags. Repeated IDs in one update are rejected.
+`remove` and `remove_batch` require existing IDs; batch removal also rejects
+duplicates. Each operation returns a new checked snapshot or raises
+`PolicyError` without changing the original. It checks the complete resulting
+graph, type names, nested values and store limits, even when the original store
+was built with an unchecked constructor. A single operation accepts at most
+4,096 updates or removals.
+
+Removing an entity does not remove references to it from other entities. A
+direct parent reference still matches that parent ID, but traversal cannot
+continue through a removed parent. Include affected children in a separate
+`upsert` if their parent links should also change. Applications control when to
+activate and distribute each new snapshot.
+
 For a set of representative requests, compare two policy snapshots against the
 same store before switching the active set:
 

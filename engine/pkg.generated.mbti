@@ -123,6 +123,9 @@ pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_checked(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags_checked(Array[TaggedEntity]) -> Self raise PolicyError
+pub fn EntityStore::remove(Self, EntityId) -> Self raise PolicyError
+pub fn EntityStore::remove_batch(Self, Array[EntityId]) -> Self raise PolicyError
+pub fn EntityStore::upsert(Self, Array[TaggedEntity]) -> Self raise PolicyError
 
 pub struct IpAddress {
   // private fields

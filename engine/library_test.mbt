@@ -234,6 +234,48 @@ test "validate typed inputs through the public library" {
 }
 
 ///|
+test "update entity snapshots through the public library" {
+  let policies = @engine.parse_policies(
+    "permit(principal in Team::\"security\", action, resource) when { resource.getTag(\"sharing\") == \"team\" };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "Document", id: "report", },
+    context: {},
+  }
+  let team : @engine.EntityId = { kind: "Team", id: "security", }
+  let original = @engine.EntityStore::new_with_tags_checked([
+    { entity: { uid: request.principal, attrs: {}, parents: [], }, tags: {}, },
+  ])
+  let updated = original.upsert([
+    {
+      entity: { uid: request.principal, attrs: {}, parents: [team], },
+      tags: {},
+    },
+    {
+      entity: { uid: request.resource, attrs: {}, parents: [], },
+      tags: { "sharing": @engine.StringValue("team") },
+    },
+  ])
+  assert_false(original.authorize_checked(policies, request).is_authorized())
+  assert_true(updated.authorize_checked(policies, request).is_authorized())
+  let revoked = updated.remove(request.resource)
+  assert_false(revoked.authorize_checked(policies, request).is_authorized())
+  assert_true(updated.authorize_checked(policies, request).is_authorized())
+  let rebuilt = @engine.EntityStore::new_with_tags_checked([
+    {
+      entity: { uid: request.principal, attrs: {}, parents: [team], },
+      tags: {},
+    },
+  ])
+  assert_true(
+    @engine.response_to_json(revoked.authorize(policies, request)).stringify() ==
+    @engine.response_to_json(rebuilt.authorize(policies, request)).stringify(),
+  )
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
