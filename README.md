@@ -231,8 +231,9 @@ It does not alter the Cedar response, which remains available for diagnostics.
 `authorize_batch_with_tags` validate and index the shared entity graph once and
 return responses in input order. `validate_entities` checks graph limits, duplicate IDs
 and cycles independently of policy evaluation. When constructing typed request
-and entity values directly, call `EntityId::validate()` on each identifier to
-validate its type name; JSON inputs and template bindings perform this check.
+and entity values directly, use the checked store methods described below to
+validate their type names and nested values. JSON inputs and template bindings
+also validate entity type names.
 The original `authorize` and `entities_from_json` accept entities without
 tags; `entities_from_json` rejects nonempty tags to prevent silently discarding
 them. Use `parse_json` for text input to detect
@@ -332,6 +333,33 @@ hierarchy and copy the parent links, attributes and tags, including nested sets
 and records. Later mutations to the input entities do not change the snapshot;
 construct a new store to apply entity updates. Requests and policy sets remain
 separate from the store. The snapshot is used in memory and performs no I/O.
+
+When constructing input values directly in MoonBit, checked entry points also
+validate entity type names in the graph, request and nested values:
+
+```moonbit
+let store = @engine.EntityStore::new_with_tags_checked(entities)
+let response = store.authorize_checked(policies, request)
+let responses = store.authorize_batch_checked(policies, [request])
+```
+
+Use `EntityStore::new_checked` for entities without tags. Checked constructors
+validate entity IDs, parent IDs and entity references in attributes and tags,
+then retain an independent snapshot. Checked authorization validates the
+principal, action, resource and context before evaluation; batch authorization
+validates every request before evaluating any of them. Invalid input raises
+`PolicyError`. These checks do not validate against a Cedar schema or turn
+policy evaluation errors into input errors: inspect `response.errors` or use
+`response.is_authorized()` for fail-closed enforcement. A checked authorization
+call validates the request, so use a checked constructor to validate the store.
+
+`request.validate()` and `validate_typed_entities(entities)` provide the same
+input checks separately. Nested values are limited to 64 levels and 131,072
+values per request or entity snapshot, including nested sets and records. The
+limits also reject cyclic MoonBit value containers. Existing unchecked methods
+retain their behavior and are useful when the application already validates its
+inputs. In particular, `validate_entities` checks the graph structure only.
+
 For a set of representative requests, compare two policy snapshots against the
 same store before switching the active set:
 
