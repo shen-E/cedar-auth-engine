@@ -243,6 +243,12 @@ values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`,
 `@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`,
 `@engine.DurationValue(@engine.Duration::parse("1h30m"))`, and
 `@engine.DateTimeValue(@engine.DateTime::parse("2026-11-01T12:00:00Z"))`.
+JSON request conversion limits context to 131,072 values. Entity conversion
+limits the combined attributes and tags to 131,072 values, 4,096 entities and
+65,536 parent links. These limits apply even when the caller supplies an
+independently constructed `Json` value; each conversion fails without returning
+partially converted input. Graph cycles and duplicate entity IDs are checked
+separately when building or validating the entity graph.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
 corresponding metadata. For entity JSON that contains tags:
@@ -506,10 +512,11 @@ The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 4,096 entities and 65,536 parent links. Batch authorization
 is limited to 4,096 requests; a policy set, including links, is limited to
-1,024 policies. A removal operation accepts at most 1,024 policy IDs. A reusable
-`EntityStore` additionally limits entity attribute
-and tag values to 131,072 total nodes and 64 nested levels. Input and graph
-limits raise errors instead of returning a partial decision.
+1,024 policies. A removal operation accepts at most 1,024 policy IDs. JSON
+conversion and checked typed requests limit context values to 131,072 nodes;
+JSON entity conversion and `EntityStore` limit attributes and tags to 131,072
+nodes in total. Values are limited to 64 nested levels. Input and graph limits
+raise errors instead of returning a partial decision.
 
 Each policy evaluation allows at most 1,000,000 value-comparison steps and 128
 nested comparison levels. These limits also stop cyclic values constructed
