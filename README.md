@@ -384,6 +384,22 @@ continue through a removed parent. Include affected children in a separate
 `upsert` if their parent links should also change. Applications control when to
 activate and distribute each new snapshot.
 
+Read entities from a snapshot when preparing an update or persisting the data:
+
+```moonbit
+let count = store.length()
+let document = store.get(request.resource)
+let snapshot_entities = store.entities()
+```
+
+`get` returns `Some` entity for an exact type and ID, or `None` if it is
+absent. `entities` returns the entities in snapshot order. Both return
+independent copies of attributes, parents, tags and nested sets and records;
+changing a returned value does not change the store. Modify the copy and pass it
+to `upsert` to create a new snapshot. Exporting every entity copies the entire
+snapshot, while `get` copies only the matching entity. Storage and persistence
+remain the application's responsibility.
+
 For a set of representative requests, compare two policy snapshots against the
 same store before switching the active set:
 
