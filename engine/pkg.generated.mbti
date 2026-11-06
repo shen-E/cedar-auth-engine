@@ -30,6 +30,8 @@ pub fn tagged_entities_from_json(Json) -> Array[TaggedEntity] raise PolicyError
 
 pub fn validate_entities(Array[TaggedEntity]) -> Unit raise PolicyError
 
+pub fn validate_typed_entities(Array[TaggedEntity]) -> Unit raise PolicyError
+
 // Errors
 pub suberror PolicyError {
   PolicyError(String)
@@ -113,10 +115,14 @@ pub struct EntityStore {
 }
 pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
 pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
+pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
+pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::compare_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
+pub fn EntityStore::new_checked(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError
+pub fn EntityStore::new_with_tags_checked(Array[TaggedEntity]) -> Self raise PolicyError
 
 pub struct IpAddress {
   // private fields
@@ -156,6 +162,7 @@ pub(all) struct Request {
   context : Map[String, Value]
 } derive(@debug.Debug)
 pub fn Request::to_repr(Self) -> @debug.Repr
+pub fn Request::validate(Self) -> Unit raise PolicyError
 
 pub(all) struct Response {
   decision : Decision

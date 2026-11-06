@@ -200,6 +200,40 @@ test "entity snapshots isolate nested attributes, tags and hierarchy" {
 }
 
 ///|
+test "validate typed inputs through the public library" {
+  let policies = @engine.parse_policies(
+    "permit(principal, action, resource) when { context.team == resource.team };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "Document", id: "report", },
+    context: { "team": @engine.StringValue("security") },
+  }
+  let entities : Array[@engine.Entity] = [
+    {
+      uid: request.resource,
+      attrs: { "team": @engine.StringValue("security") },
+      parents: [],
+    },
+  ]
+  request.validate()
+  let store = @engine.EntityStore::new_checked(entities)
+  assert_true(store.authorize_checked(policies, request).is_authorized())
+  assert_true(
+    store.authorize_batch_checked(policies, [request])[0].is_authorized(),
+  )
+  let invalid = { ..request, principal: { kind: "bad-type", id: "alice", }, }
+  let rejected = try {
+    let _ = store.authorize_checked(policies, invalid)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
