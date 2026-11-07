@@ -126,6 +126,7 @@ pub fn EntityStore::entities(Self) -> Array[TaggedEntity]
 pub fn EntityStore::get(Self, EntityId) -> TaggedEntity?
 pub fn EntityStore::is_descendant(Self, EntityId, EntityId) -> Bool
 pub fn EntityStore::length(Self) -> Int32
+pub fn EntityStore::missing_parents(Self) -> Array[MissingParent]
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_checked(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_with_tags(Array[TaggedEntity]) -> Self raise PolicyError
@@ -133,6 +134,7 @@ pub fn EntityStore::new_with_tags_checked(Array[TaggedEntity]) -> Self raise Pol
 pub fn EntityStore::remove(Self, EntityId) -> Self raise PolicyError
 pub fn EntityStore::remove_batch(Self, Array[EntityId]) -> Self raise PolicyError
 pub fn EntityStore::upsert(Self, Array[TaggedEntity]) -> Self raise PolicyError
+pub fn EntityStore::validate_closed(Self) -> Unit raise PolicyError
 
 pub struct IpAddress {
   // private fields
@@ -141,6 +143,12 @@ pub fn IpAddress::equal(Self, Self) -> Bool
 pub fn IpAddress::not_equal(Self, Self) -> Bool
 pub fn IpAddress::parse(String) -> Self raise PolicyError
 pub fn IpAddress::to_repr(Self) -> @debug.Repr
+
+pub(all) struct MissingParent {
+  parent : EntityId
+  children : Array[EntityId]
+} derive(@debug.Debug)
+pub fn MissingParent::to_repr(Self) -> @debug.Repr
 
 pub(all) struct PolicyInfo {
   id : String

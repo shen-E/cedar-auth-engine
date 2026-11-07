@@ -379,6 +379,30 @@ test "inspect team inheritance through the public library" {
 }
 
 ///|
+test "check missing entity parents through the public library" {
+  let alice : @engine.EntityId = { kind: "User", id: "alice", }
+  let team : @engine.EntityId = { kind: "Team", id: "security", }
+  let store = @engine.EntityStore::new_with_tags_checked([
+    { entity: { uid: alice, attrs: {}, parents: [team], }, tags: {}, },
+  ])
+  let missing = store.missing_parents()
+  assert_true(missing.length() == 1 && missing[0].parent == team)
+  assert_true(missing[0].children == [alice])
+  let rejected = try {
+    store.validate_closed()
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  let complete = store.upsert([
+    { entity: { uid: team, attrs: {}, parents: [], }, tags: {}, },
+  ])
+  complete.validate_closed()
+  assert_true(complete.missing_parents().is_empty())
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
