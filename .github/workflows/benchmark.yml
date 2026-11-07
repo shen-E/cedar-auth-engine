@@ -2,6 +2,8 @@ name: Measure authorization workloads
 
 on:
   workflow_dispatch:
+  push:
+    branches: [benchmark-check]
 
 permissions:
   contents: read
