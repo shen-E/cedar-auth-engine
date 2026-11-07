@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="title description">
+  <title id="title">Cedar Auth Engine architecture</title>
+  <desc id="description">Applications call the MoonBit library or native command line. Policies, authorization requests and entity data enter the portable authorization core, which parses inputs, validates entity hierarchy and evaluates policies. Responses contain a decision, determining policy IDs and evaluation errors.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#77908c"/></marker>
+    <style>
+      .bg{fill:#f7f8f6}.panel{fill:#fff;stroke:#d8e1dc;stroke-width:2}.core{fill:#eaf2ee;stroke:#a8c4b7;stroke-width:2}.ink{fill:#182d2a;font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#526b65;font-family:Inter,Segoe UI,Arial,sans-serif}.eyebrow{font-size:15px;letter-spacing:2.7px;font-weight:700}.title{font-size:38px;font-weight:700;letter-spacing:-.6px}.sub{font-size:18px}.label{font-size:15px;letter-spacing:1.8px;font-weight:700}.name{font-size:23px;font-weight:650}.detail{font-size:17px}.small{font-size:15px}.rule{stroke:#d8e1dc;stroke-width:2}.link{fill:none;stroke:#77908c;stroke-width:2.5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1600" height="820" rx="24"/>
+  <text x="66" y="70" class="muted eyebrow">CEDAR AUTH ENGINE</text>
+  <text x="66" y="126" class="ink title">Authorization, from input to decision</text>
+  <text x="66" y="162" class="muted sub">A portable Cedar subset for application-embedded access control</text>
+  <path d="M66 195 H1534" class="rule"/>
+
+  <text x="66" y="246" class="muted label">01 / ENTRY POINTS</text>
+  <text x="423" y="246" class="muted label">02 / CALLER INPUTS</text>
+  <text x="817" y="246" class="muted label">03 / PORTABLE CORE</text>
+  <text x="1260" y="246" class="muted label">04 / RESPONSE</text>
+
+  <rect x="66" y="282" width="278" height="158" rx="14" class="panel"/>
+  <text x="91" y="323" class="ink name">MoonBit library</text>
+  <text x="91" y="354" class="muted detail">Embedded in a host</text>
+  <text x="91" y="380" class="muted detail">application</text>
+  <text x="91" y="416" class="muted small">Typed values or JSON</text>
+
+  <rect x="66" y="458" width="278" height="158" rx="14" class="panel"/>
+  <text x="91" y="499" class="ink name">Native CLI</text>
+  <text x="91" y="530" class="muted detail">Check, authorize, test</text>
+  <text x="91" y="556" class="muted detail">and compare</text>
+  <text x="91" y="592" class="muted small">Cedar text + JSON files</text>
+
+  <path d="M344 361 H389 V449 H405" class="link"/>
+  <path d="M344 537 H389 V449 H405" class="link"/>
+
+  <rect x="423" y="282" width="313" height="105" rx="14" class="panel"/>
+  <text x="447" y="323" class="ink name">Policies</text>
+  <text x="447" y="352" class="muted detail">permit · forbid · conditions</text>
+  <rect x="423" y="401" width="313" height="105" rx="14" class="panel"/>
+  <text x="447" y="442" class="ink name">Request</text>
+  <text x="447" y="471" class="muted detail">principal · action · resource · context</text>
+  <rect x="423" y="520" width="313" height="105" rx="14" class="panel"/>
+  <text x="447" y="561" class="ink name">Entity data</text>
+  <text x="447" y="590" class="muted detail">attributes · tags · parent links</text>
+
+  <path d="M736 334 H786 V453 H800" class="link"/>
+  <path d="M736 453 H800" class="link"/>
+  <path d="M736 572 H786 V453 H800" class="link"/>
+
+  <rect x="817" y="282" width="357" height="343" rx="16" class="core"/>
+  <text x="843" y="329" class="ink name">Parse &amp; validate</text>
+  <text x="843" y="358" class="muted detail">Policy syntax and input limits</text>
+  <path d="M843 385 H1148" class="rule"/>
+  <text x="843" y="427" class="ink name">Entity graph</text>
+  <text x="843" y="456" class="muted detail">Hierarchy and attribute lookup</text>
+  <path d="M843 483 H1148" class="rule"/>
+  <text x="843" y="525" class="ink name">Evaluate policies</text>
+  <text x="843" y="554" class="muted detail">Forbid overrides · default deny</text>
+  <text x="843" y="594" class="muted small">No network, filesystem or clock in evaluation</text>
+
+  <path d="M1174 453 H1243" class="link"/>
+  <rect x="1260" y="282" width="274" height="343" rx="14" class="panel"/>
+  <text x="1286" y="327" class="ink name">Decision</text>
+  <text x="1286" y="356" class="muted detail">Allow or Deny</text>
+  <path d="M1286 383 H1508" class="rule"/>
+  <text x="1286" y="425" class="ink name">Reasons</text>
+  <text x="1286" y="454" class="muted detail">Determining policy IDs</text>
+  <path d="M1286 481 H1508" class="rule"/>
+  <text x="1286" y="523" class="ink name">Diagnostics</text>
+  <text x="1286" y="552" class="muted detail">Evaluation errors</text>
+  <text x="1286" y="594" class="muted small">Host decides how to enforce</text>
+
+  <path d="M66 686 H1534" class="rule"/>
+  <text x="66" y="730" class="muted detail">The caller manages identity, policy storage and entity updates.</text>
+  <text x="66" y="759" class="muted small">Cedar authorization semantics: matching forbid policies take priority; policy errors are reported and skipped.</text>
+</svg>

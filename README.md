@@ -4,6 +4,10 @@ A portable MoonBit authorization library and native CLI for a documented
 subset of Cedar. Given a principal, action, resource, context and entity graph,
 it returns a decision, determining policy IDs and per-policy errors.
 
+[Watch the demo (Chinese narration)](https://github.com/shen-E/cedar-auth-engine/releases/tag/demo-2026-11-07) · [Architecture PNG](docs/architecture.png)
+
+![Cedar Auth Engine architecture, from application inputs to authorization response](docs/architecture.svg)
+
 ```cedar
 permit(principal in Group::"editors", action == Action::"view", resource)
 when { context.authenticated && resource.owner == principal };
@@ -502,6 +506,8 @@ and entity data are activated.
   and only the template slots. The CLI accepts multiple template/link pairs.
 - Principal, action, resource and context; entity attributes and parent links;
   boolean, signed 64-bit integer, string, entity, set and record values.
+  Nonempty sets, records and supported single-argument calls accept a trailing
+  comma, as does the policy scope.
 - Entity tags via `.hasTag(key)` and `.getTag(key)`, where `key` can be any
   expression yielding a string. Tags belong to the individual entity and are
   not inherited from parents. A missing tag causes a `getTag` evaluation error;
@@ -601,6 +607,16 @@ python scripts/smoke.py
 python scripts/verify.py --cedar /path/to/cedar --engine /path/to/cedar-auth-engine
 ```
 
+The demo can be regenerated on Windows with Pillow, FFmpeg and the Microsoft
+Kangkang Chinese voice installed:
+
+```sh
+python scripts/render_demo.py --engine /path/to/cedar-auth-engine --moon /path/to/moon --ffmpeg /path/to/ffmpeg --output demo.mp4
+```
+
+The script runs the tenant example and MoonBit tests before rendering; the
+displayed decisions and test results come from those runs.
+
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
@@ -625,8 +641,8 @@ selected cases, rather than all Cedar behavior. CI pins `moonc v0.10.18+6c83a7f6
 for portable tests and formatting; native builds also run with the latest
 available toolchain on Linux, macOS and Windows.
 
-On 2026-11-07, the reference script completed locally on Windows with 1,157
-comparisons, 86 invalid syntax cases, 5 invalid entity graphs and 41 entity
+On 2026-11-07, the reference script completed locally on Windows with 1,165
+comparisons, 97 invalid syntax cases, 5 invalid entity graphs and 41 entity
 type name checks, with no mismatches.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
