@@ -541,6 +541,10 @@ and entity data are activated.
   Invalid addresses and incorrect operand types produce policy errors.
 - Entity type tests, `if ... then ... else ...` expressions, quoted `has`
   attributes and string-literal indexing such as `context["tenant-id"]`.
+  Reserved words such as `if`, `true` and `__cedar` cannot be used as bare
+  record keys, dotted attributes or entity type segments; use quoted keys and
+  indexing for attributes with those names. Contextual names such as `context`
+  and `principal` can also be entity type names.
   A nested `has` path such as `context has device.posture.managed` checks
   each identifier in order: a missing segment returns false, while an
   intermediate value that is neither an entity nor a record causes an error.
@@ -620,5 +624,9 @@ and 41 entity type name checks without mismatches. These checks cover the
 selected cases, rather than all Cedar behavior. CI pins `moonc v0.10.18+6c83a7f62`
 for portable tests and formatting; native builds also run with the latest
 available toolchain on Linux, macOS and Windows.
+
+On 2026-11-07, the reference script completed locally on Windows with 1,157
+comparisons, 86 invalid syntax cases, 5 invalid entity graphs and 41 entity
+type name checks, with no mismatches.
 
 Apache-2.0. The upstream fixtures retain their own license and attribution.
