@@ -113,6 +113,7 @@ pub fn EntityId::validate(Self) -> Unit raise PolicyError
 pub struct EntityStore {
   // private fields
 }
+pub fn EntityStore::apply_changes(Self, Array[TaggedEntity], Array[EntityId]) -> Self raise PolicyError
 pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
 pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
 pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
