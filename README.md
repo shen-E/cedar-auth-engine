@@ -384,10 +384,23 @@ graph, type names, nested values and store limits, even when the original store
 was built with an unchecked constructor. A single operation accepts at most
 4,096 updates or removals.
 
+Apply updates and removals together when changing related entities:
+
+```moonbit
+let next_store = store.apply_changes(updated_entities, deleted_ids)
+```
+
+This creates one snapshot after applying all changes and validates the final
+graph. The two lists may each contain up to 4,096 entries; duplicate IDs,
+unknown removals and IDs present in both lists raise `PolicyError`. Existing
+entities are replaced in full and retain their positions; new entities are
+appended in update order. If any change fails, the original snapshot remains
+available for authorization.
+
 Removing an entity does not remove references to it from other entities. A
 direct parent reference still matches that parent ID, but traversal cannot
-continue through a removed parent. Include affected children in a separate
-`upsert` if their parent links should also change. Applications control when to
+continue through a removed parent. Include affected children in the updates
+if their parent links should also change. Applications control when to
 activate and distribute each new snapshot.
 
 Read entities from a snapshot when preparing an update or persisting the data:
