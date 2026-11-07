@@ -214,6 +214,9 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
       if !self.accept("]") {
         items.push(self.expression())
         while self.accept(",") {
+          if self.peek() == "]" {
+            break
+          }
           items.push(self.expression())
         }
         self.expect("]")
@@ -234,6 +237,9 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
         self.expect(":")
         fields.push((name, self.expression()))
         while self.accept(",") {
+          if self.peek() == "}" {
+            break
+          }
           let key = self.take()
           let name = if key.has_prefix("\"") {
             cedar_quoted(key)
@@ -253,6 +259,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
         "(",
       ) => {
       let argument = self.expression()
+      let _ = self.accept(",")
       self.expect(")")
       match function_name {
         "ip" => IpConstructor(argument)
@@ -325,6 +332,7 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         }
         let key = self.expression()
         self.depth -= 1
+        let _ = self.accept(",")
         self.expect(")")
         result = TagCall(result, name == "hasTag", key)
         continue
@@ -352,6 +360,9 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         } else {
           None
         }
+        if arg is Some(_) {
+          let _ = self.accept(",")
+        }
         self.expect(")")
         result = IpCall(result, operation, arg)
         continue
@@ -376,6 +387,9 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
           Some(value)
         } else {
           None
+        }
+        if arg is Some(_) {
+          let _ = self.accept(",")
         }
         self.expect(")")
         result = DateTimeCall(result, operation, arg)
@@ -413,6 +427,7 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         }
         let arg = self.expression()
         self.depth -= 1
+        let _ = self.accept(",")
         self.expect(")")
         result = DecimalCall(result, operation, arg)
         continue
@@ -434,6 +449,9 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
         let value = self.expression()
         self.depth -= 1
         Some(value)
+      }
+      if arg is Some(_) {
+        let _ = self.accept(",")
       }
       self.expect(")")
       result = SetCall(result, operation, arg)
@@ -717,6 +735,7 @@ fn parse_policy_data(
     let a = parser.scope("action")
     parser.expect(",")
     let r = parser.scope("resource")
+    let _ = parser.accept(",")
     parser.expect(")")
     let mut condition = And(And(p, a), r)
     while parser.peek() == "when" || parser.peek() == "unless" {
