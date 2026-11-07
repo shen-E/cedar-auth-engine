@@ -1009,6 +1009,20 @@ def main():
         result = run("authorize", policy, entities, request, "--format", "json")
         assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request = (path / name for name in ("policy.cedar", "entities.json", "request.json"))
+        entities.write_text("[]", encoding="utf-8")
+        request.write_text(json.dumps({"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}), encoding="utf-8")
+        policy.write_text('permit(principal, action in [Action::"read",], resource,) when { [1,2,].contains(1,) && {ok:true,}.ok };', encoding="utf-8")
+        result = run("authorize", policy, entities, request, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
+        checks += 1
+        for source in ('permit(principal,action,resource,,);', 'permit(principal,action,resource) when { [].isEmpty(,) };', '@owner("x",) permit(principal,action,resource);'):
+            policy.write_text(source, encoding="utf-8")
+            result = run("check", policy, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
     print("CLI checks passed:", checks)
 
 
