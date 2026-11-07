@@ -951,6 +951,50 @@ def main():
         result = run("authorize", policy, entities, request, "--format", "json")
         assert result.returncode == 2 and not result.stdout and "entity limit exceeded" in result.stderr
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp) / "entities.json"
+        team = {"type": "Group", "id": "security"}
+        folder = {"type": "Folder", "id": "shared\narchive"}
+        alice = {"type": "User", "id": "alice"}
+        bob = {"type": "User", "id": "bob"}
+        file = {"type": "File", "id": "report"}
+        entities = [
+            {"uid": alice, "attrs": {}, "parents": [team, team, folder]},
+            {"uid": bob, "attrs": {}, "parents": [team]},
+            {"uid": file, "attrs": {}, "parents": [folder]},
+        ]
+        path.write_text(json.dumps(entities), encoding="utf-8")
+        expected = {"closed": False, "entity_count": 3, "missing_parents": [
+            {"parent": team, "children": [alice, bob]},
+            {"parent": folder, "children": [alice, file]},
+        ]}
+        result = run("check-entities", path, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == expected
+        checks += 1
+        result = run("check-entities", path, "--require-closed", "--format", "json")
+        assert result.returncode == 1 and json.loads(result.stdout) == expected
+        checks += 1
+        result = run("check-entities", path, "--require-closed")
+        assert result.returncode == 1 and 'shared\\narchive' in result.stdout and "Referenced by:" in result.stdout
+        checks += 1
+        entities.extend({"uid": uid, "attrs": {}, "parents": []} for uid in (team, folder))
+        path.write_text(json.dumps(entities), encoding="utf-8")
+        result = run("check-entities", path, "--format", "json", "--require-closed")
+        assert result.returncode == 0 and json.loads(result.stdout) == {"closed": True, "entity_count": 5, "missing_parents": []}
+        checks += 1
+        path.write_text("[]", encoding="utf-8")
+        result = run("check-entities", path, "--require-closed", "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == {"closed": True, "entity_count": 0, "missing_parents": []}
+        checks += 1
+        for bad in ([entities[0], entities[0]], [{"uid": team, "attrs": {}, "parents": [team]}], [{"uid": alice, "attrs": {}, "parents": [], "unknown": True}]):
+            path.write_text(json.dumps(bad), encoding="utf-8")
+            result = run("check-entities", path, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        for args in (("check-entities",), ("check-entities", path, "--unknown"), ("check-entities", path, "--require-closed", "--require-closed"), ("check-entities", path, "--format", "text")):
+            result = run(*args)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
     print("CLI checks passed:", checks)
 
 

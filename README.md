@@ -20,6 +20,7 @@ With MoonBit `moon 0.1.20261028` / `moonc v0.10.18` and Python 3.8 or newer:
 moon build cmd/cedar-auth-engine --target native
 moon install ./cmd/cedar-auth-engine
 moon run cmd/cedar-auth-engine --target native -- check examples/tenant/policy.cedar
+moon run cmd/cedar-auth-engine --target native -- check-entities examples/tenant/entities.json --require-closed --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/tenant/policy.cedar examples/tenant/entities.json examples/tenant/requests.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/sharing/policy.cedar examples/sharing/entities.json examples/sharing/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.cedar examples/admin/entities.json examples/admin/requests.json
@@ -49,6 +50,12 @@ evaluates one request. `batch POLICY ENTITIES REQUESTS` evaluates an array of
 requests against the same policy set and entity graph, returning one response
 per request in input order. It validates all input before producing output,
 including the entity graph when the request array is empty.
+
+`check-entities ENTITIES` validates the entity graph and reports parent IDs
+that are referenced but absent, along with their direct children. JSON output
+includes `entity_count`, `closed` and `missing_parents`. An incomplete hierarchy
+still exits 0 by default; add `--require-closed` to exit 1 when parents are
+missing. Invalid entity input, duplicate IDs or cycles exit 2 without a report.
 
 Add `--strict` to `authorize` or `batch` to exit 1 when any policy evaluation
 error occurs. Output still contains every Cedar decision and its diagnostics;
@@ -402,6 +409,21 @@ direct parent reference still matches that parent ID, but traversal cannot
 continue through a removed parent. Include affected children in the updates
 if their parent links should also change. Applications control when to
 activate and distribute each new snapshot.
+
+Before publishing a snapshot, inspect or reject missing parent entities:
+
+```moonbit
+let missing = next_store.missing_parents()
+next_store.validate_closed()
+```
+
+Each missing-parent entry contains the absent `parent` and its distinct direct
+`children`, in first-seen snapshot order. The returned arrays are independent.
+`validate_closed` raises `PolicyError` if any parent is missing; an application
+can run it on a candidate snapshot before making that snapshot active. Both
+checks concern parent links only, not entity references in attributes or tags,
+policy validity or schema conformance. Missing parents remain valid input for
+normal Cedar authorization.
 
 Read entities from a snapshot when preparing an update or persisting the data:
 
