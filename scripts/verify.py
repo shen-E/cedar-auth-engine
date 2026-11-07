@@ -1143,6 +1143,25 @@ def main():
         entity_type_checks += 1
         if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
             mismatches.append({"case": "invalid template slot entity type", "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Trailing commas in supported literals, calls, and policy scopes.
+        entities.write_text("[]", encoding="utf-8")
+        for expression in (
+            '[1, 2,] == [2, 1]',
+            '{name: "alice", nested: {active: true,},}.nested.active',
+            'ip("127.0.0.1",).isIpv4()',
+            'ip("10.0.0.1",).isInRange(ip("10.0.0.0/8",),)',
+            'decimal("1.0",).lessThan(decimal("2.0",),)',
+            'duration("1s",).toSeconds() == 1',
+            'datetime("2026-11-01",).offset(duration("1s",),) > datetime("2026-11-01",)',
+            '[1, 2,].containsAll([2,],)',
+        ):
+            policy.write_text('permit(principal, action in [Action::"read",], resource,) when { ' + expression + ' };', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            expected = {"decision": "Allow", "reasons": ["policy0"], "errors": []}
+            if ref != expected or got != expected:
+                mismatches.append({"case": "trailing comma: " + expression, "reference": ref, "actual": got})
         # Reserved words are not bare attributes or entity type path segments.
         syntax_checks = 0
         reserved = ("if", "then", "else", "in", "is", "has", "like", "true", "false", "__cedar")
@@ -1202,6 +1221,9 @@ def main():
             'context has profile.true', 'context has profile.if', 'context has true',
             'context has __cedar', 'context has profile.', 'context has profile..name',
             'context has profile.1', 'context has profile.team == true',
+            '[,] == []', '{,} == {}', '[1,,] == [1]', '{a: 1,,}.a == 1',
+            'ip(,).isIpv4()', '[1].contains(1, 2,)', '[].isEmpty(,)',
+            'context["x",] == 1', '(1,) == 1',
         ):
             policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
             ref = run([args.cedar, "check-parse", "--policies", policy])
@@ -1217,6 +1239,8 @@ def main():
             '@name(1) permit(principal, action, resource);',
             '@name("value", "other") permit(principal, action, resource);',
             '@name("value")', '@123 permit(principal, action, resource);',
+            '@owner("team",) permit(principal, action, resource);',
+            'permit(principal, action, resource,,);',
         ):
             policy.write_text(source, encoding="utf-8")
             ref = run([args.cedar, "check-parse", "--policies", policy])
