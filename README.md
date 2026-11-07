@@ -633,6 +633,11 @@ Replace the example revision with the source commit used to build the engine. Th
 
 The principal comparison measures individual sharing policies on two native builds. Run `python benchmarks/principal.py --help` for inputs and options.
 
+The checked-in [baseline](benchmarks/baseline.json), [after](benchmarks/after.json),
+[scale](benchmarks/scale.json), and [principal comparison](benchmarks/principal.json)
+were measured on a GitHub-hosted runner. Each report records the source revisions,
+workload, toolchain, runner configuration, and run link.
+
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
 including selected [upstream fixtures](fixtures/cedar/README.md), local
