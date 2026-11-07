@@ -316,6 +316,41 @@ test "inspect and update a stored entity through the public library" {
 }
 
 ///|
+test "apply a mixed entity change through the public library" {
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let old_team : @engine.EntityId = { kind: "Team", id: "old", }
+  let new_team : @engine.EntityId = { kind: "Team", id: "new", }
+  let store = @engine.EntityStore::new_with_tags_checked([
+    {
+      entity: { uid: request.principal, attrs: {}, parents: [old_team], },
+      tags: {},
+    },
+    { entity: { uid: old_team, attrs: {}, parents: [], }, tags: {}, },
+  ])
+  let next = store.apply_changes(
+    [
+      {
+        entity: { uid: request.principal, attrs: {}, parents: [new_team], },
+        tags: {},
+      },
+      { entity: { uid: new_team, attrs: {}, parents: [], }, tags: {}, },
+    ],
+    [old_team],
+  )
+  let policy = @engine.parse_policies(
+    "permit(principal in Team::\"new\", action, resource);",
+  )
+  assert_false(store.authorize_checked(policy, request).is_authorized())
+  assert_true(next.authorize_checked(policy, request).is_authorized())
+  assert_true(next.get(old_team) is None && next.get(new_team) is Some(_))
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
