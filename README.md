@@ -419,6 +419,25 @@ to `upsert` to create a new snapshot. Exporting every entity copies the entire
 snapshot, while `get` copies only the matching entity. Storage and persistence
 remain the application's responsibility.
 
+Inspect the hierarchy when displaying team membership or planning an update:
+
+```moonbit
+let belongs = store.is_descendant(user_id, team_id)
+let parents = store.ancestors(user_id)
+let affected_entities = store.descendants(team_id)
+```
+
+`is_descendant` uses the same reflexive relationship as Cedar's `in`: an ID is
+in itself even when it is absent from the snapshot. `ancestors` returns distinct
+direct and transitive parents, excluding the queried ID; referenced parents
+that are not stored still appear, but cannot lead to further ancestors.
+`descendants` returns distinct stored entities that reach the queried ID,
+excluding the queried ID itself. It can therefore find children of an absent
+parent. Both lists use breadth-first traversal: each entity's parents follow
+their input order, and each parent's children follow snapshot order. They return new
+arrays. These queries describe entity relationships; authorization also depends
+on the policy set, request and any evaluation errors.
+
 For a set of representative requests, compare two policy snapshots against the
 same store before switching the active set:
 
