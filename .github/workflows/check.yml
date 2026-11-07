@@ -20,6 +20,7 @@ jobs:
       - run: moon check --target all
       - run: moon test --target all
       - run: moon fmt --check
+      - run: python3 -m unittest discover -s benchmarks -p '*_test.py'
 
   native:
     runs-on: ${{ matrix.os }}

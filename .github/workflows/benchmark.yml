@@ -1,0 +1,57 @@
+name: Measure authorization workloads
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s '0.10.18+6c83a7f62'
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Verify toolchain and reporting
+        run: |
+          moon version --all
+          moonc -v | grep '0.10.18+6c83a7f62'
+          python -m unittest discover -s benchmarks -p '*_test.py'
+      - name: Build comparison versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          before_scale=24e5777f8a751e2f4439856aee691d3ff86433e3
+          before_principal=9413e273be5fbf9a708d972ce66cf52eeb0a20dc
+          mkdir -p "$RUNNER_TEMP/before-scale" "$RUNNER_TEMP/before-principal"
+          git archive "$before_scale" | tar -x -C "$RUNNER_TEMP/before-scale"
+          git archive "$before_principal" | tar -x -C "$RUNNER_TEMP/before-principal"
+          (cd "$RUNNER_TEMP/before-scale" && moon build cmd/cedar-auth-engine --target native)
+          (cd "$RUNNER_TEMP/before-principal" && moon build cmd/cedar-auth-engine --target native)
+          moon build cmd/cedar-auth-engine --target native
+      - name: Measure and compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p benchmark-results
+          engine=_build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe
+          before_scale="$RUNNER_TEMP/before-scale/_build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe"
+          before_principal="$RUNNER_TEMP/before-principal/_build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe"
+          toolchain='moonc 0.10.18+6c83a7f62'
+          python benchmarks/scale.py --engine "$before_scale" --profile baseline --repeat 5 --revision 24e5777f8a751e2f4439856aee691d3ff86433e3 --toolchain "$toolchain" --output benchmark-results/baseline.json
+          python benchmarks/scale.py --engine "$engine" --profile baseline --repeat 5 --revision "$GITHUB_SHA" --toolchain "$toolchain" --output benchmark-results/after.json
+          python benchmarks/scale.py --engine "$engine" --profile scale --repeat 3 --revision "$GITHUB_SHA" --toolchain "$toolchain" --output benchmark-results/scale.json
+          python benchmarks/principal.py --before "$before_principal" --after "$engine" --before-revision 9413e273be5fbf9a708d972ce66cf52eeb0a20dc --after-revision "$GITHUB_SHA" --toolchain "$toolchain" --output benchmark-results/principal.json --repeat 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: authorization-benchmarks
+          path: benchmark-results/*.json
+          if-no-files-found: error
