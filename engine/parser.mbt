@@ -767,6 +767,7 @@ fn parse_policy_data(
       condition,
       annotations,
       action_key,
+      principal_scope: p,
     })
     if policies.length() > 4096 {
       raise PolicyError("policy count limit exceeded")

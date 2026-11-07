@@ -127,6 +127,10 @@ pub fn PolicySet::link_batch(
       condition: bind_scope_slots(template.policy.condition, link.bindings),
       annotations: template.policy.annotations,
       action_key: template.policy.action_key,
+      principal_scope: bind_scope_slots(
+        template.policy.principal_scope,
+        link.bindings,
+      ),
     })
   }
   make_policy_set(policies)
