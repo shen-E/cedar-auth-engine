@@ -226,7 +226,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
         let key = self.take()
         let name = if key.has_prefix("\"") {
           cedar_quoted(key)
-        } else if identifier(key) {
+        } else if type_identifier(key) {
           key
         } else {
           raise PolicyError("invalid record key")
@@ -237,7 +237,7 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
           let key = self.take()
           let name = if key.has_prefix("\"") {
             cedar_quoted(key)
-          } else if identifier(key) {
+          } else if type_identifier(key) {
             key
           } else {
             raise PolicyError("invalid record key")
@@ -263,14 +263,18 @@ fn Parser::primary(self : Parser) -> Expr raise PolicyError {
     }
     "true" => Literal(BoolValue(true))
     "false" => Literal(BoolValue(false))
-    "principal" | "action" | "resource" | "context" => Variable(token)
+    "principal" | "action" | "resource" | "context" if self.peek() != "::" =>
+      Variable(token)
     _ if token.has_prefix("\"") => Literal(StringValue(cedar_quoted(token)))
     _ if identifier(token) => {
+      if !type_identifier(token) {
+        raise PolicyError("invalid entity type")
+      }
       let mut kind = token
       self.expect("::")
       let mut part = self.take()
       while !part.has_prefix("\"") {
-        if !identifier(part) {
+        if !type_identifier(part) {
           raise PolicyError("invalid entity type")
         }
         kind = kind + "::" + part
@@ -310,7 +314,7 @@ fn Parser::postfix(self : Parser) -> Expr raise PolicyError {
     }
     self.expect(".")
     let name = self.take()
-    if !identifier(name) {
+    if !type_identifier(name) {
       raise PolicyError("expected attribute name")
     }
     if self.accept("(") {
