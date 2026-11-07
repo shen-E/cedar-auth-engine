@@ -163,7 +163,7 @@ test "long entity hierarchies are traversed without recursion" {
 ///|
 test "entity graph parent link limit includes repeated references" {
   let missing : EntityId = { kind: "Group", id: "missing", }
-  let parents = Array::make(65536, missing)
+  let parents = Array::make(131072, missing)
   let entities = [group("a", parents)]
   let graph = build_entity_graph(entities)
   assert_true(is_descendant(graph, entities[0].entity.uid, missing))

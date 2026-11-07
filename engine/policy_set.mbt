@@ -13,7 +13,7 @@ pub fn PolicySet::remove_batch(
   self : PolicySet,
   ids : Array[String],
 ) -> PolicySet raise PolicyError {
-  if ids.length() > 1024 {
+  if ids.length() > 4096 {
     raise PolicyError("policy removal limit exceeded")
   }
   let existing : Map[String, Bool] = Map([])
@@ -36,7 +36,7 @@ pub fn PolicySet::remove_batch(
       remaining.push(policy)
     }
   }
-  { policies: remaining, }
+  make_policy_set(remaining)
 }
 
 ///|
@@ -45,7 +45,7 @@ pub fn PolicySet::merge(
   self : PolicySet,
   additional : PolicySet,
 ) -> PolicySet raise PolicyError {
-  if additional.policies.length() > 1024 - self.policies.length() {
+  if additional.policies.length() > 4096 - self.policies.length() {
     raise PolicyError("policy count limit exceeded")
   }
   let ids : Map[String, Bool] = Map([])
@@ -61,7 +61,7 @@ pub fn PolicySet::merge(
   for policy in additional.policies {
     policies.push(policy)
   }
-  { policies, }
+  make_policy_set(policies)
 }
 
 ///|
@@ -90,5 +90,5 @@ pub fn PolicySet::replace(
       },
     )
   }
-  { policies, }
+  make_policy_set(policies)
 }

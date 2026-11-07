@@ -17,13 +17,13 @@ fn PolicyInputs::validate(self : PolicyInputs) -> Unit raise CliError {
   if self.templates.length() != self.links.length() {
     raise CliError("--template and --links counts must match")
   }
-  if self.templates.length() > 1024 {
+  if self.templates.length() > 4096 {
     raise CliError("template pair limit exceeded")
   }
-  if self.additions.length() > 1024 || self.replacements.length() > 1024 {
+  if self.additions.length() > 4096 || self.replacements.length() > 4096 {
     raise CliError("policy file limit exceeded")
   }
-  if self.removals.length() > 1024 {
+  if self.removals.length() > 4096 {
     raise CliError("policy removal limit exceeded")
   }
 }

@@ -93,7 +93,7 @@ pub fn PolicySet::link_batch(
   template : PolicyTemplate,
   links : Array[TemplateLink],
 ) -> PolicySet raise PolicyError {
-  if links.length() > 1024 - self.policies.length() {
+  if links.length() > 4096 - self.policies.length() {
     raise PolicyError("policy count limit exceeded")
   }
   let seen : Map[String, Bool] = Map([])
@@ -126,7 +126,8 @@ pub fn PolicySet::link_batch(
       forbid: template.policy.forbid,
       condition: bind_scope_slots(template.policy.condition, link.bindings),
       annotations: template.policy.annotations,
+      action_key: template.policy.action_key,
     })
   }
-  { policies, }
+  make_policy_set(policies)
 }

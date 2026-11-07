@@ -22,13 +22,22 @@ extern "C" fn exit_process(code : Int32) = "cedar_exit"
 
 ///|
 fn read_text(path : String) -> String raise CliError {
-  let buffer = Bytes::make(1048577, 0)
-  let length = read_file(@utf8.encode(path), buffer)
+  let small = Bytes::make(1048577, 0)
+  let first_length = read_file(@utf8.encode(path), small)
+  if first_length < 0 {
+    raise CliError("cannot read: " + path)
+  }
+  let (buffer, length) = if first_length > 1048576 {
+    let large = Bytes::make(8388609, 0)
+    (large, read_file(@utf8.encode(path), large))
+  } else {
+    (small, first_length)
+  }
   if length < 0 {
     raise CliError("cannot read: " + path)
   }
-  if length > 1048576 {
-    raise CliError("input exceeds 1 MiB: " + path)
+  if length > 8388608 {
+    raise CliError("input exceeds 8 MiB: " + path)
   }
   @utf8.decode(buffer[0:length]) catch {
     _ => raise CliError("invalid UTF-8: " + path)
@@ -105,7 +114,7 @@ fn apply_template(
     Array(items) => items
     _ => raise CliError("template links must be an array")
   }
-  if links.length() > 1024 {
+  if links.length() > 4096 {
     raise CliError("template link limit exceeded")
   }
   let pending : Array[@engine.TemplateLink] = []
@@ -336,7 +345,7 @@ fn run(args : Array[String]) -> Int32 raise {
       Array(items) => items
       _ => raise CliError("batch input must be an array")
     }
-    if items.length() > 4096 {
+    if items.length() > 16384 {
       raise CliError("request batch limit exceeded")
     }
     let requests = []
@@ -406,8 +415,8 @@ fn run(args : Array[String]) -> Int32 raise {
   let mut start = 0
   while start < parsed_cases.length() {
     let requests = []
-    let end = if start + 4096 < parsed_cases.length() {
-      start + 4096
+    let end = if start + 16384 < parsed_cases.length() {
+      start + 16384
     } else {
       parsed_cases.length()
     }

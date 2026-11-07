@@ -14,10 +14,10 @@ pub fn EntityStore::apply_changes(
   updates : Array[TaggedEntity],
   removals : Array[EntityId],
 ) -> EntityStore raise PolicyError {
-  if updates.length() > 4096 {
+  if updates.length() > 16384 {
     raise PolicyError("entity update limit exceeded")
   }
-  if removals.length() > 4096 {
+  if removals.length() > 16384 {
     raise PolicyError("entity removal limit exceeded")
   }
   let positions : Map[String, Int32] = Map([])

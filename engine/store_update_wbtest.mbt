@@ -171,7 +171,7 @@ test "invalid entity updates and removals are atomic" {
 ///|
 test "entity update and removal limits apply to the resulting snapshot" {
   let entities = []
-  for i in 0..<4096 {
+  for i in 0..<16384 {
     entities.push(group(i.to_string(), []))
   }
   let original = EntityStore::new_with_tags_checked(entities)
@@ -183,7 +183,7 @@ test "entity update and removal limits apply to the resulting snapshot" {
     _ => true
   }
   assert_true(rejected)
-  let excessive = Array::make(4097, group("same", []))
+  let excessive = Array::make(16385, group("same", []))
   let rejected = try {
     let _ = original.upsert(excessive)
     false
@@ -191,7 +191,7 @@ test "entity update and removal limits apply to the resulting snapshot" {
     _ => true
   }
   assert_true(rejected)
-  let ids = Array::make(4097, { kind: "Group", id: "0", })
+  let ids = Array::make(16385, { kind: "Group", id: "0", })
   let rejected = try {
     let _ = original.remove_batch(ids)
     false

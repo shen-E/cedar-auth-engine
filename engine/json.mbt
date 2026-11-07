@@ -7,8 +7,8 @@ priv enum JsonContainer {
 ///|
 pub fn parse_json(text : String) -> Json raise PolicyError {
   let chars = text.to_array()
-  if chars.length() > 1048576 {
-    raise PolicyError("JSON input exceeds 1 MiB")
+  if chars.length() > 8388608 {
+    raise PolicyError("JSON input exceeds 8 MiB")
   }
   let stack : Array[JsonContainer] = []
   let mut i = 0
@@ -149,7 +149,7 @@ fn json_value(
   if depth > 64 {
     raise PolicyError("value nesting limit exceeded")
   }
-  if count.val >= 131072 {
+  if count.val >= 524288 {
     raise PolicyError("value limit exceeded")
   }
   count.val += 1
@@ -164,7 +164,7 @@ fn json_value(
       LongValue(n)
     }
     Array(items) => {
-      if items.length() > 131072 - count.val {
+      if items.length() > 524288 - count.val {
         raise PolicyError("value limit exceeded")
       }
       let result = []
@@ -203,7 +203,7 @@ fn json_value(
           EntityValue(entity_id(uid))
         }
         None => {
-          if fields.length() > 131072 - count.val {
+          if fields.length() > 524288 - count.val {
             raise PolicyError("value limit exceeded")
           }
           let result : Map[String, Value] = Map([])
@@ -225,7 +225,7 @@ fn value_map(
   count : Ref[Int32],
 ) -> Map[String, Value] raise PolicyError {
   let fields = object(value, label)
-  if fields.length() > 131072 - count.val {
+  if fields.length() > 524288 - count.val {
     raise PolicyError("value limit exceeded")
   }
   let result : Map[String, Value] = Map([])
@@ -260,7 +260,7 @@ pub fn tagged_entities_from_json(
     Array(items) => items
     _ => raise PolicyError("entities must be an array")
   }
-  if items.length() > 4096 {
+  if items.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let result = []
@@ -271,7 +271,7 @@ pub fn tagged_entities_from_json(
     check_fields(fields, ["uid", "attrs", "parents", "tags"], "entity")
     let parents = match required(fields, "parents") {
       Array(items) => {
-        if items.length() > 65536 - edges {
+        if items.length() > 131072 - edges {
           raise PolicyError("entity parent limit exceeded")
         }
         edges += items.length()

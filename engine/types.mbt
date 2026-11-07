@@ -199,11 +199,14 @@ priv struct Policy {
   forbid : Bool
   condition : Expr
   annotations : Map[String, String]
+  action_key : EntityId?
 }
 
 ///|
 pub struct PolicySet {
   priv policies : Array[Policy]
+  priv action_index : Map[String, Array[Int32]]
+  priv fallback : Array[Int32]
 }
 
 ///|

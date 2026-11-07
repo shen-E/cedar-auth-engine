@@ -204,7 +204,7 @@ test "combine and replace linked policy sets under the policy limit" {
     "permit(principal == ?principal, action, resource);",
   )
   let links : Array[@engine.TemplateLink] = []
-  for i in 0..<1024 {
+  for i in 0..<4096 {
     links.push({
       id: "share-" + i.to_string(),
       bindings: {
@@ -215,9 +215,9 @@ test "combine and replace linked policy sets under the policy limit" {
   }
   let empty = @engine.parse_policies("")
   let first = empty.link_batch(template, links[0:512].to_owned())
-  let second = empty.link_batch(template, links[512:1024].to_owned())
+  let second = empty.link_batch(template, links[512:4096].to_owned())
   let all = first.merge(second)
-  assert_true(all.metadata().length() == 1024)
+  assert_true(all.metadata().length() == 4096)
   let replacement = @engine.parse_policies(
     "@id(\"share-512\") forbid(principal, action, resource);",
   )

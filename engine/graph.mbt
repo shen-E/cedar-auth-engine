@@ -14,7 +14,7 @@ fn entity_key(uid : EntityId) -> String {
 fn build_entity_graph(
   entities : Array[TaggedEntity],
 ) -> EntityGraph raise PolicyError {
-  if entities.length() > 4096 {
+  if entities.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let index : Map[String, Int32] = Map([])
@@ -27,7 +27,7 @@ fn build_entity_graph(
     }
     index[key] = i
     let parent_count = entity.parents.length()
-    if parent_count > 65536 - edges {
+    if parent_count > 131072 - edges {
       raise PolicyError("entity parent limit exceeded")
     }
     edges += parent_count

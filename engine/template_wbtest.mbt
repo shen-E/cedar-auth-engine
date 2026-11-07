@@ -146,11 +146,12 @@ test "linked policies obey the same policy count limit" {
     principal: Some({ kind: "User", id: "alice", }),
     resource: None,
   }
-  let mut policies = parse_policies("")
-  for index in 0..<1024 {
-    policies = policies.link(template, "share-" + index.to_string(), bindings)
+  let links = []
+  for index in 0..<4096 {
+    links.push({ id: "share-" + index.to_string(), bindings, })
   }
-  assert_true(policies.metadata().length() == 1024)
+  let policies = parse_policies("").link_batch(template, links)
+  assert_true(policies.metadata().length() == 4096)
   let rejected = try {
     let _ = policies.link(template, "one-more", bindings)
     false
@@ -260,10 +261,10 @@ test "batch template linking rejects the whole operation on invalid input" {
     )
   }
   let large : Array[TemplateLink] = []
-  for i in 0..<1023 {
+  for i in 0..<4095 {
     large.push({ ..valid, id: "link-" + i.to_string(), })
   }
-  assert_true(base.link_batch(template, large).metadata().length() == 1024)
+  assert_true(base.link_batch(template, large).metadata().length() == 4096)
   large.push({ ..valid, id: "overflow", })
   let rejected = try {
     let _ = base.link_batch(template, large)

@@ -44,10 +44,10 @@ test "entity stores preserve authorization diagnostics and validate graphs" {
   }
   assert_true(rejected)
   assert_true(store.authorize_batch(policies, []).is_empty())
-  let requests_at_limit = Array::make(4096, sample_request())
+  let requests_at_limit = Array::make(16384, sample_request())
   assert_true(
     store.authorize_batch(parse_policies(""), requests_at_limit).length() ==
-    4096,
+    16384,
   )
   requests_at_limit.push(sample_request())
   let rejected = try {
@@ -91,7 +91,7 @@ test "entity stores bound nested and cyclic input values" {
   assert_true(rejected)
   fields["nested"] = SetValue(Array::make(131071, BoolValue(true)))
   let _ = EntityStore::new(entities)
-  fields["nested"] = SetValue(Array::make(131072, BoolValue(true)))
+  fields["nested"] = SetValue(Array::make(524288, BoolValue(true)))
   let rejected = try {
     let _ = EntityStore::new(entities)
     false

@@ -101,13 +101,13 @@ test "entity change batches validate the final graph" {
 ///|
 test "entity change batches enforce limits on the final snapshot" {
   let entities = []
-  for i in 0..<4096 {
+  for i in 0..<16384 {
     entities.push(group(i.to_string(), []))
   }
   let store = EntityStore::new_with_tags_checked(entities)
   let removed : EntityId = { kind: "Group", id: "0", }
   let next = store.apply_changes([group("new", [])], [removed])
-  assert_true(next.length() == 4096 && next.get(removed) is None)
+  assert_true(next.length() == 16384 && next.get(removed) is None)
   assert_true(next.get({ kind: "Group", id: "new", }) is Some(_))
   let rejected = try {
     let _ = store.apply_changes([group("new", [])], [])
@@ -116,8 +116,8 @@ test "entity change batches enforce limits on the final snapshot" {
     _ => true
   }
   assert_true(rejected)
-  let excessive_updates = Array::make(4097, group("x", []))
-  let excessive_removals = Array::make(4097, removed)
+  let excessive_updates = Array::make(16385, group("x", []))
+  let excessive_removals = Array::make(16385, removed)
   let rejected = try {
     let _ = store.apply_changes(excessive_updates, [])
     false
@@ -132,5 +132,5 @@ test "entity change batches enforce limits on the final snapshot" {
     _ => true
   }
   assert_true(rejected)
-  assert_true(store.length() == 4096 && store.get(removed) is Some(_))
+  assert_true(store.length() == 16384 && store.get(removed) is Some(_))
 }
