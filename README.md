@@ -352,8 +352,9 @@ construct a new store to apply entity updates. Requests and policy sets remain
 separate from the store. The snapshot is used in memory and performs no I/O.
 For more than 16,384 requests, the application can submit successive batches
 against the same snapshot and process each response array before continuing.
-Exact action scopes with an unrestricted principal are indexed; other policies
-are evaluated in source order along with matching indexed policies.
+Exact principal scopes and exact action scopes with an unrestricted principal
+are indexed. Template links with an exact principal are indexed after binding.
+Other policies and matching indexed policies are evaluated in source order.
 
 When constructing input values directly in MoonBit, checked entry points also
 validate entity type names in the graph, request and nested values:
@@ -634,6 +635,13 @@ memory measurements. Timings include CLI startup and input parsing. The checked-
 this change, and `scale.json` uses the larger workload. All three use native
 debug builds on the recorded machine. To rerun the baseline, build that commit
 in a separate checkout and pass its executable to `--engine`.
+
+The [principal index comparison](benchmarks/principal.json) measures 2,048
+individual sharing policies and 4,096 requests on two native builds. To rerun
+it, build the pre-index commit and the current revision in separate checkouts,
+then pass both executables to `benchmarks/principal.py` with their revision and
+toolchain labels. The script checks every response and records wall time,
+including input parsing and output serialization.
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,

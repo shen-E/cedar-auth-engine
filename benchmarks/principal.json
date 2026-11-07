@@ -1,0 +1,45 @@
+{
+  "command": "C:\\Users\\px830\\AppData\\Local\\Programs\\Python\\Python38\\python.exe benchmarks/principal.py --before C:\\Users\\px830\\AppData\\Local\\Temp\\cedar-principal-before.exe --after _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe --before-revision cffa848 --after-revision cffa848+working-tree --toolchain \"MoonBit 0.10.18+6c83a7f62 native debug\" --output benchmarks/principal.json --repeat 5",
+  "before_revision": "cffa848",
+  "after_revision": "cffa848+working-tree",
+  "engine_sha256": {
+    "before": "4401e81326ffe5142122640b34bb7147b53940731aefd88ad273400c5464b08b",
+    "after": "6ff906f4133ecf14dcb634eded2cfcf08d1e9a9cd0b6d46b780079e4d60bf5b6"
+  },
+  "toolchain": "MoonBit 0.10.18+6c83a7f62 native debug",
+  "os": "Windows-10-10.0.26100-SP0",
+  "machine": "AMD64",
+  "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+  "policies": 2048,
+  "requests": 4096,
+  "entities": 0,
+  "matching_policies": 1,
+  "repeat": 5,
+  "seed": null,
+  "measurement": "CLI wall time including startup, parsing, evaluation and JSON output; alternated run order",
+  "output_sha256": "461f47d4bbf0f735bba44253bd1b0003b913663e4626b71bba0a211f85bab0a3",
+  "results": {
+    "before": {
+      "seconds": [
+        3.0820228999999997,
+        2.8663285999999997,
+        2.7281509999999995,
+        2.7514301999999997,
+        2.7922580999999997
+      ],
+      "median_seconds": 2.7922580999999997,
+      "requests_per_second": 1466.9131052032762
+    },
+    "after": {
+      "seconds": [
+        0.14722740000000023,
+        0.16594629999999988,
+        0.15777830000000037,
+        0.1594932999999994,
+        0.1528577999999996
+      ],
+      "median_seconds": 0.15777830000000037,
+      "requests_per_second": 25960.47745475766
+    }
+  }
+}
