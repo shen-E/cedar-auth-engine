@@ -1143,7 +1143,53 @@ def main():
         entity_type_checks += 1
         if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
             mismatches.append({"case": "invalid template slot entity type", "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Reserved words are not bare attributes or entity type path segments.
         syntax_checks = 0
+        reserved = ("if", "then", "else", "in", "is", "has", "like", "true", "false", "__cedar")
+        for name in reserved:
+            expressions = (
+                f'{name}::"id" == Namespace::"id"',
+                f'Namespace::{name}::"id" == Namespace::"id"',
+                f'{{{name}: 1}}["value"] == 1',
+                f'context.{name} == 1',
+                f'context has {name}',
+            )
+            for expression in expressions:
+                policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+                ref = run([args.cedar, "check-parse", "--policies", policy])
+                got = run([args.engine, "check", policy])
+                syntax_checks += 1
+                if ref.returncode == 0 or got.returncode != 2:
+                    mismatches.append({"case": "reserved identifier: " + expression, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Quoting allows reserved record names; contextual names are legal types.
+        entities.write_text("[]", encoding="utf-8")
+        for name in reserved:
+            expression = f'{{"{name}": 1}}["{name}"] == 1'
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            expected = {"decision": "Allow", "reasons": ["policy0"], "errors": []}
+            if ref != expected or got != expected:
+                mismatches.append({"case": "quoted identifier: " + name, "reference": ref, "actual": got})
+        for name in ("principal", "action", "resource", "context", "permit", "forbid", "when", "unless", "ip"):
+            expression = f'{{{name}: 1}}.{name} == 1 && {name}::User::"id" == {name}::User::"id"'
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, request, temp)
+            got = actual(args.engine, policy, entities, request, temp)
+            count += 1
+            expected = {"decision": "Allow", "reasons": ["policy0"], "errors": []}
+            if ref != expected or got != expected:
+                mismatches.append({"case": "contextual identifier: " + name, "reference": ref, "actual": got})
+        for name in ("principal", "action", "resource", "context"):
+            contextual = {**request, "principal": {"type": name, "id": "alice"}, "context": {"principal": "read"}}
+            policy.write_text(f'permit(principal == {name}::"alice", action, resource) when {{ principal == {name}::"alice" && context.principal == "read" }};', encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, contextual, temp)
+            got = actual(args.engine, policy, entities, contextual, temp)
+            count += 1
+            expected = {"decision": "Allow", "reasons": ["policy0"], "errors": []}
+            if ref != expected or got != expected:
+                mismatches.append({"case": "contextual scope: " + name, "reference": ref, "actual": got})
         for expression in (
             r'"\u0041" == "A"', r'"\b" == "x"', r'"\/" == "/"',
             r'"\x80" == "x"', r'"\*" == "*"', r'"\u{_41}" == "A"',

@@ -995,6 +995,20 @@ def main():
             result = run(*args)
             assert result.returncode == 2 and not result.stdout
             checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request = (path / name for name in ("policy.cedar", "entities.json", "request.json"))
+        for expression in ('Namespace::if::"id" == Namespace::"id"', '{then: 1}["then"] == 1', 'context.false == true'):
+            policy.write_text('permit(principal, action, resource) when { ' + expression + ' };', encoding="utf-8")
+            result = run("check", policy, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        policy.write_text('permit(principal == context::"alice", action, resource) when { {"if": 1}["if"] == 1 && context.principal == "read" };', encoding="utf-8")
+        entities.write_text("[]", encoding="utf-8")
+        request.write_text(json.dumps({"principal": {"type": "context", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {"principal": "read"}}), encoding="utf-8")
+        result = run("authorize", policy, entities, request, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
+        checks += 1
     print("CLI checks passed:", checks)
 
 
