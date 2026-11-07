@@ -557,16 +557,22 @@ fn authorize_selected(
   let permits = []
   let forbids = []
   let errors = []
-  let matches = policies.action_index
+  let actions = policies.action_index
     .get(entity_key(request.action))
     .unwrap_or([])
-  let use_index = indexed && matches.length() < policies.policies.length()
+  let principals = policies.principal_index
+    .get(entity_key(request.principal))
+    .unwrap_or([])
+  let use_index = indexed &&
+    actions.length() + principals.length() < policies.policies.length()
   let mut fallback_pos = 0
-  let mut match_pos = 0
+  let mut action_pos = 0
+  let mut principal_pos = 0
   let mut scan_pos = 0
   while (if use_index {
           fallback_pos < policies.fallback.length() ||
-          match_pos < matches.length()
+          action_pos < actions.length() ||
+          principal_pos < principals.length()
         } else {
           scan_pos < policies.policies.length()
         }) {
@@ -574,17 +580,25 @@ fn authorize_selected(
       let next = scan_pos
       scan_pos += 1
       next
-    } else if match_pos >= matches.length() ||
-      (
-        fallback_pos < policies.fallback.length() &&
-        policies.fallback[fallback_pos] < matches[match_pos]
-      ) {
-      let next = policies.fallback[fallback_pos]
-      fallback_pos += 1
-      next
     } else {
-      let next = matches[match_pos]
-      match_pos += 1
+      let mut next = policies.policies.length()
+      if fallback_pos < policies.fallback.length() {
+        next = policies.fallback[fallback_pos]
+      }
+      if action_pos < actions.length() && actions[action_pos] < next {
+        next = actions[action_pos]
+      }
+      if principal_pos < principals.length() && principals[principal_pos] < next {
+        next = principals[principal_pos]
+      }
+      if fallback_pos < policies.fallback.length() &&
+        policies.fallback[fallback_pos] == next {
+        fallback_pos += 1
+      } else if action_pos < actions.length() && actions[action_pos] == next {
+        action_pos += 1
+      } else {
+        principal_pos += 1
+      }
       next
     }
     let policy = policies.policies[position]

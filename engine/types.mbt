@@ -200,12 +200,14 @@ priv struct Policy {
   condition : Expr
   annotations : Map[String, String]
   action_key : EntityId?
+  principal_scope : Expr
 }
 
 ///|
 pub struct PolicySet {
   priv policies : Array[Policy]
   priv action_index : Map[String, Array[Int32]]
+  priv principal_index : Map[String, Array[Int32]]
   priv fallback : Array[Int32]
 }
 
