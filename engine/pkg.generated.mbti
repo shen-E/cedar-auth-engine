@@ -113,6 +113,7 @@ pub fn EntityId::validate(Self) -> Unit raise PolicyError
 pub struct EntityStore {
   // private fields
 }
+pub fn EntityStore::ancestors(Self, EntityId) -> Array[EntityId]
 pub fn EntityStore::apply_changes(Self, Array[TaggedEntity], Array[EntityId]) -> Self raise PolicyError
 pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
 pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
@@ -120,8 +121,10 @@ pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> 
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::compare_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
+pub fn EntityStore::descendants(Self, EntityId) -> Array[EntityId]
 pub fn EntityStore::entities(Self) -> Array[TaggedEntity]
 pub fn EntityStore::get(Self, EntityId) -> TaggedEntity?
+pub fn EntityStore::is_descendant(Self, EntityId, EntityId) -> Bool
 pub fn EntityStore::length(Self) -> Int32
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError
 pub fn EntityStore::new_checked(Array[Entity]) -> Self raise PolicyError

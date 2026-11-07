@@ -108,7 +108,10 @@ test "all three-entity graphs match independent reachability" {
     match graph {
       Some(value) => {
         let context = EvaluationContext::new(value)
+        let store = EntityStore::new_with_tags(entities)
         for i in 0..<3 {
+          let ancestors = store.ancestors(ids[i])
+          let descendants = store.descendants(ids[i])
           for j in 0..<3 {
             let expected = i == j || reach[i * 3 + j]
             assert_true(
@@ -122,6 +125,13 @@ test "all three-entity graphs match independent reachability" {
             assert_true(
               context.is_descendant(ids[i], ids[j]) == expected,
               msg="cached mask \{mask}",
+            )
+            assert_true(store.is_descendant(ids[i], ids[j]) == expected)
+            assert_true(
+              ancestors.contains(ids[j]) == (i != j && reach[i * 3 + j]),
+            )
+            assert_true(
+              descendants.contains(ids[j]) == (i != j && reach[j * 3 + i]),
             )
           }
         }
@@ -157,6 +167,9 @@ test "entity graph parent link limit includes repeated references" {
   let entities = [group("a", parents)]
   let graph = build_entity_graph(entities)
   assert_true(is_descendant(graph, entities[0].entity.uid, missing))
+  let store = EntityStore::new_with_tags(entities)
+  assert_true(store.ancestors(entities[0].entity.uid) == [missing])
+  assert_true(store.descendants(missing) == [entities[0].entity.uid])
   parents.push(missing)
   let rejected = try {
     let _ = build_entity_graph(entities)
