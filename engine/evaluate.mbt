@@ -468,7 +468,7 @@ pub fn authorize(
   request : Request,
   entities : Array[Entity],
 ) -> Response raise PolicyError {
-  if entities.length() > 4096 {
+  if entities.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let tagged = []
@@ -490,16 +490,16 @@ pub fn authorize_with_tags(
 }
 
 ///|
-/// Authorize up to 4,096 requests against entities without tags.
+/// Authorize up to 16,384 requests against entities without tags.
 pub fn authorize_batch(
   policies : PolicySet,
   requests : Array[Request],
   entities : Array[Entity],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 4096 {
+  if requests.length() > 16384 {
     raise PolicyError("request batch limit exceeded")
   }
-  if entities.length() > 4096 {
+  if entities.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let tagged = []
@@ -510,13 +510,13 @@ pub fn authorize_batch(
 }
 
 ///|
-/// Authorize up to 4,096 requests using one validated entity graph.
+/// Authorize up to 16,384 requests using one validated entity graph.
 pub fn authorize_batch_with_tags(
   policies : PolicySet,
   requests : Array[Request],
   entities : Array[TaggedEntity],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 4096 {
+  if requests.length() > 16384 {
     raise PolicyError("request batch limit exceeded")
   }
   let graph = build_entity_graph(entities)
@@ -543,10 +543,51 @@ fn authorize_in_context(
   request : Request,
   context : EvaluationContext,
 ) -> Response {
+  authorize_selected(policies, request, context, true)
+}
+
+///|
+// The scan variant is also used by differential tests.
+fn authorize_selected(
+  policies : PolicySet,
+  request : Request,
+  context : EvaluationContext,
+  indexed : Bool,
+) -> Response {
   let permits = []
   let forbids = []
   let errors = []
-  for policy in policies.policies {
+  let matches = policies.action_index
+    .get(entity_key(request.action))
+    .unwrap_or([])
+  let use_index = indexed && matches.length() < policies.policies.length()
+  let mut fallback_pos = 0
+  let mut match_pos = 0
+  let mut scan_pos = 0
+  while (if use_index {
+          fallback_pos < policies.fallback.length() ||
+          match_pos < matches.length()
+        } else {
+          scan_pos < policies.policies.length()
+        }) {
+    let position = if !use_index {
+      let next = scan_pos
+      scan_pos += 1
+      next
+    } else if match_pos >= matches.length() ||
+      (
+        fallback_pos < policies.fallback.length() &&
+        policies.fallback[fallback_pos] < matches[match_pos]
+      ) {
+      let next = policies.fallback[fallback_pos]
+      fallback_pos += 1
+      next
+    } else {
+      let next = matches[match_pos]
+      match_pos += 1
+      next
+    }
+    let policy = policies.policies[position]
     let budget = Ref(1000000)
     let matched = boolean(evaluate(policy.condition, request, context, budget)) catch {
       PolicyError(message) => {

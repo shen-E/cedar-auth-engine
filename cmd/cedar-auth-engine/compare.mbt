@@ -93,7 +93,7 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     Array(items) => items
     _ => raise CliError("compare requests must be an array")
   }
-  if items.length() > 4096 {
+  if items.length() > 16384 {
     raise CliError("request batch limit exceeded")
   }
   let requests = []

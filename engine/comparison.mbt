@@ -130,7 +130,7 @@ pub fn EntityStore::compare_with_entities(
   after : PolicySet,
   requests : Array[Request],
 ) -> Array[AuthorizationComparison] raise PolicyError {
-  if requests.length() > 4096 {
+  if requests.length() > 16384 {
     raise PolicyError("request batch limit exceeded")
   }
   let before_context = EvaluationContext::new(self.graph)

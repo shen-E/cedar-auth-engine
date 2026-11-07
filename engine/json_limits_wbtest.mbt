@@ -20,12 +20,12 @@ fn input_entity(id : String, attrs : Json, tags : Json, parents : Json) -> Json 
 
 ///|
 test "JSON request values have a shared bounded budget" {
-  let values = Array::make(131070, Json::boolean(true))
+  let values = Array::make(524286, Json::boolean(true))
   let context : Json = {
     "items": Json::array(values),
     "nested": { "allowed": true },
   }
-  // One set, 131,070 elements, one record and its member.
+  // One set, 524,286 elements, one record and its member.
   let rejected = try {
     let _ = request_from_json(input_request(context))
     false
@@ -48,7 +48,7 @@ test "JSON request values have a shared bounded budget" {
 
 ///|
 test "JSON entity value budget covers all attributes and tags" {
-  let values = Array::make(131069, Json::boolean(true))
+  let values = Array::make(524285, Json::boolean(true))
   let first = input_entity(
     "one",
     { "items": Json::array(values) },
@@ -73,10 +73,12 @@ test "JSON entity value budget covers all attributes and tags" {
 ///|
 test "JSON entity and cumulative parent limits are enforced before conversion" {
   let entities = []
-  for i in 0..<4096 {
+  for i in 0..<16384 {
     entities.push(input_entity(i.to_string(), {}, {}, []))
   }
-  assert_true(tagged_entities_from_json(Json::array(entities)).length() == 4096)
+  assert_true(
+    tagged_entities_from_json(Json::array(entities)).length() == 16384,
+  )
   entities.push(Json::null())
   let rejected = try {
     let _ = tagged_entities_from_json(Json::array(entities))
@@ -86,8 +88,8 @@ test "JSON entity and cumulative parent limits are enforced before conversion" {
   }
   assert_true(rejected)
   let parent : Json = { "type": "Group", "id": "team" }
-  let left = Array::make(32768, parent)
-  let right = Array::make(32768, parent)
+  let left = Array::make(65536, parent)
+  let right = Array::make(65536, parent)
   let input = Json::array([
     input_entity("one", {}, {}, Json::array(left)),
     input_entity("two", {}, {}, Json::array(right)),

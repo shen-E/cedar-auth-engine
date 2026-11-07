@@ -7,7 +7,7 @@ fn validate_typed_value(
   if depth > 64 {
     raise PolicyError("value nesting limit exceeded")
   }
-  if count.val >= 131072 {
+  if count.val >= 524288 {
     raise PolicyError("value limit exceeded")
   }
   count.val += 1
@@ -73,7 +73,7 @@ fn validate_typed_entity_values(
 pub fn EntityStore::new_checked(
   entities : Array[Entity],
 ) -> EntityStore raise PolicyError {
-  if entities.length() > 4096 {
+  if entities.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let tagged = []
@@ -111,7 +111,7 @@ pub fn EntityStore::authorize_batch_checked(
   policies : PolicySet,
   requests : Array[Request],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 4096 {
+  if requests.length() > 16384 {
     raise PolicyError("request batch limit exceeded")
   }
   for request in requests {

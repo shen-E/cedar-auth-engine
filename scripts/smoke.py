@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the built native CLI against the checked-in examples."""
 import json
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -329,10 +330,12 @@ def main():
                 result = run("compare", before, before, entities, requests, *bad, "--format", "json")
                 assert result.returncode == 2 and not result.stdout
                 checks += 1
-            for option in ("add-policies", "replace-policies", "remove-policy"):
-                result = run("compare", before, before, entities, requests, *(("--" + side + "-" + option, "x") * 1025))
-                assert result.returncode == 2 and not result.stdout and "limit exceeded" in result.stderr
-                checks += 1
+            # Windows process command lines are too short for 4,097 long options.
+            if os.name != "nt":
+                for option in ("add-policies", "replace-policies", "remove-policy"):
+                    result = run("compare", before, before, entities, requests, *(("--" + side + "-" + option, "x") * 4097))
+                    assert result.returncode == 2 and not result.stdout and "limit exceeded" in result.stderr
+                    checks += 1
         # Additions remain independent and policy order does not change the report.
         add_a = path / "add-a.cedar"
         add_b = path / "add-b.cedar"
@@ -378,7 +381,7 @@ def main():
         result = run("compare", before, after, entities, invalid_requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
-        invalid_requests.write_text(json.dumps([sample] * 4097), encoding="utf-8")
+        invalid_requests.write_text(json.dumps([sample] * 16385), encoding="utf-8")
         result = run("compare", before, after, entities, invalid_requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
@@ -702,7 +705,7 @@ def main():
         deny_policy = path / "empty-policy.cedar"
         deny_policy.write_text("", encoding="utf-8")
         empty_case = {"request": valid, "decision": "Deny"}
-        for size in (4095, 4096, 4097):
+        for size in (16383, 16384, 16385):
             batch_cases.write_text(json.dumps([empty_case] * size, separators=(",", ":")), encoding="utf-8")
             result = run("test", deny_policy, empty, batch_cases, "--format", "json")
             report = json.loads(result.stdout)
@@ -712,13 +715,13 @@ def main():
         edge_policy = path / "edge-policy.cedar"
         edge_policy.write_text('permit(principal == User::"alice", action, resource);', encoding="utf-8")
         alice = {**valid, "principal": {"type": "User", "id": "alice"}}
-        batch_cases.write_text(json.dumps([empty_case] * 4096 + [{"request": alice, "decision": "Allow"}], separators=(",", ":")), encoding="utf-8")
+        batch_cases.write_text(json.dumps([empty_case] * 16384 + [{"request": alice, "decision": "Allow"}], separators=(",", ":")), encoding="utf-8")
         result = run("test", edge_policy, empty, batch_cases, "--format", "json")
         report = json.loads(result.stdout)
-        assert result.returncode == 0 and report["cases"][4095]["response"]["decision"] == "Deny"
-        assert report["cases"][4096]["response"]["decision"] == "Allow" and report["cases"][4096]["response"]["reasons"] == ["policy0"]
+        assert result.returncode == 0 and report["cases"][16383]["response"]["decision"] == "Deny"
+        assert report["cases"][16384]["response"]["decision"] == "Allow" and report["cases"][16384]["response"]["reasons"] == ["policy0"]
         checks += 1
-        batch_cases.write_text(json.dumps([empty_case] * 4096 + [{"request": valid}], separators=(",", ":")), encoding="utf-8")
+        batch_cases.write_text(json.dumps([empty_case] * 16384 + [{"request": valid}], separators=(",", ":")), encoding="utf-8")
         for flags in ((), ("--format", "json")):
             result = run("test", deny_policy, empty, batch_cases, *flags)
             assert result.returncode == 2 and not result.stdout
@@ -867,7 +870,7 @@ def main():
             batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
             assert batch.returncode == 2 and not batch.stdout
             checks += 1
-        batch_path.write_text(json.dumps([cases[0]["request"]] * 4097, separators=(",", ":")), encoding="utf-8")
+        batch_path.write_text(json.dumps([cases[0]["request"]] * 16385, separators=(",", ":")), encoding="utf-8")
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
         assert batch.returncode == 2 and not batch.stdout and "batch limit" in batch.stderr
         checks += 1
@@ -932,7 +935,7 @@ def main():
         policy.write_text("permit(principal, action, resource);", encoding="utf-8")
         entities.write_text("[]", encoding="utf-8")
         input_request = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"},
-                         "resource": {"type": "File", "id": "report"}, "context": {"values": [False] * 131071}}
+                         "resource": {"type": "File", "id": "report"}, "context": {"values": [False] * 524287}}
         request.write_text(json.dumps(input_request, separators=(",", ":")), encoding="utf-8")
         result = run("authorize", policy, entities, request, "--format", "json")
         assert result.returncode == 0 and json.loads(result.stdout)["decision"] == "Allow"
@@ -946,7 +949,7 @@ def main():
         result = run("batch", policy, entities, batch, "--format", "json")
         assert result.returncode == 2 and not result.stdout and "value limit exceeded" in result.stderr
         checks += 1
-        entities.write_text(json.dumps([{"uid": {"type": "File", "id": str(i)}, "attrs": {}, "parents": []} for i in range(4097)], separators=(",", ":")), encoding="utf-8")
+        entities.write_text(json.dumps([{"uid": {"type": "File", "id": str(i)}, "attrs": {}, "parents": []} for i in range(16385)], separators=(",", ":")), encoding="utf-8")
         request.write_text(json.dumps({**input_request, "context": {}}), encoding="utf-8")
         result = run("authorize", policy, entities, request, "--format", "json")
         assert result.returncode == 2 and not result.stdout and "entity limit exceeded" in result.stderr
@@ -1023,6 +1026,22 @@ def main():
             result = run("check", policy, "--format", "json")
             assert result.returncode == 2 and not result.stdout
             checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        policy = pathlib.Path(tmp) / "sized.cedar"
+        # Check the expanded file limit and the large-file read path.
+        for size in (1048577, 8388608):
+            policy.write_bytes(b" " * size)
+            result = run("check", policy, "--format", "json")
+            assert result.returncode == 0 and json.loads(result.stdout)["valid"]
+            checks += 1
+        policy.write_bytes(b" " * 8388609)
+        result = run("check", policy, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "8 MiB" in result.stderr
+        checks += 1
+        policy.write_text("x " * 131073, encoding="utf-8")
+        result = run("check", policy, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "token limit exceeded" in result.stderr
+        checks += 1
     print("CLI checks passed:", checks)
 
 

@@ -95,8 +95,8 @@ test "comparison batch limit is enforced before returning results" {
     resource: { kind: "File", id: "r", },
     context: {},
   }
-  let requests = Array::make(4096, request)
-  assert_true(store.compare(empty, empty, requests).length() == 4096)
+  let requests = Array::make(16384, request)
+  assert_true(store.compare(empty, empty, requests).length() == 16384)
   requests.push(request)
   let rejected = try {
     let _ = store.compare(empty, empty, requests)
@@ -212,9 +212,10 @@ test "different entity comparison respects the request batch limit" {
     resource: { kind: "File", id: "r", },
     context: {},
   }
-  let requests = Array::make(4096, request)
+  let requests = Array::make(16384, request)
   assert_true(
-    before.compare_with_entities(after, empty, empty, requests).length() == 4096,
+    before.compare_with_entities(after, empty, empty, requests).length() ==
+    16384,
   )
   requests.push(request)
   let rejected = try {

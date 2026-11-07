@@ -53,9 +53,9 @@ test "typed request validation bounds nesting, cycles, and value count" {
     _ => true
   }
   assert_true(rejected)
-  fields["value"] = SetValue(Array::make(131071, BoolValue(true)))
+  fields["value"] = SetValue(Array::make(524287, BoolValue(true)))
   request.validate()
-  fields["value"] = SetValue(Array::make(131072, BoolValue(true)))
+  fields["value"] = SetValue(Array::make(524288, BoolValue(true)))
   let rejected = try {
     request.validate()
     false
@@ -99,7 +99,7 @@ test "typed entity validation covers ids, parents, attributes, and tags" {
 ///|
 test "typed entity validation bounds attributes and tags together" {
   let base = tagged_sample()[0]
-  let values = Array::make(131070, BoolValue(true))
+  let values = Array::make(524286, BoolValue(true))
   let entity : TaggedEntity = {
     entity: { ..base.entity, attrs: { "values": SetValue(values) }, },
     tags: { "tag": BoolValue(true) },
@@ -157,7 +157,7 @@ test "checked authorization validates all requests and preserves responses" {
   assert_true(rejected)
   assert_true(store.authorize_batch_checked(policies, []).is_empty())
   let rejected = try {
-    let _ = store.authorize_batch_checked(policies, Array::make(4097, request))
+    let _ = store.authorize_batch_checked(policies, Array::make(16385, request))
     false
   } catch {
     _ => true

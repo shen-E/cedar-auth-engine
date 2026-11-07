@@ -13,7 +13,7 @@ fn copy_store_value(
   if depth > 64 {
     raise PolicyError("entity value nesting limit exceeded")
   }
-  if count.val >= 131072 {
+  if count.val >= 524288 {
     raise PolicyError("entity value limit exceeded")
   }
   count.val += 1
@@ -53,7 +53,7 @@ fn copy_store_fields(
 pub fn EntityStore::new(
   entities : Array[Entity],
 ) -> EntityStore raise PolicyError {
-  if entities.length() > 4096 {
+  if entities.length() > 16384 {
     raise PolicyError("entity limit exceeded")
   }
   let tagged = []
@@ -95,13 +95,13 @@ pub fn EntityStore::authorize(
 }
 
 ///|
-/// Authorize up to 4,096 requests using this entity snapshot.
+/// Authorize up to 16,384 requests using this entity snapshot.
 pub fn EntityStore::authorize_batch(
   self : EntityStore,
   policies : PolicySet,
   requests : Array[Request],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 4096 {
+  if requests.length() > 16384 {
     raise PolicyError("request batch limit exceeded")
   }
   let context = EvaluationContext::new(self.graph)

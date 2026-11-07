@@ -123,7 +123,7 @@ test "unknown structural field reports its location and name" {
 
 ///|
 test "direct JSON inputs enforce request value limits" {
-  let values = Array::make(131071, Json::boolean(true))
+  let values = Array::make(524287, Json::boolean(true))
   let request : Json = {
     "principal": { "type": "User", "id": "alice" },
     "action": { "type": "Action", "id": "read" },

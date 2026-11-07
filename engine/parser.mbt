@@ -11,8 +11,8 @@ priv struct Parser {
 ///|
 fn tokenize(text : String) -> Array[String] raise PolicyError {
   let chars = text.to_array()
-  if chars.length() > 1048576 {
-    raise PolicyError("policy exceeds 1 MiB")
+  if chars.length() > 8388608 {
+    raise PolicyError("policy exceeds 8 MiB")
   }
   let out : Array[String] = []
   let mut i = 0
@@ -109,7 +109,7 @@ fn tokenize(text : String) -> Array[String] raise PolicyError {
       }
       out.push(b.to_string())
     }
-    if out.length() > 2048 {
+    if out.length() > 131072 {
       raise PolicyError("policy token limit exceeded")
     }
   }
@@ -702,6 +702,7 @@ fn parse_policy_data(
     resource_slot: false,
   }
   let policies : Array[Policy] = []
+  let ids : Map[String, Bool] = Map([])
   while parser.peek() != "" {
     let annotations : Map[String, String] = Map([])
     while parser.accept("@") {
@@ -747,13 +748,29 @@ fn parse_policy_data(
     }
     parser.expect(";")
     let id = annotations.get("id").unwrap_or("policy\{policies.length()}")
-    if policies.any(fn(policy) { policy.id == id }) {
+    if ids.contains(id) {
       raise PolicyError("duplicate policy id '\{id}'")
     }
-    policies.push({ id, forbid: effect == "forbid", condition, annotations, })
-    if policies.length() > 1024 {
+    ids[id] = true
+    // Only skip on an exact action when the preceding principal scope is
+    // unconditional. Other scopes retain full evaluation and diagnostics.
+    let action_key = match (p, a) {
+      (
+        Literal(BoolValue(true)),
+        Equal(Variable("action"), Literal(EntityValue(uid))),
+      ) => Some(uid)
+      _ => None
+    }
+    policies.push({
+      id,
+      forbid: effect == "forbid",
+      condition,
+      annotations,
+      action_key,
+    })
+    if policies.length() > 4096 {
       raise PolicyError("policy count limit exceeded")
     }
   }
-  ({ policies, }, parser.principal_slot, parser.resource_slot)
+  (make_policy_set(policies), parser.principal_slot, parser.resource_slot)
 }
