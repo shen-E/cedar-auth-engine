@@ -351,6 +351,34 @@ test "apply a mixed entity change through the public library" {
 }
 
 ///|
+test "inspect team inheritance through the public library" {
+  let alice : @engine.EntityId = { kind: "User", id: "alice", }
+  let team : @engine.EntityId = { kind: "Team", id: "security", }
+  let org : @engine.EntityId = { kind: "Org", id: "example", }
+  let store = @engine.EntityStore::new_with_tags_checked([
+    { entity: { uid: alice, attrs: {}, parents: [team], }, tags: {}, },
+    { entity: { uid: team, attrs: {}, parents: [org], }, tags: {}, },
+  ])
+  assert_true(store.is_descendant(alice, org))
+  assert_true(store.ancestors(alice) == [team, org])
+  assert_true(store.descendants(org) == [team, alice])
+  let request = @engine.Request::{
+    principal: alice,
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let policy = @engine.parse_policies(
+    "permit(principal in Org::\"example\", action, resource);",
+  )
+  assert_true(store.authorize_checked(policy, request).is_authorized())
+  let updated = store.remove(team)
+  assert_false(updated.is_descendant(alice, org))
+  assert_false(updated.authorize_checked(policy, request).is_authorized())
+  assert_true(store.is_descendant(alice, org))
+}
+
+///|
 test "construct decimal values through the public library" {
   let policy = @engine.parse_policies(
     "permit(principal, action, resource) when { context.amount.lessThanOrEqual(decimal(\"100.00\")) };",
