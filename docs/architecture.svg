@@ -1,76 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="820" viewBox="0 0 1600 820" role="img" aria-labelledby="title description">
-  <title id="title">Cedar Auth Engine architecture</title>
-  <desc id="description">Applications call the MoonBit library or native command line. Policies, authorization requests and entity data enter the portable authorization core, which parses inputs, validates entity hierarchy and evaluates policies. Responses contain a decision, determining policy IDs and evaluation errors.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="800" viewBox="0 0 1600 800" role="img" aria-labelledby="title desc">
+  <title id="title">授权策略引擎架构</title>
+  <desc id="desc">应用可通过 MoonBit 库或原生命令行提供策略、请求和实体数据，授权引擎解析策略并结合实体关系进行求值，返回授权决定、命中策略和求值错误。</desc>
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#77908c"/></marker>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto"><path d="M1 1 L11 6 L1 11 Z" fill="#496977"/></marker>
     <style>
-      .bg{fill:#f7f8f6}.panel{fill:#fff;stroke:#d8e1dc;stroke-width:2}.core{fill:#eaf2ee;stroke:#a8c4b7;stroke-width:2}.ink{fill:#182d2a;font-family:Inter,Segoe UI,Arial,sans-serif}.muted{fill:#526b65;font-family:Inter,Segoe UI,Arial,sans-serif}.eyebrow{font-size:15px;letter-spacing:2.7px;font-weight:700}.title{font-size:38px;font-weight:700;letter-spacing:-.6px}.sub{font-size:18px}.label{font-size:15px;letter-spacing:1.8px;font-weight:700}.name{font-size:23px;font-weight:650}.detail{font-size:17px}.small{font-size:15px}.rule{stroke:#d8e1dc;stroke-width:2}.link{fill:none;stroke:#77908c;stroke-width:2.5;marker-end:url(#arrow)}
+      text{font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif} .title{font-size:42px;font-weight:700;fill:#18343d}.brand{font-size:23px;font-weight:600;fill:#43706c;letter-spacing:1px}.head{font-size:27px;font-weight:700;fill:#294a55}.name{font-size:29px;font-weight:700;fill:#183e4b}.detail{font-size:23px;fill:#496977}.white{fill:#fff}.subwhite{font-size:23px;fill:#d4f1e9}.line{fill:none;stroke:#78939b;stroke-width:3;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect class="bg" width="1600" height="820" rx="24"/>
-  <text x="66" y="70" class="muted eyebrow">CEDAR AUTH ENGINE</text>
-  <text x="66" y="126" class="ink title">Authorization, from input to decision</text>
-  <text x="66" y="162" class="muted sub">A portable Cedar subset for application-embedded access control</text>
-  <path d="M66 195 H1534" class="rule"/>
+  <rect width="1600" height="800" fill="#f5f8f7"/>
+  <rect width="18" height="800" fill="#087e70"/>
+  <text x="75" y="86" class="brand">CEDAR AUTH ENGINE</text>
+  <text x="75" y="150" class="title">授权策略引擎架构</text>
+  <path d="M75 181 H1525" stroke="#cddedb" stroke-width="2"/>
 
-  <text x="66" y="246" class="muted label">01 / ENTRY POINTS</text>
-  <text x="423" y="246" class="muted label">02 / CALLER INPUTS</text>
-  <text x="817" y="246" class="muted label">03 / PORTABLE CORE</text>
-  <text x="1260" y="246" class="muted label">04 / RESPONSE</text>
+  <text x="75" y="237" class="head">接入方式</text>
+  <text x="385" y="237" class="head">输入数据</text>
+  <text x="800" y="237" class="head">授权处理</text>
+  <text x="1250" y="237" class="head">授权结果</text>
 
-  <rect x="66" y="282" width="278" height="158" rx="14" class="panel"/>
-  <text x="91" y="323" class="ink name">MoonBit library</text>
-  <text x="91" y="354" class="muted detail">Embedded in a host</text>
-  <text x="91" y="380" class="muted detail">application</text>
-  <text x="91" y="416" class="muted small">Typed values or JSON</text>
+  <rect x="75" y="282" width="250" height="142" rx="12" fill="#e1eff9" stroke="#a7c8dd" stroke-width="2"/>
+  <rect x="75" y="282" width="8" height="142" rx="4" fill="#2472a5"/>
+  <text x="103" y="337" class="name">应用集成</text>
+  <text x="103" y="380" class="detail">MoonBit 库</text>
+  <rect x="75" y="451" width="250" height="142" rx="12" fill="#e1eff9" stroke="#a7c8dd" stroke-width="2"/>
+  <rect x="75" y="451" width="8" height="142" rx="4" fill="#2472a5"/>
+  <text x="103" y="506" class="name">命令行</text>
+  <text x="103" y="549" class="detail">原生 CLI</text>
 
-  <rect x="66" y="458" width="278" height="158" rx="14" class="panel"/>
-  <text x="91" y="499" class="ink name">Native CLI</text>
-  <text x="91" y="530" class="muted detail">Check, authorize, test</text>
-  <text x="91" y="556" class="muted detail">and compare</text>
-  <text x="91" y="592" class="muted small">Cedar text + JSON files</text>
+  <rect x="385" y="273" width="338" height="105" rx="12" fill="#e4f3ed" stroke="#b4d9cb" stroke-width="2"/>
+  <text x="410" y="316" class="name">授权策略</text>
+  <text x="410" y="350" class="detail">允许、禁止与条件</text>
+  <rect x="385" y="397" width="338" height="105" rx="12" fill="#e4f3ed" stroke="#b4d9cb" stroke-width="2"/>
+  <text x="410" y="440" class="name">授权请求</text>
+  <text x="410" y="474" class="detail">主体、操作、资源、上下文</text>
+  <rect x="385" y="521" width="338" height="105" rx="12" fill="#e4f3ed" stroke="#b4d9cb" stroke-width="2"/>
+  <text x="410" y="564" class="name">实体数据</text>
+  <text x="410" y="598" class="detail">属性、标签与父级关系</text>
 
-  <path d="M344 361 H389 V449 H405" class="link"/>
-  <path d="M344 537 H389 V449 H405" class="link"/>
-
-  <rect x="423" y="282" width="313" height="105" rx="14" class="panel"/>
-  <text x="447" y="323" class="ink name">Policies</text>
-  <text x="447" y="352" class="muted detail">permit · forbid · conditions</text>
-  <rect x="423" y="401" width="313" height="105" rx="14" class="panel"/>
-  <text x="447" y="442" class="ink name">Request</text>
-  <text x="447" y="471" class="muted detail">principal · action · resource · context</text>
-  <rect x="423" y="520" width="313" height="105" rx="14" class="panel"/>
-  <text x="447" y="561" class="ink name">Entity data</text>
-  <text x="447" y="590" class="muted detail">attributes · tags · parent links</text>
-
-  <path d="M736 334 H786 V453 H800" class="link"/>
-  <path d="M736 453 H800" class="link"/>
-  <path d="M736 572 H786 V453 H800" class="link"/>
-
-  <rect x="817" y="282" width="357" height="343" rx="16" class="core"/>
-  <text x="843" y="329" class="ink name">Parse &amp; validate</text>
-  <text x="843" y="358" class="muted detail">Policy syntax and input limits</text>
-  <path d="M843 385 H1148" class="rule"/>
-  <text x="843" y="427" class="ink name">Entity graph</text>
-  <text x="843" y="456" class="muted detail">Hierarchy and attribute lookup</text>
-  <path d="M843 483 H1148" class="rule"/>
-  <text x="843" y="525" class="ink name">Evaluate policies</text>
-  <text x="843" y="554" class="muted detail">Forbid overrides · default deny</text>
-  <text x="843" y="594" class="muted small">No network, filesystem or clock in evaluation</text>
-
-  <path d="M1174 453 H1243" class="link"/>
-  <rect x="1260" y="282" width="274" height="343" rx="14" class="panel"/>
-  <text x="1286" y="327" class="ink name">Decision</text>
-  <text x="1286" y="356" class="muted detail">Allow or Deny</text>
-  <path d="M1286 383 H1508" class="rule"/>
-  <text x="1286" y="425" class="ink name">Reasons</text>
-  <text x="1286" y="454" class="muted detail">Determining policy IDs</text>
-  <path d="M1286 481 H1508" class="rule"/>
-  <text x="1286" y="523" class="ink name">Diagnostics</text>
-  <text x="1286" y="552" class="muted detail">Evaluation errors</text>
-  <text x="1286" y="594" class="muted small">Host decides how to enforce</text>
-
-  <path d="M66 686 H1534" class="rule"/>
-  <text x="66" y="730" class="muted detail">The caller manages identity, policy storage and entity updates.</text>
-  <text x="66" y="759" class="muted small">Cedar authorization semantics: matching forbid policies take priority; policy errors are reported and skipped.</text>
+  <path d="M325 353 H350 V449 H370" class="line"/><path d="M325 522 H350 V449 H370" class="line"/>
+  <path d="M723 449 H782" class="line"/>
+  <rect x="800" y="273" width="376" height="353" rx="14" fill="#08776a"/>
+  <text x="829" y="324" class="name white">策略解析</text>
+  <text x="829" y="359" class="subwhite">读取策略与输入数据</text>
+  <path d="M829 382 H1147" stroke="#72b5a8" stroke-width="2"/>
+  <text x="829" y="427" class="name white">实体查询</text>
+  <text x="829" y="462" class="subwhite">实体层级与属性</text>
+  <path d="M829 485 H1147" stroke="#72b5a8" stroke-width="2"/>
+  <text x="829" y="530" class="name white">策略求值</text>
+  <text x="829" y="565" class="subwhite">禁止优先，默认拒绝</text>
+  <path d="M1176 449 H1232" class="line"/>
+  <rect x="1250" y="273" width="275" height="353" rx="14" fill="#fff" stroke="#cbded9" stroke-width="2"/>
+  <rect x="1250" y="273" width="275" height="85" rx="14" fill="#d16d32"/>
+  <rect x="1250" y="342" width="275" height="16" fill="#d16d32"/>
+  <text x="1277" y="328" class="name white">允许 / 拒绝</text>
+  <text x="1277" y="424" class="name">命中策略</text>
+  <path d="M1277 458 H1498" stroke="#d8e7e2" stroke-width="2"/>
+  <text x="1277" y="526" class="name">求值错误</text>
+  <text x="1277" y="567" class="detail">错误策略跳过</text>
 </svg>
