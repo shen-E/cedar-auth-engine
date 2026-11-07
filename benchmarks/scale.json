@@ -1,0 +1,155 @@
+{
+  "command": "python benchmarks/scale.py --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe --profile scale --repeat 3 --revision fb9a17c+working-tree --toolchain 'moonc 0.10.18+6c83a7f62' --output benchmarks/scale.json",
+  "source_revision": "fb9a17c+working-tree",
+  "engine_sha256": "4401e81326ffe5142122640b34bb7147b53940731aefd88ad273400c5464b08b",
+  "moonbit_toolchain": "moonc 0.10.18+6c83a7f62",
+  "profile": "scale",
+  "repetitions": 3,
+  "seed": null,
+  "policies": 2048,
+  "entities": 10000,
+  "requests": 16384,
+  "hierarchy": {
+    "sparse": "no parent links",
+    "dense": "chains of at most 16 entities"
+  },
+  "dense_matching_policies": 32,
+  "environment": {
+    "os": "Windows-10-10.0.26100-SP0",
+    "machine": "AMD64",
+    "python": "3.8.7",
+    "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel"
+  },
+  "memory_note": "sampled child peak working set on Windows or VmHWM on Linux; null if unavailable",
+  "measurement_note": "wall time includes process startup and input parsing; not an isolated library microbenchmark",
+  "measurements": [
+    {
+      "workload": "sparse",
+      "operation": "parse",
+      "seconds": [
+        0.04549449999999999,
+        0.042933200000000005,
+        0.04184180000000001
+      ],
+      "median_seconds": 0.042933200000000005,
+      "peak_memory_bytes": [
+        12845056,
+        12922880,
+        12922880
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "entity_snapshot",
+      "seconds": [
+        0.11203449999999998,
+        0.11357860000000003,
+        0.11521549999999997
+      ],
+      "median_seconds": 0.11357860000000003,
+      "peak_memory_bytes": [
+        25276416,
+        25280512,
+        25280512
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "authorize",
+      "seconds": [
+        0.12731320000000002,
+        0.12681900000000002,
+        0.12667859999999997
+      ],
+      "median_seconds": 0.12681900000000002,
+      "peak_memory_bytes": [
+        27521024,
+        27471872,
+        27525120
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "batch",
+      "seconds": [
+        0.47819829999999997,
+        0.47515819999999986,
+        0.5071184000000002
+      ],
+      "median_seconds": 0.47819829999999997,
+      "peak_memory_bytes": [
+        58437632,
+        58490880,
+        58494976
+      ],
+      "requests_per_second": 34261.93694122292
+    },
+    {
+      "workload": "dense",
+      "operation": "parse",
+      "seconds": [
+        0.044057299999999966,
+        0.042884000000000366,
+        0.04273820000000006
+      ],
+      "median_seconds": 0.042884000000000366,
+      "peak_memory_bytes": [
+        12980224,
+        12922880,
+        12963840
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "entity_snapshot",
+      "seconds": [
+        0.1743389999999998,
+        0.1686814000000001,
+        0.1687126000000001
+      ],
+      "median_seconds": 0.1687126000000001,
+      "peak_memory_bytes": [
+        31784960,
+        31797248,
+        31813632
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "authorize",
+      "seconds": [
+        0.17461740000000026,
+        0.18495989999999995,
+        0.18291630000000003
+      ],
+      "median_seconds": 0.18291630000000003,
+      "peak_memory_bytes": [
+        33918976,
+        33894400,
+        33837056
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "batch",
+      "seconds": [
+        0.8162891000000005,
+        0.8400961000000002,
+        0.8908753999999997
+      ],
+      "median_seconds": 0.8400961000000002,
+      "peak_memory_bytes": [
+        60092416,
+        60096512,
+        60137472
+      ],
+      "requests_per_second": 19502.530722378066
+    }
+  ]
+}

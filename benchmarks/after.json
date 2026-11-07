@@ -1,0 +1,187 @@
+{
+  "command": "python benchmarks/scale.py --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe --profile baseline --repeat 5 --revision fb9a17c+working-tree --toolchain 'moonc 0.10.18+6c83a7f62' --output benchmarks/after.json",
+  "source_revision": "fb9a17c+working-tree",
+  "engine_sha256": "4401e81326ffe5142122640b34bb7147b53940731aefd88ad273400c5464b08b",
+  "moonbit_toolchain": "moonc 0.10.18+6c83a7f62",
+  "profile": "baseline",
+  "repetitions": 5,
+  "seed": null,
+  "policies": 60,
+  "entities": 512,
+  "requests": 512,
+  "hierarchy": {
+    "sparse": "no parent links",
+    "dense": "chains of at most 16 entities"
+  },
+  "dense_matching_policies": 60,
+  "environment": {
+    "os": "Windows-10-10.0.26100-SP0",
+    "machine": "AMD64",
+    "python": "3.8.7",
+    "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel"
+  },
+  "memory_note": "sampled child peak working set on Windows or VmHWM on Linux; null if unavailable",
+  "measurement_note": "wall time includes process startup and input parsing; not an isolated library microbenchmark",
+  "measurements": [
+    {
+      "workload": "sparse",
+      "operation": "parse",
+      "seconds": [
+        0.019002000000000005,
+        0.01837530000000001,
+        0.014922500000000005,
+        0.015418700000000007,
+        0.020511100000000004
+      ],
+      "median_seconds": 0.01837530000000001,
+      "peak_memory_bytes": [
+        9551872,
+        9547776,
+        9170944,
+        9175040,
+        9539584
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "entity_snapshot",
+      "seconds": [
+        0.018743700000000002,
+        0.024370599999999992,
+        0.020059100000000024,
+        0.03437950000000001,
+        0.01896760000000003
+      ],
+      "median_seconds": 0.020059100000000024,
+      "peak_memory_bytes": [
+        9244672,
+        9261056,
+        9744384,
+        9736192,
+        9248768
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "authorize",
+      "seconds": [
+        0.019967599999999974,
+        0.020573300000000017,
+        0.019959999999999978,
+        0.02119939999999998,
+        0.02078930000000001
+      ],
+      "median_seconds": 0.020573300000000017,
+      "peak_memory_bytes": [
+        10076160,
+        10063872,
+        10076160,
+        10080256,
+        10059776
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "sparse",
+      "operation": "batch",
+      "seconds": [
+        0.0325839,
+        0.04505119999999996,
+        0.03258879999999997,
+        0.03469310000000003,
+        0.03227460000000004
+      ],
+      "median_seconds": 0.03258879999999997,
+      "peak_memory_bytes": [
+        10223616,
+        10276864,
+        10215424,
+        10215424,
+        10223616
+      ],
+      "requests_per_second": 15710.919088766706
+    },
+    {
+      "workload": "dense",
+      "operation": "parse",
+      "seconds": [
+        0.017248700000000006,
+        0.018497100000000044,
+        0.01759899999999992,
+        0.01603409999999994,
+        0.02127060000000003
+      ],
+      "median_seconds": 0.01759899999999992,
+      "peak_memory_bytes": [
+        9551872,
+        9572352,
+        9568256,
+        9555968,
+        9560064
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "entity_snapshot",
+      "seconds": [
+        0.021939599999999948,
+        0.02343980000000001,
+        0.02215200000000006,
+        0.03196789999999994,
+        0.023653900000000005
+      ],
+      "median_seconds": 0.02343980000000001,
+      "peak_memory_bytes": [
+        9572352,
+        9641984,
+        9588736,
+        9621504,
+        9637888
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "authorize",
+      "seconds": [
+        0.024533000000000027,
+        0.025965499999999975,
+        0.02441199999999999,
+        0.024479200000000034,
+        0.02560629999999997
+      ],
+      "median_seconds": 0.024533000000000027,
+      "peak_memory_bytes": [
+        10350592,
+        10321920,
+        10334208,
+        10248192,
+        10301440
+      ],
+      "requests_per_second": null
+    },
+    {
+      "workload": "dense",
+      "operation": "batch",
+      "seconds": [
+        0.04876120000000006,
+        0.049561100000000136,
+        0.049250100000000074,
+        0.04981740000000001,
+        0.050640999999999936
+      ],
+      "median_seconds": 0.049561100000000136,
+      "peak_memory_bytes": [
+        11358208,
+        11354112,
+        11276288,
+        11227136,
+        11169792
+      ],
+      "requests_per_second": 10330.682733030513
+    }
+  ]
+}

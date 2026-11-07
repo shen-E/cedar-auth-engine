@@ -103,16 +103,16 @@ without a partial report. A decision grant means Cedar changed from Deny to
 Allow even if evaluation errors remain. An enforcement grant requires the after
 response to be Allow with no errors; an enforcement revocation includes an
 Allow response that gains errors. Choose the check that matches how the host
-uses the response. The command compares up to 4,096 requests and uses the
+uses the response. The command compares up to 16,384 requests and uses the
 `EntityStore` snapshot limits described below.
 
 Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
 `--after-template` / `--after-links` options for linked policies. Repeat pairs
 as needed; each side pairs templates and link files by their respective order
-of appearance, with up to 1,024 pairs per side. Each side starts from its own
+of appearance, with up to 4,096 pairs per side. Each side starts from its own
 static policy file. Each side also accepts `--before-add-policies FILE`,
 `--before-replace-policies FILE` and `--before-remove-policy ID`, or the
-corresponding `--after-*` options. They can be repeated up to 1,024 times per
+corresponding `--after-*` options. They can be repeated up to 4,096 times per
 option and side. As with the authorization commands below, each side loads its
 base file, additions, template links, replacements and removals in that order;
 file order is preserved within additions and within replacements. Duplicate or
@@ -145,7 +145,7 @@ reject duplicate IDs. JSON output includes a per-case `checks` object; its
 `reasons` value is `null` when that comparison was omitted. A mismatched case
 makes the command exit 1. The [diagnostics example](examples/diagnostics/)
 includes a deliberate policy error and its expected ID. The command validates
-all cases before printing results and evaluates them in chunks of up to 4,096
+all cases before printing results and evaluates them in chunks of up to 16,384
 requests, sharing one entity graph within each chunk. Empty input still checks
 the entity graph. Case objects accept only `request`, `decision`, `reasons` and
 `errors`; an unrecognized field is rejected rather than ignored.
@@ -154,7 +154,7 @@ For `authorize`, `batch`, `enforce`, `enforce-batch` and `test`, add
 `--template TEMPLATE --links LINKS` to evaluate static policies together with
 template links. Repeat the two options to load multiple templates. Templates
 and links files are paired in their respective order of appearance; their counts
-must match. The CLI accepts up to 1024 pairs. Each links file is an array such as:
+must match. The CLI accepts up to 4096 pairs. Each links file is an array such as:
 
 ```json
 [{"id":"share-1","principal":{"type":"User","id":"alice"},"resource":{"type":"File","id":"report"}}]
@@ -168,7 +168,7 @@ and [multiple templates](examples/multi-template/) for complete inputs.
 
 The same commands also accept `--add-policies FILE` to append a Cedar policy
 file and `--replace-policies FILE` to replace existing policies by ID. Both
-options can be repeated, with up to 1,024 files per option. Each added ID must
+options can be repeated, with up to 4,096 files per option. Each added ID must
 be new, and each replacement ID must already exist. Use explicit `@id` values
 when composing files: automatically assigned IDs start from `policy0` in each
 file. The [policy update example](examples/policy-update/) combines an emergency
@@ -254,9 +254,9 @@ values, including `@engine.IpValue(@engine.IpAddress::parse("2001:db8::1"))`,
 `@engine.DecimalValue(@engine.Decimal::parse("125.4500"))`,
 `@engine.DurationValue(@engine.Duration::parse("1h30m"))`, and
 `@engine.DateTimeValue(@engine.DateTime::parse("2026-11-01T12:00:00Z"))`.
-JSON request conversion limits context to 131,072 values. Entity conversion
-limits the combined attributes and tags to 131,072 values, 4,096 entities and
-65,536 parent links. These limits apply even when the caller supplies an
+JSON request conversion limits context to 524,288 values. Entity conversion
+limits the combined attributes and tags to 524,288 values, 16,384 entities and
+131,072 parent links. These limits apply even when the caller supplies an
 independently constructed `Json` value; each conversion fails without returning
 partially converted input. Graph cycles and duplicate entity IDs are checked
 separately when building or validating the entity graph.
@@ -318,7 +318,7 @@ let updated = combined.replace(replacement)
 ID to exist and retains the original policy order. Either input can contain
 static or linked policies. Both methods return a new set or raise an error
 without changing either input. Replacement changes the whole policy, including
-its effect, condition and annotations. The 1,024-policy limit applies to the
+its effect, condition and annotations. The 4,096-policy limit applies to the
 merged result. Applications control when to publish a new snapshot to their
 workers.
 
@@ -350,6 +350,10 @@ hierarchy and copy the parent links, attributes and tags, including nested sets
 and records. Later mutations to the input entities do not change the snapshot;
 construct a new store to apply entity updates. Requests and policy sets remain
 separate from the store. The snapshot is used in memory and performs no I/O.
+For more than 16,384 requests, the application can submit successive batches
+against the same snapshot and process each response array before continuing.
+Exact action scopes with an unrestricted principal are indexed; other policies
+are evaluated in source order along with matching indexed policies.
 
 When constructing input values directly in MoonBit, checked entry points also
 validate entity type names in the graph, request and nested values:
@@ -371,7 +375,7 @@ policy evaluation errors into input errors: inspect `response.errors` or use
 call validates the request, so use a checked constructor to validate the store.
 
 `request.validate()` and `validate_typed_entities(entities)` provide the same
-input checks separately. Nested values are limited to 64 levels and 131,072
+input checks separately. Nested values are limited to 64 levels and 524,288
 values per request or entity snapshot, including nested sets and records. The
 limits also reject cyclic MoonBit value containers. Existing unchecked methods
 retain their behavior and are useful when the application already validates its
@@ -393,7 +397,7 @@ duplicates. Each operation returns a new checked snapshot or raises
 `PolicyError` without changing the original. It checks the complete resulting
 graph, type names, nested values and store limits, even when the original store
 was built with an unchecked constructor. A single operation accepts at most
-4,096 updates or removals.
+16,384 updates or removals.
 
 Apply updates and removals together when changing related entities:
 
@@ -402,7 +406,7 @@ let next_store = store.apply_changes(updated_entities, deleted_ids)
 ```
 
 This creates one snapshot after applying all changes and validates the final
-graph. The two lists may each contain up to 4,096 entries; duplicate IDs,
+graph. The two lists may each contain up to 16,384 entries; duplicate IDs,
 unknown removals and IDs present in both lists raise `PolicyError`. Existing
 entities are replaced in full and retain their positions; new entities are
 appended in update order. If any change fails, the original snapshot remains
@@ -487,7 +491,7 @@ let comparisons = store.compare_with_entities(next_store, policies, updated, [re
 ```
 
 The before policy uses the original store and the after policy uses `next_store`.
-Both stores are validated snapshots, and each comparison accepts at most 4,096
+Both stores are validated snapshots, and each comparison accepts at most 16,384
 requests. The host chooses the requests and controls when the new policy set
 and entity data are activated.
 
@@ -571,14 +575,14 @@ Unsupported policy syntax is rejected rather than ignored. The profile does
 not implement Cedar schema validation or extension types besides IP, decimal,
 duration and datetime. Policy checks are syntax/profile checks,
 not schema validation.
-The CLI reads UTF-8 regular files up to 1 MiB; the parser limits input to
-2,048 tokens, expression nesting to 128, arithmetic chains to 128 operators,
+The CLI reads UTF-8 regular files up to 8 MiB; the parser limits input to
+131,072 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
-authorization to 4,096 entities and 65,536 parent links. Batch authorization
-is limited to 4,096 requests; a policy set, including links, is limited to
-1,024 policies. A removal operation accepts at most 1,024 policy IDs. JSON
-conversion and checked typed requests limit context values to 131,072 nodes;
-JSON entity conversion and `EntityStore` limit attributes and tags to 131,072
+authorization to 16,384 entities and 131,072 parent links. Batch authorization
+is limited to 16,384 requests; a policy set, including links, is limited to
+4,096 policies. A removal operation accepts at most 4,096 policy IDs. JSON
+conversion and checked typed requests limit context values to 524,288 nodes;
+JSON entity conversion and `EntityStore` limit attributes and tags to 524,288
 nodes in total. Values are limited to 64 nested levels. Input and graph limits
 raise errors instead of returning a partial decision.
 
@@ -611,11 +615,25 @@ The demo can be regenerated on Windows with Pillow, FFmpeg and the Microsoft
 Kangkang Chinese voice installed:
 
 ```sh
-python scripts/render_demo.py --engine /path/to/cedar-auth-engine --moon /path/to/moon --ffmpeg /path/to/ffmpeg --output demo.mp4
+python scripts/render_demo.py --engine /path/to/cedar-auth-engine --ffmpeg /path/to/ffmpeg --output demo.mp4
 ```
 
-The script runs the tenant example and MoonBit tests before rendering; the
-displayed decisions and test results come from those runs.
+The script runs the tenant example before rendering; the displayed decisions
+and test results come from those runs.
+
+
+To reproduce the native CLI scale workload, build the CLI and run:
+
+```sh
+python benchmarks/scale.py --engine /path/to/cedar-auth-engine --profile scale --repeat 3 --revision "local build" --toolchain "moonc version" --output benchmarks/scale.json
+```
+
+The benchmark records its inputs, timing samples, and available child-process
+memory measurements. Timings include CLI startup and input parsing. The checked-in
+`baseline.json` uses commit `fb9a17c`; `after.json` uses the same workload with
+this change, and `scale.json` uses the larger workload. All three use native
+debug builds on the recorded machine. To rerun the baseline, build that commit
+in a separate checkout and pass its executable to `--engine`.
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
