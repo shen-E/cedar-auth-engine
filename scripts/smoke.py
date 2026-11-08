@@ -403,6 +403,13 @@ def main():
         report = json.loads(result.stdout)
         assert {key: report[key] for key in ("total", "changed", "decisions_changed", "enforcement_changed", "reasons_changed", "errors_changed")} == {
             "total": 6, "changed": 4, "decisions_changed": 3, "enforcement_changed": 3, "reasons_changed": 3, "errors_changed": 1}
+        compact = run("compare", policy, policy, before, requests, *flags, "--after-entities", after, "--summary", "--format", "json")
+        assert compact.returncode == 0 and json.loads(compact.stdout) == {k: v for k, v in report.items() if k != "cases"}
+        full_text = run("compare", policy, policy, before, requests, *flags, "--after-entities", after)
+        summary_text = run("compare", policy, policy, before, requests, *flags, "--after-entities", after, "--summary")
+        assert full_text.returncode == summary_text.returncode == 0
+        assert summary_text.stdout.splitlines() == [full_text.stdout.splitlines()[-1]]
+        checks += 1
         assert report["cases"][0]["before"]["decision"] == "Deny" and report["cases"][0]["after"]["decision"] == "Allow"
         assert report["cases"][1]["before"]["decision"] == "Allow" and report["cases"][1]["after"]["decision"] == "Deny"
         assert report["cases"][5]["errors_changed"] and not report["cases"][5]["decision_changed"]
@@ -452,6 +459,8 @@ def main():
             for input_file in (requests, empty):
                 bad = run("compare", policy, policy, before, input_file, "--after-entities", invalid, "--format", "json")
                 assert bad.returncode == 2 and not bad.stdout
+                compact = run("compare", policy, policy, before, input_file, "--after-entities", invalid, "--summary", "--format", "json")
+                assert compact.returncode == 2 and not compact.stdout
                 checks += 1
         duplicated_option = run("compare", policy, policy, before, requests, "--after-entities", after, "--after-entities", after)
         assert duplicated_option.returncode == 2 and not duplicated_option.stdout
@@ -503,20 +512,30 @@ def main():
             normal = run("compare", before, after, entities, requests, "--format", "json")
             report = json.loads(normal.stdout)
             assert normal.returncode == 0
+            expected_summary = {k: v for k, v in report.items() if k != "cases"}
+            compact = run("compare", before, after, entities, requests, "--summary", "--format", "json")
+            assert compact.returncode == 0 and json.loads(compact.stdout) == expected_summary
+            checks += 1
             assert tuple(report["cases"][0][field] for field in fields) == expected
             assert tuple(report[field] for field in summary) == tuple(int(value) for value in expected)
             checks += 1
             for flag, should_fail in zip(switches, expected):
                 result = run("compare", before, after, entities, requests, flag, "--format", "json")
                 assert result.returncode == (1 if should_fail else 0) and json.loads(result.stdout) == report
+                compact = run("compare", before, after, entities, requests, flag, "--summary", "--format", "json")
+                assert compact.returncode == result.returncode and json.loads(compact.stdout) == expected_summary
                 checks += 1
             after_error = bool(guard_error and guard_error in new_source)
             assert report["after_error_requests"] == int(after_error)
             error_gate = run("compare", before, after, entities, requests, "--fail-on-after-error", "--format", "json")
             assert error_gate.returncode == (1 if after_error else 0) and json.loads(error_gate.stdout) == report
+            compact = run("compare", before, after, entities, requests, "--fail-on-after-error", "--summary", "--format", "json")
+            assert compact.returncode == error_gate.returncode and json.loads(compact.stdout) == expected_summary
             checks += 1
             combined = run("compare", before, after, entities, requests, *switches[:4], "--format", "json")
             assert combined.returncode == (1 if any(expected[:4]) else 0) and json.loads(combined.stdout) == report
+            compact = run("compare", before, after, entities, requests, *switches[:4], "--summary", "--format", "json")
+            assert compact.returncode == combined.returncode and json.loads(compact.stdout) == expected_summary
             checks += 1
         for flag in (*switches[0:4], "--fail-on-after-error"):
             duplicate = run("compare", before, after, entities, requests, flag, flag)
@@ -526,6 +545,10 @@ def main():
         empty.write_text("[]", encoding="utf-8")
         empty_result = run("compare", before, after, entities, empty, *switches, "--fail-on-after-error", "--format", "json")
         assert empty_result.returncode == 0 and json.loads(empty_result.stdout)["total"] == 0
+        empty_summary = run("compare", before, after, entities, empty, *switches, "--fail-on-after-error", "--summary", "--format", "json")
+        assert empty_summary.returncode == 0 and json.loads(empty_summary.stdout) == {k: v for k, v in json.loads(empty_result.stdout).items() if k != "cases"}
+        duplicate = run("compare", before, after, entities, empty, "--summary", "--summary")
+        assert duplicate.returncode == 2 and not duplicate.stdout
         checks += 1
         before.write_text("", encoding="utf-8")
         after.write_text(permit, encoding="utf-8")
@@ -1124,6 +1147,8 @@ def main():
             assert report["cases"][0]["before"]["decision"] == "Allow"
             assert report["cases"][-1]["after"]["decision"] == ("Deny" if size % 2 == 0 else "Allow")
             assert report["cases"][-1]["index"] == size - 1
+            compact = run("compare", policy, after, entities, requests, "--fail-on-decision-revoke", "--summary", "--format", "json")
+            assert compact.returncode == result.returncode and json.loads(compact.stdout) == {k: v for k, v in report.items() if k != "cases"}
             checks += 1
         requests.write_text(json.dumps([request] * 32769, separators=(",", ":")), encoding="utf-8")
         result = run("compare", policy, after, entities, requests, "--format", "json")
@@ -1132,6 +1157,8 @@ def main():
         requests.write_text(json.dumps([request] * 32767 + [{**request, "resource": None}], separators=(",", ":")), encoding="utf-8")
         result = run("compare", policy, after, entities, requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
+        compact = run("compare", policy, after, entities, requests, "--summary", "--format", "json")
+        assert compact.returncode == 2 and not compact.stdout
         checks += 1
     print("CLI checks passed:", checks)
 

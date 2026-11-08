@@ -4,6 +4,7 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     raise CliError("invalid compare arguments; use --help")
   }
   let mut json = false
+  let mut summary_only = false
   let mut fail_on_change = false
   let mut fail_decision_grant = false
   let mut fail_decision_revoke = false
@@ -21,6 +22,9 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       args[i + 1] == "json" {
       json = true
       i += 2
+    } else if args[i] == "--summary" && !summary_only {
+      summary_only = true
+      i += 1
     } else if args[i] == "--fail-on-change" && !fail_on_change {
       fail_on_change = true
       i += 1
@@ -107,6 +111,22 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       @engine.EntityStore::new_with_tags(
         @engine.tagged_entities_from_json(load_json(path)),
       )
+  }
+  if summary_only {
+    let summary = store.compare_summary_with_entities(
+      after_store, before, after, requests,
+    )
+    print_comparison_summary(summary, json)
+    return if (fail_on_change && summary.changed > 0) ||
+      (fail_decision_grant && summary.decision_grants > 0) ||
+      (fail_decision_revoke && summary.decision_revocations > 0) ||
+      (fail_enforcement_grant && summary.enforcement_grants > 0) ||
+      (fail_enforcement_revoke && summary.enforcement_revocations > 0) ||
+      (fail_after_error && summary.after_error_requests > 0) {
+      1
+    } else {
+      0
+    }
   }
   let comparisons = store.compare_with_entities(
     after_store, before, after, requests,

@@ -56,6 +56,23 @@ pub fn AuthorizationComparison::enforcement_revoked(Self) -> Bool
 pub fn AuthorizationComparison::errors_changed(Self) -> Bool
 pub fn AuthorizationComparison::reasons_changed(Self) -> Bool
 
+pub(all) struct ComparisonSummary {
+  total : Int32
+  changed : Int32
+  decisions_changed : Int32
+  enforcement_changed : Int32
+  reasons_changed : Int32
+  errors_changed : Int32
+  decision_grants : Int32
+  decision_revocations : Int32
+  enforcement_grants : Int32
+  enforcement_revocations : Int32
+  after_error_requests : Int32
+} derive(Eq, @debug.Debug)
+pub fn ComparisonSummary::equal(Self, Self) -> Bool
+pub fn ComparisonSummary::not_equal(Self, Self) -> Bool
+pub fn ComparisonSummary::to_repr(Self) -> @debug.Repr
+
 pub struct DateTime {
   // private fields
 } derive(Eq, @debug.Debug)
@@ -120,6 +137,8 @@ pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Re
 pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
+pub fn EntityStore::compare_summary(Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
+pub fn EntityStore::compare_summary_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
 pub fn EntityStore::compare_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::descendants(Self, EntityId) -> Array[EntityId]
 pub fn EntityStore::entities(Self) -> Array[TaggedEntity]

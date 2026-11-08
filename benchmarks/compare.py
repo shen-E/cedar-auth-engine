@@ -15,6 +15,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', required=True, type=pathlib.Path)
     parser.add_argument('--requests', required=True, type=int)
+    parser.add_argument('--mode', choices=('full', 'summary'), default='full')
     parser.add_argument('--repeat', type=int, default=3)
     parser.add_argument('--revision', required=True)
     parser.add_argument('--toolchain', required=True)
@@ -27,7 +28,7 @@ def main():
     engine = args.engine.resolve()
     entity_count, policy_count = 10000, 2048
     samples, peaks = [], []
-    digest = None
+    digest, output_bytes = None, None
     with tempfile.TemporaryDirectory(prefix='cedar-compare-') as directory:
         temp = pathlib.Path(directory)
         before, after, entities, requests = [temp / name for name in
@@ -49,28 +50,38 @@ def main():
         requests.write_text(json.dumps(cases, separators=(',', ':')), encoding='utf-8')
         command = [engine, 'compare', before, after, entities, requests,
                    '--after-entities', entities, '--format', 'json']
+        if args.mode == 'summary':
+            command.append('--summary')
         for _ in range(args.repeat):
             elapsed, peak, report = timed_run(command, temp)
             expected = args.requests // 2
             if (report['total'] != args.requests or report['changed'] != expected or
                 report['decision_revocations'] != expected or report['enforcement_revocations'] != expected or
-                report['after_error_requests'] != 0 or len(report['cases']) != args.requests or
-                any(item['index'] != i or item['decision_revoked'] != (i % 2 == 1)
-                    for i, item in enumerate(report['cases']))):
+                report['after_error_requests'] != 0):
                 raise RuntimeError('unexpected comparison result')
-            current = hashlib.sha256((temp / 'out.json').read_bytes()).hexdigest()
+            if args.mode == 'summary':
+                if 'cases' in report:
+                    raise RuntimeError('summary unexpectedly includes cases')
+            elif (len(report['cases']) != args.requests or
+                  any(item['index'] != i or item['decision_revoked'] != (i % 2 == 1)
+                      for i, item in enumerate(report['cases']))):
+                raise RuntimeError('unexpected comparison cases')
+            output = (temp / 'out.json').read_bytes()
+            current = hashlib.sha256(output).hexdigest()
             if digest is not None and digest != current:
                 raise RuntimeError('comparison output differs between samples')
             digest = current
+            output_bytes = len(output)
             samples.append(elapsed)
             peaks.append(peak)
     result = {
-        'command': 'python benchmarks/compare.py --engine <ENGINE> --requests <REQUESTS> --repeat <REPEAT> --revision <REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT>',
+        'command': 'python benchmarks/compare.py --engine <ENGINE> --mode <MODE> --requests <REQUESTS> --repeat <REPEAT> --revision <REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT>',
         'source_revision': args.revision,
         'engine_sha256': hashlib.sha256(engine.read_bytes()).hexdigest(),
         'moonbit_toolchain': args.toolchain,
         'environment': metadata(),
         'requests': args.requests,
+        'mode': args.mode,
         'repetitions': args.repeat,
         'seed': None,
         'entities_per_snapshot': entity_count,
@@ -85,6 +96,7 @@ def main():
         'median_seconds': statistics.median(samples),
         'peak_memory_bytes': peaks,
         'output_sha256': digest,
+        'output_bytes': output_bytes,
     }
     args.output.write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(result, indent=2))

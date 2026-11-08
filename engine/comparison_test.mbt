@@ -36,6 +36,29 @@ test "compare decisions and fail-closed enforcement independently" {
   assert_false(items[2].changed())
   assert_true(items[2].before.is_authorized() && items[2].after.is_authorized())
   assert_true(store.compare(before, after, []).is_empty())
+  let summary = store.compare_summary(before, after, [request, deny, unchanged])
+  let expected = @engine.ComparisonSummary::{
+    total: 3,
+    changed: 2,
+    decisions_changed: 1,
+    enforcement_changed: 2,
+    reasons_changed: 1,
+    errors_changed: 1,
+    decision_grants: 0,
+    decision_revocations: 1,
+    enforcement_grants: 0,
+    enforcement_revocations: 2,
+    after_error_requests: 1,
+  }
+  assert_true(summary == expected)
+  assert_true(
+    store.compare_summary_with_entities(store, before, after, [
+      request, deny, unchanged,
+    ]) ==
+    expected,
+  )
+  let empty_summary = store.compare_summary(before, after, [])
+  assert_true(empty_summary.total == 0 && empty_summary.changed == 0)
 }
 
 ///|
@@ -97,6 +120,7 @@ test "comparison batch limit is enforced before returning results" {
   }
   let requests = Array::make(32768, request)
   assert_true(store.compare(empty, empty, requests).length() == 32768)
+  assert_true(store.compare_summary(empty, empty, requests).total == 32768)
   requests.push(request)
   let rejected = try {
     let _ = store.compare(empty, empty, requests)
@@ -105,6 +129,13 @@ test "comparison batch limit is enforced before returning results" {
     _ => true
   }
   assert_true(rejected)
+  let summary_rejected = try {
+    let _ = store.compare_summary(empty, empty, requests)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(summary_rejected)
 }
 
 ///|
@@ -259,6 +290,13 @@ test "large comparisons preserve independent snapshots and request order" {
     assert_true(changes[i].before.errors.is_empty())
     assert_true(changes[i].after.errors.is_empty())
   }
+  let summary = before.compare_summary_with_entities(
+    after, policies, policies, requests,
+  )
+  assert_true(summary.total == 32768 && summary.changed == 16384)
+  assert_true(summary.decision_revocations == 16384)
+  assert_true(summary.enforcement_revocations == 16384)
+  assert_true(summary.after_error_requests == 0)
 }
 
 ///|

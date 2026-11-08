@@ -105,6 +105,16 @@ counts requests in each category. A request can count in multiple categories.
 It also counts grants and revocations for Cedar decisions and for fail-closed
 enforcement separately; each case includes the corresponding direction flags.
 
+Add `--summary` to return only the aggregate counts, without individual cases.
+It accepts the same policies, entity snapshots and exit-status checks as the
+full report. All input is validated before output, and the engine does not
+retain per-request responses during summary evaluation. JSON output omits the
+`cases` field; text output contains only the summary line.
+
+```sh
+moon run cmd/cedar-auth-engine --target native -- compare examples/multi-template/policy.cedar examples/policy-comparison/after.cedar examples/multi-template/entities.json examples/policy-comparison/requests.json --summary --format json
+```
+
 `--fail-on-change` exits 1 when any decision, reason or error changes. For
 selective checks, use `--fail-on-decision-grant`, `--fail-on-decision-revoke`,
 `--fail-on-enforcement-grant` or `--fail-on-enforcement-revoke`. Each exits 1
@@ -513,6 +523,11 @@ The before policy uses the original store and the after policy uses `next_store`
 Both stores are validated snapshots, and each comparison accepts at most 32,768
 requests. The host chooses the requests and controls when the new policy set
 and entity data are activated.
+
+Use `store.compare_summary(before, after, requests)` or
+`store.compare_summary_with_entities(next_store, before, after, requests)` to
+obtain aggregate counts without retaining individual responses. The summary
+counts and batch limit match the full comparison methods.
 
 ## Supported policy profile
 
