@@ -1,0 +1,52 @@
+{
+  "command": "python benchmarks/principal.py --scope <SCOPE> --policies <POLICIES> --requests <REQUESTS> --before <BEFORE> --after <AFTER> --before-revision <BEFORE_REVISION> --after-revision <AFTER_REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT> --repeat <REPEAT>",
+  "before_revision": "0ebf084b74d49f358ee15c68e60c50a20d97a2bc",
+  "after_revision": "f97f53944223ceed6ec4911c18a39b1350d2a681",
+  "engine_sha256": {
+    "before": "556a1e5fca5ec9c0e44b2f64a7a5d1b2e90adff59722600c2fe6cce7ec5e34b5",
+    "after": "c2d14a84f8a0fff6e295179cf5675408ca89101cb9e8b0c28dcf8ecff7129277"
+  },
+  "toolchain": "moonc 0.10.18+6c83a7f62",
+  "environment": {
+    "python": "3.12.16",
+    "runner": {
+      "source": "github-hosted",
+      "os": "Linux",
+      "arch": "X64",
+      "image": "ubuntu24",
+      "logical_cpus": 4,
+      "cpu_model": "AMD EPYC 9V45 96-Core Processor",
+      "memory_kib": 16367524,
+      "run_url": "https://github.com/shen-E/cedar-auth-engine/actions/runs/42465167003"
+    }
+  },
+  "scope": "resource",
+  "policies": 4096,
+  "requests": 16384,
+  "entities": 0,
+  "matching_policies": 1,
+  "repeat": 3,
+  "seed": null,
+  "measurement": "CLI wall time including startup, parsing, evaluation and JSON output; alternated run order",
+  "output_sha256": "72832743f50fdd448c01b56f8084fc33d7beac03931fffa1265481cd145e1bf5",
+  "results": {
+    "before": {
+      "seconds": [
+        17.847434915999997,
+        18.300904679,
+        18.176975757999998
+      ],
+      "median_seconds": 18.176975757999998,
+      "requests_per_second": 901.36006220887
+    },
+    "after": {
+      "seconds": [
+        0.3096496949999974,
+        0.3087888120000031,
+        0.31898161499999844
+      ],
+      "median_seconds": 0.3096496949999974,
+      "requests_per_second": 52911.403642752295
+    }
+  }
+}

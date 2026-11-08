@@ -652,8 +652,9 @@ Use `--scope principal` or `--scope resource`; run
 `python benchmarks/principal.py --help` for inputs and options.
 
 The checked-in [baseline](benchmarks/baseline.json), [after](benchmarks/after.json),
-[scale](benchmarks/scale.json), and [principal comparison](benchmarks/principal.json)
-were measured on a GitHub-hosted runner. Each report records the source revisions,
+[scale](benchmarks/scale.json), [principal comparison](benchmarks/principal.json),
+and [resource comparison](benchmarks/resource.json) were measured on
+GitHub-hosted runners. Each report records the source revisions,
 workload, toolchain, runner configuration, and run link.
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
