@@ -1,0 +1,46 @@
+name: Measure resource-scoped authorization
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s '0.10.18+6c83a7f62'
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Build comparison revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          before=0ebf084b74d49f358ee15c68e60c50a20d97a2bc
+          mkdir -p "$RUNNER_TEMP/before-resource"
+          git archive "$before" | tar -x -C "$RUNNER_TEMP/before-resource"
+          (cd "$RUNNER_TEMP/before-resource" && moon build cmd/cedar-auth-engine --target native)
+          moon build cmd/cedar-auth-engine --target native
+      - name: Compare resource policies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python benchmarks/principal.py --scope resource --policies 4096 --requests 16384 \
+            --before "$RUNNER_TEMP/before-resource/_build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe" \
+            --after _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe \
+            --before-revision 0ebf084b74d49f358ee15c68e60c50a20d97a2bc \
+            --after-revision "$GITHUB_SHA" --toolchain 'moonc 0.10.18+6c83a7f62' \
+            --output resource.json --repeat 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: resource-authorization-benchmark
+          path: resource.json
+          if-no-files-found: error

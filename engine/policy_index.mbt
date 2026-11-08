@@ -4,6 +4,7 @@
 fn make_policy_set(policies : Array[Policy]) -> PolicySet {
   let action_index : Map[String, Array[Int32]] = Map([])
   let principal_index : Map[String, Array[Int32]] = Map([])
+  let resource_index : Map[String, Array[Int32]] = Map([])
   let fallback = []
   for i in 0..<policies.length() {
     let principal = match policies[i].principal_scope {
@@ -13,13 +14,18 @@ fn make_policy_set(policies : Array[Policy]) -> PolicySet {
     match principal {
       Some(uid) => add_policy_position(principal_index, uid, i)
       None =>
-        match policies[i].action_key {
-          Some(uid) => add_policy_position(action_index, uid, i)
-          None => fallback.push(i)
+        match policies[i].resource_scope {
+          Some(Equal(Variable("resource"), Literal(EntityValue(uid)))) =>
+            add_policy_position(resource_index, uid, i)
+          _ =>
+            match policies[i].action_key {
+              Some(uid) => add_policy_position(action_index, uid, i)
+              None => fallback.push(i)
+            }
         }
     }
   }
-  { policies, action_index, principal_index, fallback, }
+  { policies, action_index, principal_index, resource_index, fallback, }
 }
 
 ///|

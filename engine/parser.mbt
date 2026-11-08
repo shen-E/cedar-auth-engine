@@ -761,6 +761,15 @@ fn parse_policy_data(
       ) => Some(uid)
       _ => None
     }
+    // Earlier scopes must not raise errors before a resource mismatch.
+    let resource_scope = match (p, a) {
+      (Literal(BoolValue(true)), Literal(BoolValue(true))) => Some(r)
+      (
+        Literal(BoolValue(true)),
+        Equal(Variable("action"), Literal(EntityValue(_))),
+      ) => Some(r)
+      _ => None
+    }
     policies.push({
       id,
       forbid: effect == "forbid",
@@ -768,6 +777,7 @@ fn parse_policy_data(
       annotations,
       action_key,
       principal_scope: p,
+      resource_scope,
     })
     if policies.length() > 4096 {
       raise PolicyError("policy count limit exceeded")

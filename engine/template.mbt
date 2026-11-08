@@ -131,6 +131,10 @@ pub fn PolicySet::link_batch(
         template.policy.principal_scope,
         link.bindings,
       ),
+      resource_scope: match template.policy.resource_scope {
+        Some(scope) => Some(bind_scope_slots(scope, link.bindings))
+        None => None
+      },
     })
   }
   make_policy_set(policies)

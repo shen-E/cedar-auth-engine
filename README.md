@@ -364,8 +364,10 @@ separate from the store. The snapshot is used in memory and performs no I/O.
 For more than 16,384 requests, the application can submit successive batches
 against the same snapshot and process each response array before continuing.
 Exact principal scopes and exact action scopes with an unrestricted principal
-are indexed. Template links with an exact principal are indexed after binding.
-Other policies and matching indexed policies are evaluated in source order.
+are indexed. Exact resource scopes are indexed when the principal is unrestricted
+and the action is unrestricted or an exact entity. Template links are indexed
+after binding when they meet these conditions. Other policies and matching
+indexed policies are evaluated in source order.
 
 When constructing input values directly in MoonBit, checked entry points also
 validate entity type names in the graph, request and nested values:
@@ -645,7 +647,9 @@ python benchmarks/scale.py --engine /path/to/cedar-auth-engine --profile scale -
 
 Replace the example revision with the source commit used to build the engine. The benchmark records workload parameters, timing samples and available process memory.
 
-The principal comparison measures individual sharing policies on two native builds. Run `python benchmarks/principal.py --help` for inputs and options.
+The scope comparison measures individual sharing policies on two native builds.
+Use `--scope principal` or `--scope resource`; run
+`python benchmarks/principal.py --help` for inputs and options.
 
 The checked-in [baseline](benchmarks/baseline.json), [after](benchmarks/after.json),
 [scale](benchmarks/scale.json), and [principal comparison](benchmarks/principal.json)

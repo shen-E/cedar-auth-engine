@@ -234,3 +234,109 @@ test "principal template bindings and policy changes rebuild indexes" {
   assert_true(authorize(linked, request, []).reasons == ["alice"])
   assert_true(authorize(changed, request, []).decision == Deny)
 }
+
+///|
+test "resource index preserves scan order and diagnostics" {
+  let policies = parse_policies(
+    "@id(\"first\") permit(principal, action == Action::\"read\", resource == File::\"report\");" +
+    "@id(\"user\") permit(principal == User::\"alice\", action, resource);" +
+    "@id(\"guard\") forbid(principal, action, resource == File::\"report\") when { context.missing };" +
+    "@id(\"action\") permit(principal, action == Action::\"read\", resource);" +
+    "@id(\"fallback\") permit(principal in Group::\"team\", action, resource == File::\"other\") when { context.unknown };" +
+    "@id(\"deny\") forbid(principal, action, resource == File::\"report\") when { context.blocked };",
+  )
+  assert_true(policies.resource_index.length() == 1)
+  assert_true(policies.principal_index.length() == 1)
+  assert_true(policies.action_index.length() == 1)
+  assert_true(policies.fallback.length() == 1)
+  let graph = build_entity_graph([])
+  for principal in ["alice", "bob"] {
+    for action in ["read", "write"] {
+      for resource in ["report", "other", "absent"] {
+        for blocked in [true, false] {
+          let request : Request = {
+            principal: { kind: "User", id: principal, },
+            action: { kind: "Action", id: action, },
+            resource: { kind: "File", id: resource, },
+            context: { "blocked": BoolValue(blocked) },
+          }
+          let indexed = authorize_selected(
+            policies,
+            request,
+            EvaluationContext::new(graph),
+            true,
+          )
+          let scan = authorize_selected(
+            policies,
+            request,
+            EvaluationContext::new(graph),
+            false,
+          )
+          assert_true(
+            response_to_json(indexed).stringify() ==
+            response_to_json(scan).stringify(),
+          )
+          if principal == "alice" && action == "read" && resource == "report" {
+            assert_true(indexed.errors.length() == 1)
+            assert_true(indexed.errors[0].policy_id == "guard")
+            if blocked {
+              assert_true(
+                indexed.decision == Deny && indexed.reasons == ["deny"],
+              )
+            } else {
+              assert_true(indexed.reasons == ["first", "user", "action"])
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+///|
+test "resource template links and updates rebuild the index" {
+  let template = parse_template(
+    "permit(principal, action == Action::\"read\", resource == ?resource);",
+  )
+  let a : EntityId = { kind: "File", id: "a", }
+  let b : EntityId = { kind: "File", id: "b", }
+  let initial = parse_policies("")
+  let linked = initial.link_batch(template, [
+    { id: "a", bindings: { principal: None, resource: Some(a), }, },
+    { id: "b", bindings: { principal: None, resource: Some(b), }, },
+  ])
+  assert_true(linked.resource_index.length() == 2)
+  let changed = linked.replace(
+    parse_policies(
+      "@id(\"a\") forbid(principal, action, resource == File::\"b\");",
+    ),
+  )
+  let removed = changed.remove("b")
+  let added = removed.merge(
+    parse_policies(
+      "@id(\"c\") permit(principal, action, resource == File::\"c\");",
+    ),
+  )
+  let graph = build_entity_graph([])
+  for set in [initial, linked, changed, removed, added] {
+    for id in ["a", "b", "c", "none"] {
+      let request = { ..sample_request(), resource: { kind: "File", id, }, }
+      let indexed = authorize_selected(
+        set,
+        request,
+        EvaluationContext::new(graph),
+        true,
+      )
+      let scan = authorize_selected(
+        set,
+        request,
+        EvaluationContext::new(graph),
+        false,
+      )
+      assert_true(
+        response_to_json(indexed).stringify() ==
+        response_to_json(scan).stringify(),
+      )
+    }
+  }
+}

@@ -563,16 +563,22 @@ fn authorize_selected(
   let principals = policies.principal_index
     .get(entity_key(request.principal))
     .unwrap_or([])
+  let resources = policies.resource_index
+    .get(entity_key(request.resource))
+    .unwrap_or([])
   let use_index = indexed &&
-    actions.length() + principals.length() < policies.policies.length()
+    actions.length() + principals.length() + resources.length() <
+    policies.policies.length()
   let mut fallback_pos = 0
   let mut action_pos = 0
   let mut principal_pos = 0
+  let mut resource_pos = 0
   let mut scan_pos = 0
   while (if use_index {
           fallback_pos < policies.fallback.length() ||
           action_pos < actions.length() ||
-          principal_pos < principals.length()
+          principal_pos < principals.length() ||
+          resource_pos < resources.length()
         } else {
           scan_pos < policies.policies.length()
         }) {
@@ -591,13 +597,19 @@ fn authorize_selected(
       if principal_pos < principals.length() && principals[principal_pos] < next {
         next = principals[principal_pos]
       }
+      if resource_pos < resources.length() && resources[resource_pos] < next {
+        next = resources[resource_pos]
+      }
       if fallback_pos < policies.fallback.length() &&
         policies.fallback[fallback_pos] == next {
         fallback_pos += 1
       } else if action_pos < actions.length() && actions[action_pos] == next {
         action_pos += 1
-      } else {
+      } else if principal_pos < principals.length() &&
+        principals[principal_pos] == next {
         principal_pos += 1
+      } else {
+        resource_pos += 1
       }
       next
     }

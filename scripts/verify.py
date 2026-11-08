@@ -1275,6 +1275,22 @@ def main():
             count += 1
             if ref["errors"] or results[index] != (ref["decision"] == "Allow"):
                 mismatches.append({"case": "membership batch: " + str(index), "reference": ref, "actual": results[index]})
+        policy.write_text(
+            '@id("report") permit(principal, action == Action::"read", resource == Document::"roadmap");'
+            '@id("guard") forbid(principal, action, resource == Document::"roadmap") when { context.missing };'
+            '@id("team") permit(principal in Group::"editors", action, resource == Document::"other");'
+            '@id("other") forbid(principal, action == Action::"write", resource == Document::"other");',
+            encoding="utf-8")
+        for subject in (alice, bob):
+            for action in ("read", "write"):
+                for resource in ("roadmap", "other", "absent"):
+                    case = {"principal": subject, "action": {"type": "Action", "id": action},
+                            "resource": {"type": "Document", "id": resource}, "context": {}}
+                    ref = reference(args.cedar, policy, entities, case, temp)
+                    got = actual(args.engine, policy, entities, case, temp)
+                    count += 1
+                    if ref != got:
+                        mismatches.append({"case": "resource index", "request": case, "reference": ref, "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
