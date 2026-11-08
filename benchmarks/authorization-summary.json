@@ -1,0 +1,67 @@
+{
+  "command": "python benchmarks/authorization_summary.py --engine <ENGINE> --requests <REQUESTS> --repeat <REPEAT> --revision <REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT>",
+  "source_revision": "cd303c38b27f470063f23ddf3cfb7bb1c46c1f14",
+  "engine_sha256": "1f37d5a3803549435760d3353f88e41236696eef47dc899460ff81c90b095354",
+  "moonbit_toolchain": "moonc 0.10.18+6c83a7f62",
+  "environment": {
+    "python": "3.12.16",
+    "runner": {
+      "source": "github-hosted",
+      "os": "Linux",
+      "arch": "X64",
+      "image": "ubuntu24",
+      "logical_cpus": 4,
+      "cpu_model": "AMD EPYC 7763 64-Core Processor",
+      "memory_kib": 16367528,
+      "run_url": "https://github.com/shen-E/cedar-auth-engine/actions/runs/42482698428"
+    }
+  },
+  "requests": 32768,
+  "repetitions": 3,
+  "seed": null,
+  "entities": 10000,
+  "policies": 2050,
+  "workload": "alternating allow, explicit deny and allow with an evaluation error",
+  "expected_summary": {
+    "total": 32768,
+    "cedar_allowed": 21845,
+    "cedar_denied": 10923,
+    "error_requests": 10922,
+    "enforcement_allowed": 10923,
+    "enforcement_denied": 21845
+  },
+  "measurement_note": "CLI wall time includes startup, input parsing, authorization and JSON output; mode order alternates",
+  "memory_note": "sampled child peak working set on Windows or VmHWM on Linux; null if unavailable",
+  "modes": {
+    "full": {
+      "seconds": [
+        1.2486527289999998,
+        1.2210021429999998,
+        1.2043447160000014
+      ],
+      "peak_memory_bytes": [
+        90779648,
+        90783744,
+        90787840
+      ],
+      "output_sha256": "ce81d26cbf2369674233e9b21ecd070e3e0ddfcf13c1eb2e4e50b6d639ebffcb",
+      "output_bytes": 2370182,
+      "median_seconds": 1.2210021429999998
+    },
+    "summary": {
+      "seconds": [
+        1.0727599490000017,
+        1.0342695579999983,
+        1.0507719179999953
+      ],
+      "peak_memory_bytes": [
+        90726400,
+        90726400,
+        90726400
+      ],
+      "output_sha256": "d4c136cbc90d282d579e69fdda9704ccd656fcb6e8be53443a5cee315cef5569",
+      "output_bytes": 137,
+      "median_seconds": 1.0507719179999953
+    }
+  }
+}

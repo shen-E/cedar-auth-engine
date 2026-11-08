@@ -700,6 +700,9 @@ The policy comparison workload is recorded separately for
 The same 32,768-request workload also compares
 [full output](benchmarks/compare-full.json) with
 [summary output](benchmarks/compare-summary.json).
+The [authorization summary benchmark](benchmarks/authorization-summary.json)
+compares full and summary batch output using allows, explicit denies and
+evaluation errors.
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
