@@ -194,6 +194,12 @@ priv enum SetOp {
 } derive(Debug)
 
 ///|
+priv struct PolicyClause {
+  unless : Bool
+  expression : Expr
+}
+
+///|
 priv struct Policy {
   id : String
   forbid : Bool
@@ -201,6 +207,9 @@ priv struct Policy {
   annotations : Map[String, String]
   action_key : EntityId?
   principal_scope : Expr
+  action_scope : Expr
+  resource_expression : Expr
+  clauses : Array[PolicyClause]
   resource_scope : Expr?
 }
 

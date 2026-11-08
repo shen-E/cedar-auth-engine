@@ -36,7 +36,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.ced
 moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
-moon run cmd/cedar-auth-engine --target native -- explain examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/request.json --format json
+moon run cmd/cedar-auth-engine --target native -- explain examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/request.json --stages --format json
 moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- enforce-batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
@@ -65,7 +65,11 @@ and one outcome per policy, in policy order. Outcomes are `matched`,
 permit may still be overridden by a matched forbid, so the response's
 determining reasons can differ from the full list of matched policies.
 `--strict` exits 1 on policy errors, while invalid input exits 2 without output.
-The explanation evaluates every policy and does not trace individual expressions.
+Add `--stages` to include the principal, action and resource scopes and each
+top-level `when` or `unless` clause in evaluation order. Each stage is `passed`,
+`failed`, `error` or `skipped`; later stages are skipped after a failure or error.
+An `unless` stage passes when its expression evaluates to false. The explanation
+evaluates every policy; it does not trace subexpressions within a stage.
 It accepts policy additions, template links, replacements and removals.
 
 `check-entities ENTITIES` validates the entity graph and reports parent IDs
@@ -284,7 +288,9 @@ It does not alter the Cedar response, which remains available for diagnostics.
 For per-policy outcomes, use `store.authorize_trace(policies, request)` or
 `store.authorize_trace_checked(policies, request)` with an `EntityStore`.
 The trace includes the regular response and a policy-ordered list of effects and
-outcomes; the checked method validates the typed request first.
+outcomes; the checked method validates the typed request first. Use
+`store.authorize_details(policies, request)` for stage outcomes, or
+`store.authorize_details_checked(policies, request)` to validate the request.
 
 `parse_json`, `request_from_json`, `tagged_entities_from_json` and
 `response_to_json` provide the JSON boundary. Pass tagged entities to

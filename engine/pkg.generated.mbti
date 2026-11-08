@@ -14,6 +14,8 @@ pub fn authorize_batch_summary_with_tags(PolicySet, Array[Request], Array[Tagged
 
 pub fn authorize_batch_with_tags(PolicySet, Array[Request], Array[TaggedEntity]) -> Array[Response] raise PolicyError
 
+pub fn authorize_details_with_tags(PolicySet, Request, Array[TaggedEntity]) -> AuthorizationDetails raise PolicyError
+
 pub fn authorize_trace_with_tags(PolicySet, Request, Array[TaggedEntity]) -> AuthorizationTrace raise PolicyError
 
 pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
@@ -59,6 +61,12 @@ pub fn AuthorizationComparison::enforcement_granted(Self) -> Bool
 pub fn AuthorizationComparison::enforcement_revoked(Self) -> Bool
 pub fn AuthorizationComparison::errors_changed(Self) -> Bool
 pub fn AuthorizationComparison::reasons_changed(Self) -> Bool
+
+pub(all) struct AuthorizationDetails {
+  response : Response
+  policies : Array[DetailedPolicyTrace]
+} derive(@debug.Debug)
+pub fn AuthorizationDetails::to_repr(Self) -> @debug.Repr
 
 pub(all) struct AuthorizationSummary {
   total : Int32
@@ -119,6 +127,16 @@ pub fn Decision::equal(Self, Self) -> Bool
 pub fn Decision::not_equal(Self, Self) -> Bool
 pub fn Decision::to_repr(Self) -> @debug.Repr
 
+pub(all) struct DetailedPolicyTrace {
+  policy_id : String
+  effect : String
+  outcome : PolicyOutcome
+  stages : Array[PolicyStage]
+} derive(Eq, @debug.Debug)
+pub fn DetailedPolicyTrace::equal(Self, Self) -> Bool
+pub fn DetailedPolicyTrace::not_equal(Self, Self) -> Bool
+pub fn DetailedPolicyTrace::to_repr(Self) -> @debug.Repr
+
 pub(all) struct Diagnostic {
   policy_id : String
   message : String
@@ -160,6 +178,8 @@ pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> 
 pub fn EntityStore::authorize_batch_summary(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
 pub fn EntityStore::authorize_batch_summary_checked(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
+pub fn EntityStore::authorize_details(Self, PolicySet, Request) -> AuthorizationDetails
+pub fn EntityStore::authorize_details_checked(Self, PolicySet, Request) -> AuthorizationDetails raise PolicyError
 pub fn EntityStore::authorize_trace(Self, PolicySet, Request) -> AuthorizationTrace
 pub fn EntityStore::authorize_trace_checked(Self, PolicySet, Request) -> AuthorizationTrace raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
@@ -223,6 +243,14 @@ pub fn PolicySet::remove(Self, String) -> Self raise PolicyError
 pub fn PolicySet::remove_batch(Self, Array[String]) -> Self raise PolicyError
 pub fn PolicySet::replace(Self, Self) -> Self raise PolicyError
 
+pub(all) struct PolicyStage {
+  kind : String
+  outcome : StageOutcome
+} derive(Eq, @debug.Debug)
+pub fn PolicyStage::equal(Self, Self) -> Bool
+pub fn PolicyStage::not_equal(Self, Self) -> Bool
+pub fn PolicyStage::to_repr(Self) -> @debug.Repr
+
 pub struct PolicyTemplate {
   // private fields
 }
@@ -253,6 +281,16 @@ pub(all) struct Response {
 } derive(@debug.Debug)
 pub fn Response::is_authorized(Self) -> Bool
 pub fn Response::to_repr(Self) -> @debug.Repr
+
+pub(all) enum StageOutcome {
+  StagePassed
+  StageFailed
+  StageSkipped
+  StageError(String)
+} derive(Eq, @debug.Debug)
+pub fn StageOutcome::equal(Self, Self) -> Bool
+pub fn StageOutcome::not_equal(Self, Self) -> Bool
+pub fn StageOutcome::to_repr(Self) -> @debug.Repr
 
 pub(all) struct TaggedEntity {
   entity : Entity

@@ -1222,6 +1222,21 @@ def main():
             ("error", "permit", "error"), ("other", "permit", "not_matched")]
         assert trace["policies"][2]["message"] == trace["response"]["errors"][0]["message"]
         checks += 1
+        detailed = run("explain", policy, entities, request, "--stages", "--format", "json", "--strict")
+        assert detailed.returncode == 1
+        detail = json.loads(detailed.stdout)
+        assert detail["response"] == trace["response"]
+        for got, expected in zip(detail["policies"], trace["policies"]):
+            assert {key: value for key, value in got.items() if key != "stages"} == expected
+        assert [s["outcome"] for s in detail["policies"][3]["stages"]] == ["failed", "skipped", "skipped", "skipped"]
+        assert detail["policies"][2]["stages"][3]["message"] == trace["policies"][2]["message"]
+        detailed_text = run("explain", policy, entities, request, "--stages")
+        assert detailed_text.returncode == 0 and "  principal: failed" in detailed_text.stdout and "  when: skipped" in detailed_text.stdout
+        duplicate_stage = run("explain", policy, entities, request, "--stages", "--stages")
+        other_command = run("authorize", policy, entities, request, "--stages")
+        assert duplicate_stage.returncode == other_command.returncode == 2
+        assert not duplicate_stage.stdout and not other_command.stdout
+        checks += 1
         strict = run("explain", policy, entities, request, "--strict", "--format", "json")
         assert strict.returncode == 1 and json.loads(strict.stdout) == trace
         text_trace = run("explain", policy, entities, request, "--strict")

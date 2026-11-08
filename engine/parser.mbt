@@ -739,11 +739,13 @@ fn parse_policy_data(
     let _ = parser.accept(",")
     parser.expect(")")
     let mut condition = And(And(p, a), r)
+    let clauses : Array[PolicyClause] = []
     while parser.peek() == "when" || parser.peek() == "unless" {
       let unless = parser.take() == "unless"
       parser.expect("{")
       let e = parser.expression()
       parser.expect("}")
+      clauses.push({ unless, expression: e, })
       condition = And(condition, if unless { Not(e) } else { e })
     }
     parser.expect(";")
@@ -777,6 +779,9 @@ fn parse_policy_data(
       annotations,
       action_key,
       principal_scope: p,
+      action_scope: a,
+      resource_expression: r,
+      clauses,
       resource_scope,
     })
     if policies.length() > 4096 {

@@ -131,6 +131,12 @@ pub fn PolicySet::link_batch(
         template.policy.principal_scope,
         link.bindings,
       ),
+      action_scope: template.policy.action_scope,
+      resource_expression: bind_scope_slots(
+        template.policy.resource_expression,
+        link.bindings,
+      ),
+      clauses: template.policy.clauses.copy(),
       resource_scope: match template.policy.resource_scope {
         Some(scope) => Some(bind_scope_slots(scope, link.bindings))
         None => None

@@ -30,6 +30,9 @@ test "trace policy outcomes through the public library" {
   assert_true(trace.response.decision == @engine.Allow)
   assert_true(trace.policies[0].outcome == @engine.Matched)
   assert_true(trace.policies[1].outcome is @engine.EvaluationFailed(_))
+  let details = store.authorize_details_checked(policies, request)
+  assert_true(details.policies[0].stages[1].outcome == @engine.StagePassed)
+  assert_true(details.policies[1].stages[3].outcome is @engine.StageError(_))
 }
 
 ///|

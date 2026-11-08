@@ -1324,6 +1324,50 @@ def main():
                 count += 1
                 if item["policy_id"] != policy_id or item["outcome"] != expected_outcome:
                     mismatches.append({"case": "trace policy " + policy_id, "expected": expected_outcome, "actual": item})
+        # Each prefix identifies the first scope or clause that stops matching.
+        stage_sources = (
+            '@id("stage") permit(principal == User::"alice", action, resource);',
+            '@id("stage") permit(principal == User::"alice", action == Action::"read", resource);',
+            '@id("stage") permit(principal == User::"alice", action == Action::"read", resource == Document::"roadmap");',
+            '@id("stage") permit(principal == User::"alice", action == Action::"read", resource == Document::"roadmap") when { context.active };',
+            '@id("stage") permit(principal == User::"alice", action == Action::"read", resource == Document::"roadmap") when { context.active } unless { context.blocked };',
+            '@id("stage") permit(principal == User::"alice", action == Action::"read", resource == Document::"roadmap") when { context.active } unless { context.blocked } when { context.extra };',
+        )
+        stage_cases = (
+            ("bob", "read", "roadmap", {}),
+            ("alice", "write", "roadmap", {}),
+            ("alice", "read", "other", {}),
+            ("alice", "read", "roadmap", {}),
+            ("alice", "read", "roadmap", {"active": False}),
+            ("alice", "read", "roadmap", {"active": True, "blocked": True}),
+            ("alice", "read", "roadmap", {"active": True, "blocked": False}),
+            ("alice", "read", "roadmap", {"active": True, "blocked": False, "extra": True}),
+            ("alice", "read", "roadmap", {"active": "wrong"}),
+        )
+        trace_policy.write_text(stage_sources[-1], encoding="utf-8")
+        for subject, action, resource_id, context in stage_cases:
+            case = {"principal": {"type": "User", "id": subject},
+                    "action": {"type": "Action", "id": action},
+                    "resource": {"type": "Document", "id": resource_id}, "context": context}
+            trace_request.write_text(json.dumps(case), encoding="utf-8")
+            output = run([args.engine, "explain", trace_policy, entities, trace_request, "--stages", "--format", "json"])
+            if output.returncode != 0:
+                raise RuntimeError("stage explanation failed: " + output.stderr)
+            stages = json.loads(output.stdout)["policies"][0]["stages"]
+            if [stage["kind"] for stage in stages] != ["principal", "action", "resource", "when", "unless", "when"]:
+                mismatches.append({"case": "stage order", "actual": stages})
+            stopped = False
+            for stage, source in zip(stages, stage_sources):
+                if stopped:
+                    expected = "skipped"
+                else:
+                    single_policy.write_text(source, encoding="utf-8")
+                    ref = reference(args.cedar, single_policy, entities, case, temp)
+                    expected = "error" if ref["errors"] else "passed" if ref["decision"] == "Allow" else "failed"
+                    stopped = expected != "passed"
+                count += 1
+                if stage["outcome"] != expected:
+                    mismatches.append({"case": "stage prefix", "request": case, "expected": expected, "actual": stage})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
