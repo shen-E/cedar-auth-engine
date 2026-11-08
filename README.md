@@ -94,6 +94,18 @@ accept `--format json`, `--template` and `--links`; `--strict` is for the
 `authorize` and `batch` commands. A policy error, including a comparison-limit
 error, prevents enforcement from allowing the request.
 
+Add `--summary` to `batch` or `enforce-batch` to receive aggregate counts
+instead of individual responses. The summary reports `total`, `cedar_allowed`,
+`cedar_denied`, `error_requests`, `enforcement_allowed` and
+`enforcement_denied`. An `Allow` with policy errors counts as a Cedar allow,
+an error request and an enforcement denial. Exit statuses and input validation
+match the corresponding full-output command. Use the full output when each
+individual decision or diagnostic is needed.
+
+```sh
+moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --summary --format json
+```
+
 `compare BEFORE AFTER ENTITIES REQUESTS` evaluates two policy sets against an
 array of requests. By default both sides use `ENTITIES`; add
 `--after-entities FILE` to evaluate the after side with a separate entity
@@ -388,7 +400,12 @@ validate entity type names in the graph, request and nested values:
 let store = @engine.EntityStore::new_with_tags_checked(entities)
 let response = store.authorize_checked(policies, request)
 let responses = store.authorize_batch_checked(policies, [request])
+let summary = store.authorize_batch_summary_checked(policies, [request])
 ```
+
+`authorize_batch_summary` and its checked variant count decisions and errors
+without retaining individual responses. Both accept up to 32,768 requests; the
+checked variant validates all typed requests before evaluation.
 
 Use `EntityStore::new_checked` for entities without tags. Checked constructors
 validate entity IDs, parent IDs and entity references in attributes and tags,

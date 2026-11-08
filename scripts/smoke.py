@@ -50,6 +50,13 @@ def main():
         batch = run("batch", policy, entities, batch_file, "--links", links, "--format", "json", "--template", template)
         responses = json.loads(batch.stdout)
         assert batch.returncode == 0 and len(responses) == len(cases_value)
+        compact = run("batch", policy, entities, batch_file, *flags, "--summary", "--format", "json")
+        summary = json.loads(compact.stdout)
+        assert compact.returncode == 0 and summary["total"] == len(responses)
+        assert summary["cedar_allowed"] == sum(r["decision"] == "Allow" for r in responses)
+        assert summary["error_requests"] == sum(bool(r["errors"]) for r in responses)
+        assert summary["enforcement_allowed"] == sum(r["decision"] == "Allow" and not r["errors"] for r in responses)
+        checks += 1
         for index, case in enumerate(cases_value):
             request = path / "template-request.json"
             request.write_text(json.dumps(case["request"]), encoding="utf-8")
@@ -865,6 +872,26 @@ def main():
             checks += 1
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--format", "json")
         assert batch.returncode == 0 and json.loads(batch.stdout) == expected
+        expected_summary = {
+            "total": len(expected),
+            "cedar_allowed": sum(r["decision"] == "Allow" for r in expected),
+            "cedar_denied": sum(r["decision"] == "Deny" for r in expected),
+            "error_requests": sum(bool(r["errors"]) for r in expected),
+            "enforcement_allowed": sum(r["decision"] == "Allow" and not r["errors"] for r in expected),
+            "enforcement_denied": sum(r["decision"] != "Allow" or bool(r["errors"]) for r in expected),
+        }
+        for command, flags, status in (("batch", (), 0), ("batch", ("--strict",), 1), ("enforce-batch", (), 1)):
+            result = run(command, diagnostic_policy, diagnostic_entities, batch_input, *flags, "--summary", "--format", "json")
+            assert result.returncode == status and json.loads(result.stdout) == expected_summary
+            result = run(command, diagnostic_policy, diagnostic_entities, batch_input, *flags, "--summary")
+            assert result.returncode == status and len(result.stdout.splitlines()) == 1
+            checks += 1
+        for args in (("batch", diagnostic_policy, diagnostic_entities, batch_input, "--summary", "--summary"),
+                     ("authorize", diagnostic_policy, diagnostic_entities, samples[0], "--summary"),
+                     ("enforce", diagnostic_policy, diagnostic_entities, samples[0], "--summary")):
+            result = run(*args)
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
         checks += 1
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_input, "--strict", "--format", "json")
         assert batch.returncode == 1 and json.loads(batch.stdout) == expected
@@ -884,6 +911,10 @@ def main():
         batch_path.write_text('[]', encoding="utf-8")
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--strict", "--format", "json")
         assert batch.returncode == 0 and json.loads(batch.stdout) == []
+        compact = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--strict", "--summary", "--format", "json")
+        assert compact.returncode == 0 and all(v == 0 for v in json.loads(compact.stdout).values())
+        invalid_graph = run("batch", diagnostic_policy, cyclic, batch_path, "--summary", "--format", "json")
+        assert invalid_graph.returncode == 2 and not invalid_graph.stdout
         checks += 1
         batch = run("batch", diagnostic_policy, cyclic, batch_path, "--format", "json")
         assert batch.returncode == 2 and not batch.stdout and "cycle" in batch.stderr
@@ -1125,15 +1156,25 @@ def main():
         result = run("enforce-batch", policy, entities, requests, "--format", "json")
         responses = json.loads(result.stdout)
         assert result.returncode == 0 and len(responses) == 32768 and all(r["allowed"] for r in responses)
+        expected_summary = {"total": 32768, "cedar_allowed": 32768, "cedar_denied": 0,
+                            "error_requests": 0, "enforcement_allowed": 32768, "enforcement_denied": 0}
+        for command in ("batch", "enforce-batch"):
+            compact = run(command, policy, entities, requests, "--summary", "--format", "json")
+            assert compact.returncode == 0 and json.loads(compact.stdout) == expected_summary
         checks += 1
         requests.write_text(json.dumps([request] * 32769, separators=(",", ":")), encoding="utf-8")
         for command in ("batch", "enforce-batch"):
             result = run(command, policy, entities, requests, "--format", "json")
             assert result.returncode == 2 and not result.stdout and "batch limit" in result.stderr
+            compact = run(command, policy, entities, requests, "--summary", "--format", "json")
+            assert compact.returncode == 2 and not compact.stdout and "batch limit" in compact.stderr
             checks += 1
         requests.write_text(json.dumps([request] * 32767 + [{**request, "resource": None}], separators=(",", ":")), encoding="utf-8")
         result = run("batch", policy, entities, requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
+        for command in ("batch", "enforce-batch"):
+            compact = run(command, policy, entities, requests, "--summary", "--format", "json")
+            assert compact.returncode == 2 and not compact.stdout
         checks += 1
         after = path / "after.cedar"
         after.write_text('@id("read") permit(principal, action, resource); @id("deny") forbid(principal, action, resource) when { context.blocked };', encoding="utf-8")

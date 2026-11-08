@@ -10,6 +10,8 @@ pub fn authorize(PolicySet, Request, Array[Entity]) -> Response raise PolicyErro
 
 pub fn authorize_batch(PolicySet, Array[Request], Array[Entity]) -> Array[Response] raise PolicyError
 
+pub fn authorize_batch_summary_with_tags(PolicySet, Array[Request], Array[TaggedEntity]) -> AuthorizationSummary raise PolicyError
+
 pub fn authorize_batch_with_tags(PolicySet, Array[Request], Array[TaggedEntity]) -> Array[Response] raise PolicyError
 
 pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
@@ -55,6 +57,18 @@ pub fn AuthorizationComparison::enforcement_granted(Self) -> Bool
 pub fn AuthorizationComparison::enforcement_revoked(Self) -> Bool
 pub fn AuthorizationComparison::errors_changed(Self) -> Bool
 pub fn AuthorizationComparison::reasons_changed(Self) -> Bool
+
+pub(all) struct AuthorizationSummary {
+  total : Int32
+  cedar_allowed : Int32
+  cedar_denied : Int32
+  error_requests : Int32
+  enforcement_allowed : Int32
+  enforcement_denied : Int32
+} derive(Eq, @debug.Debug)
+pub fn AuthorizationSummary::equal(Self, Self) -> Bool
+pub fn AuthorizationSummary::not_equal(Self, Self) -> Bool
+pub fn AuthorizationSummary::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ComparisonSummary {
   total : Int32
@@ -135,6 +149,8 @@ pub fn EntityStore::apply_changes(Self, Array[TaggedEntity], Array[EntityId]) ->
 pub fn EntityStore::authorize(Self, PolicySet, Request) -> Response
 pub fn EntityStore::authorize_batch(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
 pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> Array[Response] raise PolicyError
+pub fn EntityStore::authorize_batch_summary(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
+pub fn EntityStore::authorize_batch_summary_checked(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::compare_summary(Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
