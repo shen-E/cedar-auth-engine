@@ -36,6 +36,7 @@ moon run cmd/cedar-auth-engine --target native -- test examples/quota/policy.ced
 moon run cmd/cedar-auth-engine --target native -- test examples/network/policy.cedar examples/network/entities.json examples/network/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/tags/policy.cedar examples/tags/entities.json examples/tags/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/requests.json
+moon run cmd/cedar-auth-engine --target native -- explain examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/request.json --format json
 moon run cmd/cedar-auth-engine --target native -- batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- enforce-batch examples/diagnostics/policy.cedar examples/diagnostics/entities.json examples/diagnostics/batch.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/device/policy.cedar examples/device/entities.json examples/device/requests.json
@@ -58,6 +59,15 @@ including the entity graph when the request array is empty. `batch` and
 `enforce-batch` accept up to 32,768 requests, subject to the CLI's 8 MiB input
 file limit. `compare` accepts the same maximum number of requests.
 
+`explain POLICY ENTITIES REQUEST` returns the ordinary authorization response
+and one outcome per policy, in policy order. Outcomes are `matched`,
+`not_matched` or `error`; errors include the evaluation message. A matched
+permit may still be overridden by a matched forbid, so the response's
+determining reasons can differ from the full list of matched policies.
+`--strict` exits 1 on policy errors, while invalid input exits 2 without output.
+The explanation evaluates every policy and does not trace individual expressions.
+It accepts policy additions, template links, replacements and removals.
+
 `check-entities ENTITIES` validates the entity graph and reports parent IDs
 that are referenced but absent, along with their direct children. JSON output
 includes `entity_count`, `closed` and `missing_parents`. An incomplete hierarchy
@@ -74,7 +84,7 @@ referenced missing parents can be ancestors. All input is validated before
 output; invalid input exits 2 without partial results. These checks examine
 entity membership, not policy authorization.
 
-Add `--strict` to `authorize` or `batch` to exit 1 when any policy evaluation
+Add `--strict` to `authorize`, `explain` or `batch` to exit 1 when any policy evaluation
 error occurs. Output still contains every Cedar decision and its diagnostics;
 strict mode does not convert an `Allow` into a `Deny`. Without `--strict`,
 both `Allow` and `Deny` exit 0. Malformed input or usage exits 2. Each command
@@ -91,7 +101,7 @@ with errors. Text output shows both the enforcement result and Cedar decision.
 These commands exit 0 when every request is allowed, 1 when any request is
 denied, and 2 for invalid input or usage. An empty valid batch exits 0. They
 accept `--format json`, `--template` and `--links`; `--strict` is for the
-`authorize` and `batch` commands. A policy error, including a comparison-limit
+`authorize`, `explain` and `batch` commands. A policy error, including a comparison-limit
 error, prevents enforcement from allowing the request.
 
 Add `--summary` to `batch` or `enforce-batch` to receive aggregate counts
@@ -185,7 +195,7 @@ requests, sharing one entity graph within each chunk. Empty input still checks
 the entity graph. Case objects accept only `request`, `decision`, `reasons` and
 `errors`; an unrecognized field is rejected rather than ignored.
 
-For `authorize`, `batch`, `enforce`, `enforce-batch` and `test`, add
+For `authorize`, `explain`, `batch`, `enforce`, `enforce-batch` and `test`, add
 `--template TEMPLATE --links LINKS` to evaluate static policies together with
 template links. Repeat the two options to load multiple templates. Templates
 and links files are paired in their respective order of appearance; their counts
@@ -270,6 +280,11 @@ let allowed = response.is_authorized()
 
 `response.is_authorized()` returns true only for `Allow` without policy errors.
 It does not alter the Cedar response, which remains available for diagnostics.
+
+For per-policy outcomes, use `store.authorize_trace(policies, request)` or
+`store.authorize_trace_checked(policies, request)` with an `EntityStore`.
+The trace includes the regular response and a policy-ordered list of effects and
+outcomes; the checked method validates the typed request first.
 
 `parse_json`, `request_from_json`, `tagged_entities_from_json` and
 `response_to_json` provide the JSON boundary. Pass tagged entities to

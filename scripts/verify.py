@@ -1291,6 +1291,39 @@ def main():
                     count += 1
                     if ref != got:
                         mismatches.append({"case": "resource index", "request": case, "reference": ref, "actual": got})
+        # Compare each trace outcome with an independently evaluated Cedar policy.
+        trace_parts = (
+            ("active", '@id("active") permit(principal, action == Action::"read", resource) when { context.active };'),
+            ("blocked", '@id("blocked") forbid(principal == User::"alice", action, resource) when { context.blocked };'),
+            ("team", '@id("team") permit(principal in Group::"editors", action, resource == Document::"roadmap");'),
+            ("missing", '@id("missing") permit(principal == User::"bob", action, resource) when { context.missing };'),
+        )
+        trace_policy, single_policy, trace_request = (temp / name for name in ("trace.cedar", "single.cedar", "trace-request.json"))
+        trace_policy.write_text('\n'.join(source for _, source in trace_parts), encoding="utf-8")
+        for subject, context in ((alice, {"active": True, "blocked": True}),
+                                 (alice, {}), (bob, {"active": True, "blocked": False}),
+                                 ({"type": "User", "id": "other"}, {"active": False})):
+            case = {"principal": subject, "action": {"type": "Action", "id": "read"},
+                    "resource": {"type": "Document", "id": "roadmap"}, "context": context}
+            trace_request.write_text(json.dumps(case), encoding="utf-8")
+            output = run([args.engine, "explain", trace_policy, entities, trace_request, "--format", "json"])
+            if output.returncode != 0:
+                raise RuntimeError("trace failed: " + output.stderr)
+            trace = json.loads(output.stdout)
+            reference_response = reference(args.cedar, trace_policy, entities, case, temp)
+            actual_response = {"decision": trace["response"]["decision"],
+                               "reasons": sorted(trace["response"]["reasons"]),
+                               "errors": sorted(item["policy_id"] for item in trace["response"]["errors"])}
+            count += 1
+            if reference_response != actual_response or len(trace["policies"]) != len(trace_parts):
+                mismatches.append({"case": "trace response", "reference": reference_response, "actual": actual_response})
+            for item, (policy_id, source) in zip(trace["policies"], trace_parts):
+                single_policy.write_text(source, encoding="utf-8")
+                single = reference(args.cedar, single_policy, entities, case, temp)
+                expected_outcome = "error" if single["errors"] else "matched" if policy_id in single["reasons"] else "not_matched"
+                count += 1
+                if item["policy_id"] != policy_id or item["outcome"] != expected_outcome:
+                    mismatches.append({"case": "trace policy " + policy_id, "expected": expected_outcome, "actual": item})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

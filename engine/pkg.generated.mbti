@@ -14,6 +14,8 @@ pub fn authorize_batch_summary_with_tags(PolicySet, Array[Request], Array[Tagged
 
 pub fn authorize_batch_with_tags(PolicySet, Array[Request], Array[TaggedEntity]) -> Array[Response] raise PolicyError
 
+pub fn authorize_trace_with_tags(PolicySet, Request, Array[TaggedEntity]) -> AuthorizationTrace raise PolicyError
+
 pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
 
 pub fn entities_from_json(Json) -> Array[Entity] raise PolicyError
@@ -69,6 +71,12 @@ pub(all) struct AuthorizationSummary {
 pub fn AuthorizationSummary::equal(Self, Self) -> Bool
 pub fn AuthorizationSummary::not_equal(Self, Self) -> Bool
 pub fn AuthorizationSummary::to_repr(Self) -> @debug.Repr
+
+pub(all) struct AuthorizationTrace {
+  response : Response
+  policies : Array[PolicyTrace]
+} derive(@debug.Debug)
+pub fn AuthorizationTrace::to_repr(Self) -> @debug.Repr
 
 pub(all) struct ComparisonSummary {
   total : Int32
@@ -152,6 +160,8 @@ pub fn EntityStore::authorize_batch_checked(Self, PolicySet, Array[Request]) -> 
 pub fn EntityStore::authorize_batch_summary(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
 pub fn EntityStore::authorize_batch_summary_checked(Self, PolicySet, Array[Request]) -> AuthorizationSummary raise PolicyError
 pub fn EntityStore::authorize_checked(Self, PolicySet, Request) -> Response raise PolicyError
+pub fn EntityStore::authorize_trace(Self, PolicySet, Request) -> AuthorizationTrace
+pub fn EntityStore::authorize_trace_checked(Self, PolicySet, Request) -> AuthorizationTrace raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
 pub fn EntityStore::compare_summary(Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
 pub fn EntityStore::compare_summary_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
@@ -193,6 +203,15 @@ pub(all) struct PolicyInfo {
 } derive(@debug.Debug)
 pub fn PolicyInfo::to_repr(Self) -> @debug.Repr
 
+pub(all) enum PolicyOutcome {
+  Matched
+  NotMatched
+  EvaluationFailed(String)
+} derive(Eq, @debug.Debug)
+pub fn PolicyOutcome::equal(Self, Self) -> Bool
+pub fn PolicyOutcome::not_equal(Self, Self) -> Bool
+pub fn PolicyOutcome::to_repr(Self) -> @debug.Repr
+
 pub struct PolicySet {
   // private fields
 }
@@ -208,6 +227,15 @@ pub struct PolicyTemplate {
   // private fields
 }
 pub fn PolicyTemplate::slots(Self) -> Array[String]
+
+pub(all) struct PolicyTrace {
+  policy_id : String
+  effect : String
+  outcome : PolicyOutcome
+} derive(Eq, @debug.Debug)
+pub fn PolicyTrace::equal(Self, Self) -> Bool
+pub fn PolicyTrace::not_equal(Self, Self) -> Bool
+pub fn PolicyTrace::to_repr(Self) -> @debug.Repr
 
 pub(all) struct Request {
   principal : EntityId

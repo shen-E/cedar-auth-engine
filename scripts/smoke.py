@@ -1201,6 +1201,56 @@ def main():
         compact = run("compare", policy, after, entities, requests, "--summary", "--format", "json")
         assert compact.returncode == 2 and not compact.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request = (path / name for name in ("policy.cedar", "entities.json", "request.json"))
+        policy.write_text('@id("allow") permit(principal, action, resource);'
+                          '@id("block") forbid(principal, action, resource) when { context.blocked };'
+                          '@id("error") permit(principal, action, resource) when { context.missing };'
+                          '@id("other") permit(principal == User::"bob", action, resource) when { context.missing };', encoding="utf-8")
+        entities.write_text("[]", encoding="utf-8")
+        value = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"},
+                 "resource": {"type": "File", "id": "report"}, "context": {"blocked": True}}
+        request.write_text(json.dumps(value), encoding="utf-8")
+        regular = run("authorize", policy, entities, request, "--format", "json")
+        explained = run("explain", policy, entities, request, "--format", "json")
+        assert regular.returncode == explained.returncode == 0
+        trace = json.loads(explained.stdout)
+        assert trace["response"] == json.loads(regular.stdout) and trace["response"]["reasons"] == ["block"]
+        assert [(p["policy_id"], p["effect"], p["outcome"]) for p in trace["policies"]] == [
+            ("allow", "permit", "matched"), ("block", "forbid", "matched"),
+            ("error", "permit", "error"), ("other", "permit", "not_matched")]
+        assert trace["policies"][2]["message"] == trace["response"]["errors"][0]["message"]
+        checks += 1
+        strict = run("explain", policy, entities, request, "--strict", "--format", "json")
+        assert strict.returncode == 1 and json.loads(strict.stdout) == trace
+        text_trace = run("explain", policy, entities, request, "--strict")
+        assert text_trace.returncode == 1 and "allow (permit): matched" in text_trace.stdout and "error (permit): error:" in text_trace.stdout
+        checks += 1
+        empty = path / "empty.cedar"
+        empty.write_text("", encoding="utf-8")
+        no_policy = run("explain", empty, entities, request, "--strict", "--format", "json")
+        assert no_policy.returncode == 0 and json.loads(no_policy.stdout) == {"response": {"decision": "Deny", "reasons": [], "errors": []}, "policies": []}
+        checks += 1
+        template = ROOT / "examples" / "template-sharing" / "template.cedar"
+        links = ROOT / "examples" / "template-sharing" / "links.json"
+        linked_policy = ROOT / "examples" / "template-sharing" / "policy.cedar"
+        linked_entities = ROOT / "examples" / "template-sharing" / "entities.json"
+        linked_requests = json.loads((ROOT / "examples" / "template-sharing" / "requests.json").read_text(encoding="utf-8"))
+        request.write_text(json.dumps(linked_requests[0]["request"]), encoding="utf-8")
+        flags = ("--template", template, "--links", links, "--format", "json")
+        linked_trace = run("explain", linked_policy, linked_entities, request, *flags)
+        linked_response = run("authorize", linked_policy, linked_entities, request, *flags)
+        assert linked_trace.returncode == linked_response.returncode == 0
+        assert json.loads(linked_trace.stdout)["response"] == json.loads(linked_response.stdout)
+        assert len(json.loads(linked_trace.stdout)["policies"]) > 1
+        checks += 1
+        entities.write_text('[{"uid":{"type":"Group","id":"x"},"attrs":{},"parents":[{"type":"Group","id":"x"}]}]', encoding="utf-8")
+        invalid = run("explain", policy, entities, request, "--format", "json")
+        assert invalid.returncode == 2 and not invalid.stdout
+        duplicate = run("explain", policy, entities, request, "--strict", "--strict")
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

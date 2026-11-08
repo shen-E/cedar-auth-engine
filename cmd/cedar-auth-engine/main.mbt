@@ -204,7 +204,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, batch, enforce, enforce-batch and test: [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine explain POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, explain, batch, enforce, enforce-batch and test: [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
     )
     return 0
   }
@@ -225,6 +225,7 @@ fn run(args : Array[String]) -> Int32 raise {
   let required_count = if command == "check" {
     3
   } else if command == "authorize" ||
+    command == "explain" ||
     command == "batch" ||
     command == "enforce" ||
     command == "enforce-batch" ||
@@ -254,7 +255,7 @@ fn run(args : Array[String]) -> Int32 raise {
       summary_only = true
       i += 1
     } else if args[i] == "--strict" &&
-      (command == "authorize" || command == "batch") &&
+      (command == "authorize" || command == "batch" || command == "explain") &&
       !strict {
       strict = true
       i += 1
@@ -312,6 +313,15 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let entities = @engine.tagged_entities_from_json(load_json(args[3]))
   let input = load_json(args[4])
+  if command == "explain" {
+    return run_explain(
+      policies,
+      @engine.request_from_json(input),
+      entities,
+      json,
+      strict,
+    )
+  }
   if command == "authorize" || command == "enforce" {
     let response = @engine.authorize_with_tags(
       policies,

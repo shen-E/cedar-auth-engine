@@ -1,0 +1,6 @@
+{
+  "principal": {"type": "User", "id": "eve"},
+  "action": {"type": "Action", "id": "read"},
+  "resource": {"type": "Report", "id": "review"},
+  "context": {}
+}

@@ -14,6 +14,25 @@ test "authorize through the public library" {
 }
 
 ///|
+test "trace policy outcomes through the public library" {
+  let policies = @engine.parse_policies(
+    "@id(\"read\") permit(principal, action == Action::\"read\", resource);" +
+    "@id(\"guard\") forbid(principal, action, resource) when { context.missing };",
+  )
+  let request = @engine.Request::{
+    principal: { kind: "User", id: "alice", },
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let store = @engine.EntityStore::new([])
+  let trace = store.authorize_trace_checked(policies, request)
+  assert_true(trace.response.decision == @engine.Allow)
+  assert_true(trace.policies[0].outcome == @engine.Matched)
+  assert_true(trace.policies[1].outcome is @engine.EvaluationFailed(_))
+}
+
+///|
 test "query membership through the public library" {
   let child : @engine.EntityId = { kind: "User", id: "alice", }
   let group : @engine.EntityId = { kind: "Group", id: "editors", }

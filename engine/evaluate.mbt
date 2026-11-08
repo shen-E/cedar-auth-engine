@@ -547,6 +547,30 @@ fn authorize_in_context(
 }
 
 ///|
+fn evaluate_policy(
+  policy : Policy,
+  request : Request,
+  context : EvaluationContext,
+) -> Bool raise PolicyError {
+  boolean(evaluate(policy.condition, request, context, Ref(1000000)))
+}
+
+///|
+fn authorization_response(
+  permits : Array[String],
+  forbids : Array[String],
+  errors : Array[Diagnostic],
+) -> Response {
+  if !forbids.is_empty() {
+    { decision: Deny, reasons: forbids, errors, }
+  } else if !permits.is_empty() {
+    { decision: Allow, reasons: permits, errors, }
+  } else {
+    { decision: Deny, reasons: [], errors, }
+  }
+}
+
+///|
 // The scan variant is also used by differential tests.
 fn authorize_selected(
   policies : PolicySet,
@@ -614,8 +638,7 @@ fn authorize_selected(
       next
     }
     let policy = policies.policies[position]
-    let budget = Ref(1000000)
-    let matched = boolean(evaluate(policy.condition, request, context, budget)) catch {
+    let matched = evaluate_policy(policy, request, context) catch {
       PolicyError(message) => {
         errors.push({ policy_id: policy.id, message, })
         false
@@ -629,11 +652,5 @@ fn authorize_selected(
       }
     }
   }
-  if !forbids.is_empty() {
-    { decision: Deny, reasons: forbids, errors, }
-  } else if !permits.is_empty() {
-    { decision: Allow, reasons: permits, errors, }
-  } else {
-    { decision: Deny, reasons: [], errors, }
-  }
+  authorization_response(permits, forbids, errors)
 }
