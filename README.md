@@ -662,6 +662,9 @@ GitHub-hosted runners. The [16,384-request](benchmarks/batch-16k.json) and
 [32,768-request](benchmarks/batch-32k.json) profiles measure the same workload
 with different batch sizes. Each report records the source revision, workload,
 toolchain, runner configuration, and run link.
+The policy comparison workload is recorded separately for
+[16,384 requests](benchmarks/compare-16k.json) and
+[32,768 requests](benchmarks/compare-32k.json).
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,

@@ -1,0 +1,42 @@
+{
+  "command": "python benchmarks/compare.py --engine <ENGINE> --requests <REQUESTS> --repeat <REPEAT> --revision <REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT>",
+  "source_revision": "81cbf623538e4d8e7f133803c7a5d07805ad608c",
+  "engine_sha256": "df9713e8ea92bbcff99fa80d8cc123bead57755c081281aacdfc209a0c1bf0e3",
+  "moonbit_toolchain": "moonc 0.10.18+6c83a7f62",
+  "environment": {
+    "python": "3.12.16",
+    "runner": {
+      "source": "github-hosted",
+      "os": "Linux",
+      "arch": "X64",
+      "image": "ubuntu24",
+      "logical_cpus": 4,
+      "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+      "memory_kib": 16367524,
+      "run_url": "https://github.com/shen-E/cedar-auth-engine/actions/runs/42470162090"
+    }
+  },
+  "requests": 16384,
+  "repetitions": 3,
+  "seed": null,
+  "entities_per_snapshot": 10000,
+  "snapshots": 2,
+  "before_policies": 2048,
+  "after_policies": 2049,
+  "changed_requests": 8192,
+  "workload": "alternating blocked context; both snapshots contain the same hierarchy",
+  "measurement_note": "CLI wall time includes startup, input parsing, comparison and JSON output",
+  "memory_note": "sampled child peak working set on Windows or VmHWM on Linux; null if unavailable",
+  "seconds": [
+    0.9697950259999999,
+    0.9531560939999935,
+    0.9418530970000063
+  ],
+  "median_seconds": 0.9531560939999935,
+  "peak_memory_bytes": [
+    71806976,
+    71835648,
+    71598080
+  ],
+  "output_sha256": "26681fe0381d8ea58249646c30a88002669b95ed8d0e8667120c298e202b74ab"
+}
