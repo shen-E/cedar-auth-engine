@@ -656,8 +656,10 @@ Use `--scope principal` or `--scope resource`; run
 The checked-in [baseline](benchmarks/baseline.json), [after](benchmarks/after.json),
 [scale](benchmarks/scale.json), [principal comparison](benchmarks/principal.json),
 and [resource comparison](benchmarks/resource.json) were measured on
-GitHub-hosted runners. Each report records the source revisions,
-workload, toolchain, runner configuration, and run link.
+GitHub-hosted runners. The [16,384-request](benchmarks/batch-16k.json) and
+[32,768-request](benchmarks/batch-32k.json) profiles measure the same workload
+with different batch sizes. Each report records the source revision, workload,
+toolchain, runner configuration, and run link.
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,
