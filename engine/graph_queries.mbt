@@ -9,6 +9,24 @@ pub fn EntityStore::is_descendant(
 }
 
 ///|
+/// Test up to 16,384 child/ancestor pairs in order against this snapshot.
+pub fn EntityStore::is_descendant_batch(
+  self : EntityStore,
+  pairs : Array[(EntityId, EntityId)],
+) -> Array[Bool] raise PolicyError {
+  if pairs.length() > 16384 {
+    raise PolicyError("membership batch limit exceeded")
+  }
+  let context = EvaluationContext::new(self.graph)
+  let results = []
+  for pair in pairs {
+    let (child, ancestor) = pair
+    results.push(context.is_descendant(child, ancestor))
+  }
+  results
+}
+
+///|
 /// Return distinct direct and transitive parents, excluding the entity itself.
 pub fn EntityStore::ancestors(
   self : EntityStore,

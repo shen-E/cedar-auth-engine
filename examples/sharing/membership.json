@@ -1,0 +1,5 @@
+[
+  {"child":{"type":"User","id":"alice"},"ancestor":{"type":"Group","id":"editors"}},
+  {"child":{"type":"User","id":"bob"},"ancestor":{"type":"Group","id":"editors"}},
+  {"child":{"type":"Document","id":"roadmap"},"ancestor":{"type":"Folder","id":"team"}}
+]

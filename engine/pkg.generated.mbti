@@ -125,6 +125,7 @@ pub fn EntityStore::descendants(Self, EntityId) -> Array[EntityId]
 pub fn EntityStore::entities(Self) -> Array[TaggedEntity]
 pub fn EntityStore::get(Self, EntityId) -> TaggedEntity?
 pub fn EntityStore::is_descendant(Self, EntityId, EntityId) -> Bool
+pub fn EntityStore::is_descendant_batch(Self, Array[(EntityId, EntityId)]) -> Array[Bool] raise PolicyError
 pub fn EntityStore::length(Self) -> Int32
 pub fn EntityStore::missing_parents(Self) -> Array[MissingParent]
 pub fn EntityStore::new(Array[Entity]) -> Self raise PolicyError

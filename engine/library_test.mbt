@@ -14,6 +14,19 @@ test "authorize through the public library" {
 }
 
 ///|
+test "query membership through the public library" {
+  let child : @engine.EntityId = { kind: "User", id: "alice", }
+  let group : @engine.EntityId = { kind: "Group", id: "editors", }
+  let store = @engine.EntityStore::new([
+    { uid: child, attrs: {}, parents: [group], },
+  ])
+  assert_true(
+    store.is_descendant_batch([(child, group), (group, child), (group, group)]) ==
+    [true, false, true],
+  )
+}
+
+///|
 test "construct IP values through the public library" {
   let policies = @engine.parse_policies(
     "permit(principal, action, resource) when { context.source.isInRange(ip(\"2001:db8::/32\")) };",

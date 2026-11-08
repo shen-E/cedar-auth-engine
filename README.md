@@ -25,6 +25,7 @@ moon build cmd/cedar-auth-engine --target native
 moon install ./cmd/cedar-auth-engine
 moon run cmd/cedar-auth-engine --target native -- check examples/tenant/policy.cedar
 moon run cmd/cedar-auth-engine --target native -- check-entities examples/tenant/entities.json --require-closed --format json
+moon run cmd/cedar-auth-engine --target native -- check-membership examples/sharing/entities.json examples/sharing/membership.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/tenant/policy.cedar examples/tenant/entities.json examples/tenant/requests.json --format json
 moon run cmd/cedar-auth-engine --target native -- test examples/sharing/policy.cedar examples/sharing/entities.json examples/sharing/requests.json
 moon run cmd/cedar-auth-engine --target native -- test examples/admin/policy.cedar examples/admin/entities.json examples/admin/requests.json
@@ -60,6 +61,16 @@ that are referenced but absent, along with their direct children. JSON output
 includes `entity_count`, `closed` and `missing_parents`. An incomplete hierarchy
 still exits 0 by default; add `--require-closed` to exit 1 when parents are
 missing. Invalid entity input, duplicate IDs or cycles exit 2 without a report.
+
+`check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
+pairs against one entity snapshot. Each query has `child` and `ancestor`
+objects with `type` and `id` strings; see
+[`examples/sharing/membership.json`](examples/sharing/membership.json).
+JSON output is an array of booleans in input order. Text output has one boolean
+per line. An entity is in itself even when absent from the snapshot, and
+referenced missing parents can be ancestors. All input is validated before
+output; invalid input exits 2 without partial results. These checks examine
+entity membership, not policy authorization.
 
 Add `--strict` to `authorize` or `batch` to exit 1 when any policy evaluation
 error occurs. Output still contains every Cedar decision and its diagnostics;
@@ -454,6 +465,7 @@ Inspect the hierarchy when displaying team membership or planning an update:
 
 ```moonbit
 let belongs = store.is_descendant(user_id, team_id)
+let memberships = store.is_descendant_batch([(user_id, team_id)])
 let parents = store.ancestors(user_id)
 let affected_entities = store.descendants(team_id)
 ```
@@ -462,8 +474,10 @@ let affected_entities = store.descendants(team_id)
 in itself even when it is absent from the snapshot. `ancestors` returns distinct
 direct and transitive parents, excluding the queried ID; referenced parents
 that are not stored still appear, but cannot lead to further ancestors.
-`descendants` returns distinct stored entities that reach the queried ID,
-excluding the queried ID itself. It can therefore find children of an absent
+`is_descendant_batch` uses the same semantics and returns one boolean per pair
+in order. It accepts up to 16,384 pairs and shares a bounded ancestry cache
+within the call. `descendants` returns distinct stored entities that reach the
+queried ID, excluding the queried ID itself. It can find children of an absent
 parent. Both lists use breadth-first traversal: each entity's parents follow
 their input order, and each parent's children follow snapshot order. They return new
 arrays. These queries describe entity relationships; authorization also depends

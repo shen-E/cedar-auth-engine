@@ -1042,6 +1042,48 @@ def main():
         result = run("check", policy, "--format", "json")
         assert result.returncode == 2 and not result.stdout and "token limit exceeded" in result.stderr
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        entities, queries = path / "entities.json", path / "membership.json"
+        a = {"type": "User", "id": "alice"}
+        team = {"type": "Group", "id": "editors"}
+        root = {"type": "Group", "id": "all"}
+        entities.write_text(json.dumps([
+            {"uid": a, "attrs": {}, "parents": [team, team]},
+            {"uid": team, "attrs": {}, "parents": [root]},
+        ]), encoding="utf-8")
+        cases = [{"child": a, "ancestor": root}, {"child": root, "ancestor": a},
+                 {"child": root, "ancestor": root}, {"child": a, "ancestor": root}]
+        queries.write_text(json.dumps(cases), encoding="utf-8")
+        result = run("check-membership", entities, queries, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == [True, False, True, True]
+        checks += 1
+        result = run("check-membership", entities, queries)
+        assert result.returncode == 0 and result.stdout.splitlines() == ["true", "false", "true", "true"]
+        checks += 1
+        queries.write_text(json.dumps([cases[0]] * 16384), encoding="utf-8")
+        result = run("check-membership", entities, queries, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == [True] * 16384
+        checks += 1
+        for bad in ({}, [None], [{"child": a}], [{"child": a, "ancestor": root, "extra": True}],
+                    [{"child": {**a, "extra": True}, "ancestor": root}],
+                    [{"child": {"type": "bad type", "id": "a"}, "ancestor": root}],
+                    cases + [{"child": a}], [cases[0]] * 16385):
+            queries.write_text(json.dumps(bad), encoding="utf-8")
+            result = run("check-membership", entities, queries, "--format", "json")
+            assert result.returncode == 2 and not result.stdout
+            checks += 1
+        queries.write_text("[]", encoding="utf-8")
+        result = run("check-membership", entities, queries, "--format", "json")
+        assert result.returncode == 0 and json.loads(result.stdout) == []
+        checks += 1
+        entities.write_text(json.dumps([{"uid": a, "attrs": {}, "parents": [a]}]), encoding="utf-8")
+        result = run("check-membership", entities, queries, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        result = run("check-membership", entities, queries, "--unknown")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

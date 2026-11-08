@@ -1248,6 +1248,33 @@ def main():
             syntax_checks += 1
             if ref.returncode == 0 or got.returncode != 2:
                 mismatches.append({"case": source, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Compare batch graph queries with Cedar's policy-level entity membership.
+        entities = ROOT / "examples" / "sharing" / "entities.json"
+        query_file = temp / "membership.json"
+        alice = {"type": "User", "id": "alice"}
+        bob = {"type": "User", "id": "bob"}
+        editors = {"type": "Group", "id": "editors"}
+        roadmap = {"type": "Document", "id": "roadmap"}
+        projects = {"type": "Folder", "id": "projects"}
+        team = {"type": "Folder", "id": "team"}
+        pairs = [(alice, editors), (bob, editors), (roadmap, projects),
+                 (roadmap, team), (team, team), (team, roadmap), (alice, editors)]
+        query_file.write_text(json.dumps([{"child": child, "ancestor": ancestor}
+                                         for child, ancestor in pairs]), encoding="utf-8")
+        batch = run([args.engine, "check-membership", entities, query_file, "--format", "json"])
+        if batch.returncode != 0:
+            raise RuntimeError("membership batch failed: " + batch.stderr)
+        results = json.loads(batch.stdout)
+        if len(results) != len(pairs):
+            raise RuntimeError("membership batch returned an unexpected number of results")
+        for index, (child, ancestor) in enumerate(pairs):
+            policy.write_text('permit(principal in ' + uid(ancestor) + ', action, resource);', encoding="utf-8")
+            member_request = {"principal": child, "action": {"type": "Action", "id": "read"},
+                              "resource": {"type": "Document", "id": "roadmap"}, "context": {}}
+            ref = reference(args.cedar, policy, entities, member_request, temp)
+            count += 1
+            if ref["errors"] or results[index] != (ref["decision"] == "Allow"):
+                mismatches.append({"case": "membership batch: " + str(index), "reference": ref, "actual": results[index]})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
