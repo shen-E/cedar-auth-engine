@@ -680,6 +680,9 @@ toolchain, runner configuration, and run link.
 The policy comparison workload is recorded separately for
 [16,384 requests](benchmarks/compare-16k.json) and
 [32,768 requests](benchmarks/compare-32k.json).
+The same 32,768-request workload also compares
+[full output](benchmarks/compare-full.json) with
+[summary output](benchmarks/compare-summary.json).
 
 The reference script requires `cedar-policy-cli 4.13.0`. It compares the
 decision, determining policy IDs and error policy IDs with the official CLI,

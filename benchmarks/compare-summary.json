@@ -1,0 +1,44 @@
+{
+  "command": "python benchmarks/compare.py --engine <ENGINE> --mode <MODE> --requests <REQUESTS> --repeat <REPEAT> --revision <REVISION> --toolchain <TOOLCHAIN> --output <OUTPUT>",
+  "source_revision": "fb022862d32094b96b83cbd0b7b1a9982f808d89",
+  "engine_sha256": "12709338fe12de1b5129cf4e9979afc0ff96d1aef9d894a15b240aed0710b1c1",
+  "moonbit_toolchain": "moonc 0.10.18+6c83a7f62",
+  "environment": {
+    "python": "3.12.16",
+    "runner": {
+      "source": "github-hosted",
+      "os": "Linux",
+      "arch": "X64",
+      "image": "ubuntu24",
+      "logical_cpus": 4,
+      "cpu_model": "AMD EPYC 9V74 80-Core Processor",
+      "memory_kib": 16367528,
+      "run_url": "https://github.com/shen-E/cedar-auth-engine/actions/runs/42481642289"
+    }
+  },
+  "requests": 32768,
+  "mode": "summary",
+  "repetitions": 3,
+  "seed": null,
+  "entities_per_snapshot": 10000,
+  "snapshots": 2,
+  "before_policies": 2048,
+  "after_policies": 2049,
+  "changed_requests": 16384,
+  "workload": "alternating blocked context; both snapshots contain the same hierarchy",
+  "measurement_note": "CLI wall time includes startup, input parsing, comparison and JSON output",
+  "memory_note": "sampled child peak working set on Windows or VmHWM on Linux; null if unavailable",
+  "seconds": [
+    1.036604932000003,
+    1.023765161,
+    1.0424736169999989
+  ],
+  "median_seconds": 1.036604932000003,
+  "peak_memory_bytes": [
+    89669632,
+    92188672,
+    92209152
+  ],
+  "output_sha256": "ab7427c37e3bfdd14b331a5601eef9575978854116f5078d06ddf1f6acfda0ff",
+  "output_bytes": 258
+}
