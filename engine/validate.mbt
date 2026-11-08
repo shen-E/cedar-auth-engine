@@ -111,7 +111,7 @@ pub fn EntityStore::authorize_batch_checked(
   policies : PolicySet,
   requests : Array[Request],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 16384 {
+  if requests.length() > 32768 {
     raise PolicyError("request batch limit exceeded")
   }
   for request in requests {

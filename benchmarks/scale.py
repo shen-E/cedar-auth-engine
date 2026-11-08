@@ -63,7 +63,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--engine', required=True)
     parser.add_argument('--output', required=True)
-    parser.add_argument('--profile', choices=('baseline', 'scale'), default='baseline')
+    parser.add_argument('--profile', choices=('baseline', 'scale', 'large-batch'), default='baseline')
     parser.add_argument('--repeat', type=int, default=3)
     parser.add_argument('--revision', required=True, help='source revision or working-tree identifier')
     parser.add_argument('--toolchain', required=True, help='toolchain used to build the engine')
@@ -73,7 +73,8 @@ def main():
     if args.repeat < 1:
         parser.error('--repeat must be positive')
     engine = str(pathlib.Path(args.engine).resolve())
-    sizes = {'baseline': (60, 512, 512), 'scale': (2048, 10000, 16384)}
+    sizes = {'baseline': (60, 512, 512), 'scale': (2048, 10000, 16384),
+             'large-batch': (2048, 10000, 32768)}
     policies, entities, batch = sizes[args.profile]
     measurements = []
     with tempfile.TemporaryDirectory(prefix='cedar-scale-') as tmpdir:

@@ -44,10 +44,10 @@ test "entity stores preserve authorization diagnostics and validate graphs" {
   }
   assert_true(rejected)
   assert_true(store.authorize_batch(policies, []).is_empty())
-  let requests_at_limit = Array::make(16384, sample_request())
+  let requests_at_limit = Array::make(32768, sample_request())
   assert_true(
     store.authorize_batch(parse_policies(""), requests_at_limit).length() ==
-    16384,
+    32768,
   )
   requests_at_limit.push(sample_request())
   let rejected = try {

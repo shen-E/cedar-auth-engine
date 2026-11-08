@@ -156,8 +156,20 @@ test "checked authorization validates all requests and preserves responses" {
   }
   assert_true(rejected)
   assert_true(store.authorize_batch_checked(policies, []).is_empty())
+  let large = Array::make(32768, request)
+  assert_true(
+    store.authorize_batch_checked(parse_policies(""), large).length() == 32768,
+  )
+  large[32767] = invalid
   let rejected = try {
-    let _ = store.authorize_batch_checked(policies, Array::make(16385, request))
+    let _ = store.authorize_batch_checked(policies, large)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+  let rejected = try {
+    let _ = store.authorize_batch_checked(policies, Array::make(32769, request))
     false
   } catch {
     _ => true

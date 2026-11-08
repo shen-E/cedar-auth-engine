@@ -1,0 +1,35 @@
+name: Measure authorization batch capacity
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install MoonBit
+        run: |
+          curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash -s '0.10.18+6c83a7f62'
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
+      - name: Build native CLI
+        run: moon build cmd/cedar-auth-engine --target native
+      - name: Measure batch sizes
+        shell: bash
+        run: |
+          set -euo pipefail
+          engine=_build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe
+          toolchain='moonc 0.10.18+6c83a7f62'
+          python benchmarks/scale.py --engine "$engine" --profile scale --repeat 3 --revision "$GITHUB_SHA" --toolchain "$toolchain" --output batch-16k.json
+          python benchmarks/scale.py --engine "$engine" --profile large-batch --repeat 3 --revision "$GITHUB_SHA" --toolchain "$toolchain" --output batch-32k.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-capacity-benchmark
+          path: batch-*.json
+          if-no-files-found: error

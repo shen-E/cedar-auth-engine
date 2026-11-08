@@ -348,7 +348,7 @@ fn run(args : Array[String]) -> Int32 raise {
       Array(items) => items
       _ => raise CliError("batch input must be an array")
     }
-    if items.length() > 16384 {
+    if items.length() > 32768 {
       raise CliError("request batch limit exceeded")
     }
     let requests = []

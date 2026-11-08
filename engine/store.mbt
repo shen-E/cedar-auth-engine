@@ -95,13 +95,13 @@ pub fn EntityStore::authorize(
 }
 
 ///|
-/// Authorize up to 16,384 requests using this entity snapshot.
+/// Authorize up to 32,768 requests using this entity snapshot.
 pub fn EntityStore::authorize_batch(
   self : EntityStore,
   policies : PolicySet,
   requests : Array[Request],
 ) -> Array[Response] raise PolicyError {
-  if requests.length() > 16384 {
+  if requests.length() > 32768 {
     raise PolicyError("request batch limit exceeded")
   }
   let context = EvaluationContext::new(self.graph)

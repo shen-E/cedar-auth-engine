@@ -57,8 +57,9 @@ test "batch limits and graph errors are checked before returning results" {
   let policy = parse_policies("")
   assert_true(authorize_batch(policy, [], []).is_empty())
   assert_true(authorize_batch_with_tags(policy, [], []).is_empty())
-  let at_limit = Array::make(16384, sample_request())
-  assert_true(authorize_batch(policy, at_limit, []).length() == 16384)
+  let at_limit = Array::make(32768, sample_request())
+  assert_true(authorize_batch(policy, at_limit, []).length() == 32768)
+  assert_true(authorize_batch_with_tags(policy, at_limit, []).length() == 32768)
   at_limit.push(sample_request())
   let plain_rejected = try {
     let _ = authorize_batch(policy, at_limit, [])

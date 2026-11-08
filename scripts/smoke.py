@@ -870,7 +870,7 @@ def main():
             batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
             assert batch.returncode == 2 and not batch.stdout
             checks += 1
-        batch_path.write_text(json.dumps([cases[0]["request"]] * 16385, separators=(",", ":")), encoding="utf-8")
+        batch_path.write_text(json.dumps([cases[0]["request"]] * 32769, separators=(",", ":")), encoding="utf-8")
         batch = run("batch", diagnostic_policy, diagnostic_entities, batch_path, "--format", "json")
         assert batch.returncode == 2 and not batch.stdout and "batch limit" in batch.stderr
         checks += 1
@@ -1083,6 +1083,38 @@ def main():
         checks += 1
         result = run("check-membership", entities, queries, "--unknown")
         assert result.returncode == 2 and not result.stdout
+        checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, requests = (path / name for name in ("policy.cedar", "entities.json", "requests.json"))
+        policy.write_text('@id("read") permit(principal, action, resource);', encoding="utf-8")
+        entities.write_text("[]", encoding="utf-8")
+        request = {"principal": {"type": "User", "id": "alice"},
+                   "action": {"type": "Action", "id": "read"},
+                   "resource": {"type": "File", "id": "report"}, "context": {}}
+        for size in (16385, 32768):
+            requests.write_text(json.dumps([request] * size, separators=(",", ":")), encoding="utf-8")
+            result = run("batch", policy, entities, requests, "--format", "json")
+            responses = json.loads(result.stdout)
+            assert result.returncode == 0 and len(responses) == size
+            assert all(response == {"decision": "Allow", "reasons": ["read"], "errors": []} for response in responses)
+            checks += 1
+        result = run("enforce-batch", policy, entities, requests, "--format", "json")
+        responses = json.loads(result.stdout)
+        assert result.returncode == 0 and len(responses) == 32768 and all(r["allowed"] for r in responses)
+        checks += 1
+        requests.write_text(json.dumps([request] * 32769, separators=(",", ":")), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            result = run(command, policy, entities, requests, "--format", "json")
+            assert result.returncode == 2 and not result.stdout and "batch limit" in result.stderr
+            checks += 1
+        requests.write_text(json.dumps([request] * 32767 + [{**request, "resource": None}], separators=(",", ":")), encoding="utf-8")
+        result = run("batch", policy, entities, requests, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
+        checks += 1
+        requests.write_text(json.dumps([request] * 16385, separators=(",", ":")), encoding="utf-8")
+        result = run("compare", policy, policy, entities, requests, "--format", "json")
+        assert result.returncode == 2 and not result.stdout and "batch limit" in result.stderr
         checks += 1
     print("CLI checks passed:", checks)
 

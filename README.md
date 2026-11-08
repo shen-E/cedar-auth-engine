@@ -54,7 +54,9 @@ returns each policy ID, effect and annotations. `authorize POLICY ENTITIES REQUE
 evaluates one request. `batch POLICY ENTITIES REQUESTS` evaluates an array of
 requests against the same policy set and entity graph, returning one response
 per request in input order. It validates all input before producing output,
-including the entity graph when the request array is empty.
+including the entity graph when the request array is empty. `batch` and
+`enforce-batch` accept up to 32,768 requests, subject to the CLI's 8 MiB input
+file limit; `compare` retains its separate limit of 16,384 requests.
 
 `check-entities ENTITIES` validates the entity graph and reports parent IDs
 that are referenced but absent, along with their direct children. JSON output
@@ -361,7 +363,7 @@ hierarchy and copy the parent links, attributes and tags, including nested sets
 and records. Later mutations to the input entities do not change the snapshot;
 construct a new store to apply entity updates. Requests and policy sets remain
 separate from the store. The snapshot is used in memory and performs no I/O.
-For more than 16,384 requests, the application can submit successive batches
+For more than 32,768 requests, the application can submit successive batches
 against the same snapshot and process each response array before continuing.
 Exact principal scopes and exact action scopes with an unrestricted principal
 are indexed. Exact resource scopes are indexed when the principal is unrestricted
@@ -596,7 +598,7 @@ The CLI reads UTF-8 regular files up to 8 MiB; the parser limits input to
 131,072 tokens, expression nesting to 128, arithmetic chains to 128 operators,
 postfix chains and `has` paths to 128 segments, JSON nesting to 64, and
 authorization to 16,384 entities and 131,072 parent links. Batch authorization
-is limited to 16,384 requests; a policy set, including links, is limited to
+is limited to 32,768 requests; a policy set, including links, is limited to
 4,096 policies. A removal operation accepts at most 4,096 policy IDs. JSON
 conversion and checked typed requests limit context values to 524,288 nodes;
 JSON entity conversion and `EntityStore` limit attributes and tags to 524,288
