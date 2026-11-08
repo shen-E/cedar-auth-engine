@@ -56,7 +56,7 @@ requests against the same policy set and entity graph, returning one response
 per request in input order. It validates all input before producing output,
 including the entity graph when the request array is empty. `batch` and
 `enforce-batch` accept up to 32,768 requests, subject to the CLI's 8 MiB input
-file limit; `compare` retains its separate limit of 16,384 requests.
+file limit. `compare` accepts the same maximum number of requests.
 
 `check-entities ENTITIES` validates the entity graph and reports parent IDs
 that are referenced but absent, along with their direct children. JSON output
@@ -116,7 +116,7 @@ without a partial report. A decision grant means Cedar changed from Deny to
 Allow even if evaluation errors remain. An enforcement grant requires the after
 response to be Allow with no errors; an enforcement revocation includes an
 Allow response that gains errors. Choose the check that matches how the host
-uses the response. The command compares up to 16,384 requests and uses the
+uses the response. The command compares up to 32,768 requests and uses the
 `EntityStore` snapshot limits described below.
 
 Use `--before-template TEMPLATE --before-links LINKS` and the corresponding
@@ -510,7 +510,7 @@ let comparisons = store.compare_with_entities(next_store, policies, updated, [re
 ```
 
 The before policy uses the original store and the after policy uses `next_store`.
-Both stores are validated snapshots, and each comparison accepts at most 16,384
+Both stores are validated snapshots, and each comparison accepts at most 32,768
 requests. The host chooses the requests and controls when the new policy set
 and entity data are activated.
 
@@ -652,6 +652,8 @@ Replace the example revision with the source commit used to build the engine. Th
 The scope comparison measures individual sharing policies on two native builds.
 Use `--scope principal` or `--scope resource`; run
 `python benchmarks/principal.py --help` for inputs and options.
+`python benchmarks/compare.py --help` describes the comparison workload,
+including batch size and the two entity snapshots.
 
 The checked-in [baseline](benchmarks/baseline.json), [after](benchmarks/after.json),
 [scale](benchmarks/scale.json), [principal comparison](benchmarks/principal.json),

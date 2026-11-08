@@ -381,7 +381,7 @@ def main():
         result = run("compare", before, after, entities, invalid_requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
-        invalid_requests.write_text(json.dumps([sample] * 16385), encoding="utf-8")
+        invalid_requests.write_text(json.dumps([sample] * 32769, separators=(",", ":")), encoding="utf-8")
         result = run("compare", before, after, entities, invalid_requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
@@ -1112,9 +1112,26 @@ def main():
         result = run("batch", policy, entities, requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout
         checks += 1
-        requests.write_text(json.dumps([request] * 16385, separators=(",", ":")), encoding="utf-8")
-        result = run("compare", policy, policy, entities, requests, "--format", "json")
+        after = path / "after.cedar"
+        after.write_text('@id("read") permit(principal, action, resource); @id("deny") forbid(principal, action, resource) when { context.blocked };', encoding="utf-8")
+        for size in (16385, 32768):
+            cases = [{**request, "context": {"blocked": i % 2 == 1}} for i in range(size)]
+            requests.write_text(json.dumps(cases, separators=(",", ":")), encoding="utf-8")
+            result = run("compare", policy, after, entities, requests, "--fail-on-decision-revoke", "--format", "json")
+            report = json.loads(result.stdout)
+            assert result.returncode == 1 and report["total"] == size and report["changed"] == size // 2
+            assert report["decision_revocations"] == size // 2 and report["enforcement_revocations"] == size // 2
+            assert report["cases"][0]["before"]["decision"] == "Allow"
+            assert report["cases"][-1]["after"]["decision"] == ("Deny" if size % 2 == 0 else "Allow")
+            assert report["cases"][-1]["index"] == size - 1
+            checks += 1
+        requests.write_text(json.dumps([request] * 32769, separators=(",", ":")), encoding="utf-8")
+        result = run("compare", policy, after, entities, requests, "--format", "json")
         assert result.returncode == 2 and not result.stdout and "batch limit" in result.stderr
+        checks += 1
+        requests.write_text(json.dumps([request] * 32767 + [{**request, "resource": None}], separators=(",", ":")), encoding="utf-8")
+        result = run("compare", policy, after, entities, requests, "--format", "json")
+        assert result.returncode == 2 and not result.stdout
         checks += 1
     print("CLI checks passed:", checks)
 

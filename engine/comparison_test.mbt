@@ -95,8 +95,8 @@ test "comparison batch limit is enforced before returning results" {
     resource: { kind: "File", id: "r", },
     context: {},
   }
-  let requests = Array::make(16384, request)
-  assert_true(store.compare(empty, empty, requests).length() == 16384)
+  let requests = Array::make(32768, request)
+  assert_true(store.compare(empty, empty, requests).length() == 32768)
   requests.push(request)
   let rejected = try {
     let _ = store.compare(empty, empty, requests)
@@ -212,10 +212,10 @@ test "different entity comparison respects the request batch limit" {
     resource: { kind: "File", id: "r", },
     context: {},
   }
-  let requests = Array::make(16384, request)
+  let requests = Array::make(32768, request)
   assert_true(
     before.compare_with_entities(after, empty, empty, requests).length() ==
-    16384,
+    32768,
   )
   requests.push(request)
   let rejected = try {
@@ -225,6 +225,40 @@ test "different entity comparison respects the request batch limit" {
     _ => true
   }
   assert_true(rejected)
+}
+
+///|
+test "large comparisons preserve independent snapshots and request order" {
+  let alice : @engine.EntityId = { kind: "User", id: "alice", }
+  let team : @engine.EntityId = { kind: "Group", id: "team", }
+  let before = @engine.EntityStore::new([
+    { uid: alice, attrs: {}, parents: [team], },
+  ])
+  let after = @engine.EntityStore::new([{ uid: alice, attrs: {}, parents: [], }])
+  let policies = @engine.parse_policies(
+    "@id(\"member\") permit(principal in Group::\"team\", action, resource);",
+  )
+  let request = @engine.Request::{
+    principal: alice,
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "report", },
+    context: {},
+  }
+  let bob = { ..request, principal: { kind: "User", id: "bob", }, }
+  let requests = []
+  for i in 0..<32768 {
+    requests.push(if i % 2 == 0 { request } else { bob })
+  }
+  let changes = before.compare_with_entities(
+    after, policies, policies, requests,
+  )
+  assert_true(changes.length() == requests.length())
+  for i in 0..<changes.length() {
+    assert_true(changes[i].decision_revoked() == (i % 2 == 0))
+    assert_true(changes[i].enforcement_revoked() == (i % 2 == 0))
+    assert_true(changes[i].before.errors.is_empty())
+    assert_true(changes[i].after.errors.is_empty())
+  }
 }
 
 ///|
