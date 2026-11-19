@@ -4,6 +4,9 @@ A portable MoonBit authorization library and native CLI for a documented
 subset of Cedar. Given a principal, action, resource, context and entity graph,
 it returns a decision, determining policy IDs and per-policy errors.
 
+See [Cedar compatibility](docs/compatibility.md) for the 4.13.0 target,
+known gaps and reproducible integration baseline.
+
 [Watch the demo (Chinese narration)](https://github.com/shen-E/cedar-auth-engine/releases/tag/demo-2026-11-07-v2) · [Architecture PNG](docs/architecture.png)
 
 ![授权策略引擎架构图](docs/architecture.svg)
