@@ -79,7 +79,8 @@ It accepts policy additions, template links, replacements and removals.
 that are referenced but absent, along with their direct children. JSON output
 includes `entity_count`, `closed` and `missing_parents`. An incomplete hierarchy
 still exits 0 by default; add `--require-closed` to exit 1 when parents are
-missing. Invalid entity input, duplicate IDs or cycles exit 2 without a report.
+missing. Equivalent duplicate entities count once; conflicting duplicates,
+invalid entity input or cycles exit 2 without a report.
 
 `check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
 pairs against one entity snapshot. Each query has `child` and `ancestor`
@@ -299,7 +300,7 @@ outcomes; the checked method validates the typed request first. Use
 `response_to_json` provide the JSON boundary. Pass tagged entities to
 `authorize_with_tags`. For multiple requests, `authorize_batch` and
 `authorize_batch_with_tags` validate and index the shared entity graph once and
-return responses in input order. `validate_entities` checks graph limits, duplicate IDs
+return responses in input order. `validate_entities` checks graph limits, conflicting duplicate IDs
 and cycles independently of policy evaluation. When constructing typed request
 and entity values directly, use the checked store methods described below to
 validate their type names and nested values. JSON inputs and template bindings
@@ -317,7 +318,7 @@ JSON request conversion limits context to 524,288 values. Entity conversion
 limits the combined attributes and tags to 524,288 values, 16,384 entities and
 131,072 parent links. These limits apply even when the caller supplies an
 independently constructed `Json` value; each conversion fails without returning
-partially converted input. Graph cycles and duplicate entity IDs are checked
+partially converted input. Graph cycles and conflicting duplicate entity IDs are checked
 separately when building or validating the entity graph.
 `policies.metadata()` returns IDs, effects and independent copies of annotation
 maps in policy order. Use the IDs in `reasons` and `errors` to find the
@@ -575,8 +576,11 @@ counts and batch limit match the full comparison methods.
 - Static and template-linked `permit` and `forbid` policies, scope equality and entity ancestry,
   principal and resource type restrictions (`is`, optionally with `in`),
   `when` and `unless`. Entity hierarchies must be acyclic; missing parent
-  entities and repeated parent links are allowed. Duplicate entity IDs are
-  rejected even for identical entries, a stricter rule than Cedar.
+  entities and repeated parent links are allowed. Equivalent duplicate entities
+  are coalesced, ignoring parent and set ordering; conflicting duplicates are
+  rejected. Comparison of duplicate attributes and tags shares a budget of one
+  million value comparisons per graph. Input limits count all entries and links,
+  including duplicates.
   Annotations appear before the policy effect. As in the Cedar CLI, `@id("name")` sets the policy ID; otherwise IDs are `policy0`,
   `policy1`, and so on. Duplicate annotations or policy IDs are rejected.
   Annotations are metadata and do not change authorization decisions.

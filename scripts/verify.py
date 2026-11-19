@@ -1081,6 +1081,26 @@ def main():
             graph_checks += 1
             if ref.returncode == 0 or got.returncode != 2 or got.stdout.strip() or empty_batch.returncode != 2 or empty_batch.stdout.strip() or empty_authorize_batch.returncode != 2 or empty_authorize_batch.stdout.strip():
                 mismatches.append({"case": "invalid entity graph", "graph": graph, "reference_status": ref.returncode, "actual_status": got.returncode, "empty_batch_status": empty_batch.returncode, "empty_authorize_batch_status": empty_authorize_batch.returncode})
+        # Cedar coalesces equivalent duplicate entities, including set and parent order.
+        original = {**entity("User", "alice", ["a", "b"]),
+                    "attrs": {"roles": [1, 2]}, "tags": {"labels": ["x", "y"]}}
+        equivalent = {**entity("User", "alice", ["b", "a", "a"]),
+                      "attrs": {"roles": [2, 1, 1]}, "tags": {"labels": ["y", "x"]}}
+        duplicate_graphs = [
+            ("identical", [original, original], True),
+            ("reordered", [original, equivalent], True),
+            ("attribute conflict", [original, {**original, "attrs": {"roles": [3]}}], False),
+            ("tag conflict", [original, {**original, "tags": {"labels": ["z"]}}], False),
+            ("parent conflict", [original, {**original, "parents": []}], False),
+        ]
+        for label, graph, valid in duplicate_graphs:
+            entities.write_text(json.dumps(graph), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--request-json", ref_path])
+            got = run([args.engine, "authorize", policy, entities, engine_path, "--format", "json"])
+            count += 1
+            if (ref.returncode == 0) != valid or (got.returncode == 0) != valid:
+                mismatches.append({"case": "duplicate entities: " + label, "expected_valid": valid,
+                                   "reference_status": ref.returncode, "actual_status": got.returncode})
         # Compare accepted entity type names and invalid IDs at the JSON boundary.
         entity_type_checks = 0
         name_cases = [

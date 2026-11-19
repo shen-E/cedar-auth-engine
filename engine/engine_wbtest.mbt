@@ -128,14 +128,17 @@ test "condition operators and short circuit" {
 }
 
 ///|
-test "duplicate entities are rejected" {
+test "equivalent duplicate entities are accepted and conflicts rejected" {
   let entity : Entity = {
     uid: { kind: "User", id: "alice", },
     attrs: {},
     parents: [],
   }
+  let result = authorize(parse_policies(""), sample_request(), [entity, entity])
+  assert_true(result.decision == Deny)
+  let conflict = { ..entity, attrs: { "active": BoolValue(true) }, }
   let rejected = try {
-    let _ = authorize(parse_policies(""), sample_request(), [entity, entity])
+    let _ = authorize(parse_policies(""), sample_request(), [entity, conflict])
     false
   } catch {
     _ => true

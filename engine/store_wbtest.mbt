@@ -36,13 +36,8 @@ test "entity stores preserve authorization diagnostics and validate graphs" {
     _ => true
   }
   assert_true(rejected)
-  let rejected = try {
-    let _ = EntityStore::new_with_tags([entities[0], entities[0]])
-    false
-  } catch {
-    _ => true
-  }
-  assert_true(rejected)
+  let deduplicated = EntityStore::new_with_tags([entities[0], entities[0]])
+  assert_true(deduplicated.graph.entities.length() == 1)
   assert_true(store.authorize_batch(policies, []).is_empty())
   let requests_at_limit = Array::make(32768, sample_request())
   assert_true(

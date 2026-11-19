@@ -176,16 +176,15 @@ test "tag calls reject wrong arity and respect nesting limits" {
 test "tagged and untagged entry points enforce the same entity limits" {
   let entities = tagged_sample()
   let duplicate = [entities[0], entities[0]]
-  let rejected = try {
-    let _ = authorize_with_tags(parse_policies(""), sample_request(), duplicate)
-    false
-  } catch {
-    _ => true
-  }
-  assert_true(rejected)
+  let response = authorize_with_tags(
+    parse_policies(""),
+    sample_request(),
+    duplicate,
+  )
+  assert_true(response.decision == Deny)
   let many = []
   let many_tagged = []
-  for _ in 0..<4097 {
+  for _ in 0..<16385 {
     many.push(entities[0].entity)
     many_tagged.push(entities[0])
   }

@@ -459,7 +459,8 @@ def main():
         cycle = path / "cycle.json"
         cycle.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[{"type":"User","id":"a"}]}]), encoding="utf-8")
         duplicate = path / "duplicate.json"
-        duplicate.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[]}] * 2), encoding="utf-8")
+        duplicate.write_text(json.dumps([{"uid":{"type":"User","id":"a"},"attrs":{},"parents":[]},
+                                         {"uid":{"type":"User","id":"a"},"attrs":{"active":True},"parents":[]}]), encoding="utf-8")
         malformed = path / "malformed.json"
         malformed.write_text('{"wrong": true}', encoding="utf-8")
         for invalid in (cycle, duplicate, malformed, path / "missing.json"):
@@ -1043,7 +1044,12 @@ def main():
         result = run("check-entities", path, "--require-closed", "--format", "json")
         assert result.returncode == 0 and json.loads(result.stdout) == {"closed": True, "entity_count": 0, "missing_parents": []}
         checks += 1
-        for bad in ([entities[0], entities[0]], [{"uid": team, "attrs": {}, "parents": [team]}], [{"uid": alice, "attrs": {}, "parents": [], "unknown": True}]):
+        path.write_text(json.dumps([entities[0], entities[0]]), encoding="utf-8")
+        duplicate = run("check-entities", path, "--format", "json")
+        assert duplicate.returncode == 0 and json.loads(duplicate.stdout)["entity_count"] == 1
+        checks += 1
+        conflict = {**entities[0], "attrs": {"active": True}}
+        for bad in ([entities[0], conflict], [{"uid": team, "attrs": {}, "parents": [team]}], [{"uid": alice, "attrs": {}, "parents": [], "unknown": True}]):
             path.write_text(json.dumps(bad), encoding="utf-8")
             result = run("check-entities", path, "--format", "json")
             assert result.returncode == 2 and not result.stdout

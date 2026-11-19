@@ -72,14 +72,17 @@ pub fn EntityStore::new_with_tags(
   let copied = []
   let count = Ref(0)
   for tagged in entities {
-    copied.push({
+    let entity_copy : TaggedEntity = {
       entity: {
         uid: tagged.entity.uid,
         attrs: copy_store_fields(tagged.entity.attrs, count),
         parents: tagged.entity.parents.copy(),
       },
       tags: copy_store_fields(tagged.tags, count),
-    })
+    }
+    if graph.index.get(entity_key(tagged.entity.uid)) == Some(copied.length()) {
+      copied.push(entity_copy)
+    }
   }
   { graph: { entities: copied, index: graph.index, }, }
 }
