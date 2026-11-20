@@ -92,7 +92,8 @@ library equivalent is `tagged_entities_from_json_with_metadata`.
 Cedar JSON schema for `authorize`, `explain`, `batch`, `enforce`,
 `enforce-batch` and `test`. Supply the JSON produced by Cedar 4.13.0's
 `translate-schema --direction cedar-to-json-with-resolved-types`. The decoder
-supports entity references, records, sets, booleans, integers and strings;
+supports entity references, records, sets, booleans, integers, strings and
+IP, decimal, datetime and duration values in implicit or explicit JSON form;
 unsupported value types and schema tag declarations are rejected. It does not
 validate policies, requests, required fields, parent constraints or the schema,
 and does not decode context or tags using the schema. It cannot be combined

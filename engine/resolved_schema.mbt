@@ -74,6 +74,27 @@ fn decode_resolved_value(
         _ => raise PolicyError("value does not match resolved schema type")
       }
     }
+    "ipaddr" | "decimal" | "datetime" | "duration" => {
+      let result = match value {
+        String(text) => {
+          count.val += 1
+          match kind {
+            "ipaddr" => IpValue(IpAddress::parse(text))
+            "decimal" => DecimalValue(Decimal::parse(text))
+            "datetime" => DateTimeValue(DateTime::parse(text))
+            _ => DurationValue(Duration::parse(text))
+          }
+        }
+        _ => json_value(value, depth, count)
+      }
+      match (kind, result) {
+        ("ipaddr", IpValue(_))
+        | ("decimal", DecimalValue(_))
+        | ("datetime", DateTimeValue(_))
+        | ("duration", DurationValue(_)) => result
+        _ => raise PolicyError("value does not match resolved schema type")
+      }
+    }
     _ => raise PolicyError("unsupported resolved schema type '\{kind}'")
   }
 }
@@ -123,8 +144,8 @@ fn resolved_schema_index(
 
 ///|
 /// Decode entity attributes using resolved Cedar JSON schema types. Supports
-/// entity references, records, sets, booleans, integers and strings. This is
-/// not schema validation; unsupported types are rejected.
+/// entity references, records, sets, basic values and the IP, decimal,
+/// datetime and duration extensions. This is not schema validation.
 pub fn tagged_entities_from_json_with_resolved_schema(
   value : Json,
   schema : Json,

@@ -1398,6 +1398,38 @@ def main():
             count += 1
             if ref != got:
                 mismatches.append({"case": "entity metadata", "reference": ref, "actual": got})
+        # Exercise implicit and explicit extension values against a resolved schema.
+        schema = temp / "extension.cedarschema"
+        resolved_schema = temp / "extension-schema.json"
+        schema.write_text('entity User; entity File = { addr: ipaddr, amount: decimal, moment: datetime, age: duration }; action "read" appliesTo { principal: User, resource: File };', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        policy.write_text('permit(principal, action, resource) when { resource.addr.isIpv4() && resource.amount == decimal("1.0") && resource.moment == datetime("2026-11-20") && resource.age == duration("1h") };', encoding="utf-8")
+        req = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}
+        ref_path = temp / "extension-request.json"
+        ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": {}}), encoding="utf-8")
+        implicit = {"addr": "10.0.0.1", "amount": "1.0", "moment": "2026-11-20", "age": "1h"}
+        explicit = {key: {"__extn": {"fn": fn, "arg": implicit[key]}} for key, fn in (("addr", "ip"), ("amount", "decimal"), ("moment", "datetime"), ("age", "duration"))}
+        for label, attrs, valid in (("implicit", implicit, True), ("explicit", explicit, True),
+                                    ("invalid ip", {**implicit, "addr": "bad"}, False),
+                                    ("invalid decimal", {**implicit, "amount": "bad"}, False),
+                                    ("invalid datetime", {**implicit, "moment": "bad"}, False),
+                                    ("invalid duration", {**implicit, "age": "bad"}, False),
+                                    ("wrong extension", {**implicit, "addr": explicit["amount"]}, False)):
+            entities.write_text(json.dumps([{"uid": req["resource"], "attrs": attrs, "parents": []}]), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--verbose", "--error-format", "plain"])
+            engine_request = temp / "extension-engine-request.json"
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--format", "json"])
+            count += 1
+            reference_allowed = bool(re.search(r"(?m)^\s*ALLOW\s*$", ref.stdout))
+            if valid:
+                if not reference_allowed or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "schema extension " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif reference_allowed or ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "schema extension " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
