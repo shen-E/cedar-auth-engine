@@ -63,19 +63,71 @@ test "resolved schema rejects unsupported and mismatched input" {
     _ => true
   }
   assert_true(rejected)
-  let tags_schema = parse_json(
-    "{\"\":{\"entityTypes\":{\"File\":{\"tags\":{\"type\":\"String\"}}},\"actions\":{}}}",
+  let no_tags_schema = parse_json(
+    "{\"\":{\"entityTypes\":{\"File\":{}},\"actions\":{}}}",
+  )
+  let tagged = parse_json(
+    "[{\"uid\":{\"type\":\"File\",\"id\":\"f\"},\"attrs\":{},\"parents\":[],\"tags\":{\"owner\":\"alice\"}}]",
   )
   let rejected = try {
     let _ = tagged_entities_from_json_with_resolved_schema(
-      parse_json("[]"),
-      tags_schema,
+      tagged, no_tags_schema,
     )
     false
   } catch {
     _ => true
   }
   assert_true(rejected)
+}
+
+///|
+test "resolved schema decodes entity and extension tags" {
+  let schema = parse_json(
+    "{\"\":{\"entityTypes\":{\"User\":{},\"File\":{\"tags\":{\"type\":\"Entity\",\"name\":\"User\"}},\"Net\":{\"tags\":{\"type\":\"ipaddr\"}}},\"actions\":{}}}",
+  )
+  let input = parse_json(
+    "[{\"uid\":{\"type\":\"File\",\"id\":\"report\"},\"attrs\":{},\"parents\":[],\"tags\":{\"owner\":{\"type\":\"User\",\"id\":\"alice\"}}},{\"uid\":{\"type\":\"Net\",\"id\":\"network\"},\"attrs\":{},\"parents\":[],\"tags\":{\"address\":\"10.0.0.1\"}}]",
+  )
+  let entities = tagged_entities_from_json_with_resolved_schema(input, schema)
+  assert_true(
+    entities[0].tags["owner"] == EntityValue({ kind: "User", id: "alice", }),
+  )
+  assert_true(
+    entities[1].tags["address"] == IpValue(IpAddress::parse("10.0.0.1")),
+  )
+  let policy = parse_policies(
+    "permit(principal, action, resource) when { resource.getTag(\"owner\") == principal };",
+  )
+  assert_true(
+    authorize_with_tags(policy, sample_request(), entities).decision == Allow,
+  )
+  let bad = parse_json(
+    "[{\"uid\":{\"type\":\"File\",\"id\":\"f\"},\"attrs\":{},\"parents\":[],\"tags\":{\"owner\":{\"type\":\"Group\",\"id\":\"alice\"}}}]",
+  )
+  let rejected = try {
+    let _ = tagged_entities_from_json_with_resolved_schema(bad, schema)
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
+
+///|
+test "resolved schema decodes sets of entity tags" {
+  let schema = parse_json(
+    "{\"\":{\"entityTypes\":{\"User\":{},\"File\":{\"tags\":{\"type\":\"Set\",\"element\":{\"type\":\"Entity\",\"name\":\"User\"}}}},\"actions\":{}}}",
+  )
+  let input = parse_json(
+    "[{\"uid\":{\"type\":\"File\",\"id\":\"report\"},\"attrs\":{},\"parents\":[],\"tags\":{\"editors\":[{\"type\":\"User\",\"id\":\"alice\"}]}}]",
+  )
+  let entities = tagged_entities_from_json_with_resolved_schema(input, schema)
+  let policy = parse_policies(
+    "permit(principal, action, resource) when { resource.getTag(\"editors\").contains(principal) };",
+  )
+  assert_true(
+    authorize_with_tags(policy, sample_request(), entities).decision == Allow,
+  )
 }
 
 ///|

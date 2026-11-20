@@ -88,15 +88,15 @@ The default rejects them. Entity UIDs, parents, attributes and tags keep their
 existing checks; this option does not enable Cedar schema validation. The
 library equivalent is `tagged_entities_from_json_with_metadata`.
 
-`--resolved-entity-schema FILE` decodes entity attributes using a resolved
+`--resolved-entity-schema FILE` decodes entity attributes and tags using a resolved
 Cedar JSON schema for `authorize`, `explain`, `batch`, `enforce`,
 `enforce-batch` and `test`. Supply the JSON produced by Cedar 4.13.0's
 `translate-schema --direction cedar-to-json-with-resolved-types`. The decoder
 supports entity references, records, sets, booleans, integers, strings and
 IP, decimal, datetime and duration values in implicit or explicit JSON form;
-unsupported value types and schema tag declarations are rejected. It does not
+unsupported value types and tags on types without a tag declaration are rejected. It does not
 validate policies, requests, required fields, parent constraints or the schema,
-and does not decode context or tags using the schema. It cannot be combined
+and does not decode context using the schema. It cannot be combined
 with `--allow-entity-metadata`. The library equivalent is
 `tagged_entities_from_json_with_resolved_schema`.
 

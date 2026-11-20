@@ -102,9 +102,10 @@ fn decode_resolved_value(
 ///|
 fn resolved_schema_index(
   schema : Json,
-) -> (Map[String, Json], Map[String, Bool]) raise PolicyError {
+) -> (Map[String, Json], Map[String, Json], Map[String, Bool]) raise PolicyError {
   let namespaces = object(schema, "resolved schema")
   let shapes : Map[String, Json] = Map([])
+  let tag_types : Map[String, Json] = Map([])
   let action_ids : Map[String, Bool] = Map([])
   for ns, body in namespaces {
     let fields = object(body, "schema namespace")
@@ -118,8 +119,9 @@ fn resolved_schema_index(
         raise PolicyError("duplicate or excessive schema entity types")
       }
       let entity = object(definition, "schema entity type")
-      if entity.contains("tags") {
-        raise PolicyError("schema tag types are unsupported")
+      match entity.get("tags") {
+        Some(tag_type) => tag_types[qualified] = tag_type
+        None => ()
       }
       shapes[qualified] = match entity.get("shape") {
         Some(shape) => shape
@@ -139,11 +141,11 @@ fn resolved_schema_index(
       action_ids[key] = true
     }
   }
-  (shapes, action_ids)
+  (shapes, tag_types, action_ids)
 }
 
 ///|
-/// Decode entity attributes using resolved Cedar JSON schema types. Supports
+/// Decode entity attributes and tags using resolved Cedar JSON schema types. Supports
 /// entity references, records, sets, basic values and the IP, decimal,
 /// datetime and duration extensions. This is not schema validation.
 pub fn tagged_entities_from_json_with_resolved_schema(
@@ -156,7 +158,7 @@ pub fn tagged_entities_from_json_with_resolved_schema(
     _ => raise PolicyError("entities must be an array")
   }
   let count = Ref(0)
-  let (shapes, action_ids) = resolved_schema_index(schema)
+  let (shapes, tag_types, action_ids) = resolved_schema_index(schema)
   let result : Array[TaggedEntity] = []
   for i in 0..<entities.length() {
     let tagged = entities[i]
@@ -175,7 +177,23 @@ pub fn tagged_entities_from_json_with_resolved_schema(
       RecordValue(attrs) => attrs
       _ => raise PolicyError("entity schema shape must be a record")
     }
-    result.push({ entity: { ..tagged.entity, attrs, }, tags: tagged.tags, })
+    let tags : Map[String, Value] = Map([])
+    match input.get("tags") {
+      Some(value) => {
+        let input_tags = object(value, "entity tags")
+        if !input_tags.is_empty() {
+          let tag_spec = match tag_types.get(tagged.entity.uid.kind) {
+            Some(spec) => spec
+            None => raise PolicyError("entity type does not declare tags")
+          }
+          for key, item in input_tags {
+            tags[key] = decode_resolved_value(item, tag_spec, 0, count)
+          }
+        }
+      }
+      None => ()
+    }
+    result.push({ entity: { ..tagged.entity, attrs, }, tags, })
   }
   result
 }

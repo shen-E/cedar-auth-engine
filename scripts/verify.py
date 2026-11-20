@@ -1430,6 +1430,37 @@ def main():
                     mismatches.append({"case": "schema extension " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif reference_allowed or ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "schema extension " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Tags use the declared type, including implicit entity and extension values.
+        schema.write_text('entity User; entity File tags User; entity Net tags ipaddr; entity Plain; action "read" appliesTo { principal: User, resource: [File, Net, Plain] };', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        alice = {"type": "User", "id": "alice"}
+        cases = (
+            ("implicit entity", "File", {"owner": alice}, 'resource.getTag("owner") == principal', True),
+            ("explicit entity", "File", {"owner": {"__entity": alice}}, 'resource.getTag("owner") == principal', True),
+            ("implicit ip", "Net", {"addr": "10.0.0.1"}, 'resource.getTag("addr").isIpv4()', True),
+            ("explicit ip", "Net", {"addr": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}}, 'resource.getTag("addr").isIpv4()', True),
+            ("wrong entity", "File", {"owner": {"type": "Group", "id": "x"}}, 'true', False),
+            ("invalid ip", "Net", {"addr": "invalid"}, 'true', False),
+            ("undeclared tags", "Plain", {"x": "value"}, 'true', False),
+        )
+        for label, kind, tags, condition, valid in cases:
+            policy.write_text('permit(principal, action, resource) when { ' + condition + ' };', encoding="utf-8")
+            resource = {"type": kind, "id": "resource"}
+            req = {"principal": alice, "action": {"type": "Action", "id": "read"}, "resource": resource, "context": {}}
+            entities.write_text(json.dumps([{"uid": resource, "attrs": {}, "parents": [], "tags": tags}]), encoding="utf-8")
+            ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": {}}), encoding="utf-8")
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "schema tags " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "schema tags " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
