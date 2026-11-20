@@ -1525,6 +1525,34 @@ def main():
                     mismatches.append({"case": "schema required " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "schema required " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Partial request type checks use exact action applicability and context entity types.
+        schema.write_text('entity User in [Group]; entity Group; entity File; entity Other; action "read" appliesTo { principal: Group, resource: File, context: { owner: Group } }; action "empty";', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        policy.write_text('permit(principal, action, resource);', encoding="utf-8")
+        type_cases = (
+            ("allowed", "Group", "read", "File", "Group", True),
+            ("child principal", "User", "read", "File", "Group", False),
+            ("wrong resource", "Group", "read", "Other", "Group", False),
+            ("context entity type", "Group", "read", "File", "User", False),
+            ("unknown action", "Group", "missing", "File", "Group", False),
+            ("no applicability", "Group", "empty", "File", "Group", False),
+        )
+        for label, principal, action, resource_kind, owner, valid in type_cases:
+            req = {"principal": {"type": principal, "id": "a"}, "action": {"type": "Action", "id": action}, "resource": {"type": resource_kind, "id": "f"}, "context": {"owner": {"type": owner, "id": "x"}}}
+            ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": req["context"]}), encoding="utf-8")
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "true", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-context-schema", resolved_schema, "--check-request-types", "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "request types " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "request types " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

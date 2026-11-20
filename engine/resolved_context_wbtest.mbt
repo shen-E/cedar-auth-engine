@@ -93,3 +93,62 @@ test "resolved context schema snapshots its input and bounds cycles" {
   }
   assert_true(rejected)
 }
+
+///|
+test "partial request type checks follow action applicability and context types" {
+  let schema = parse_json(
+    "{\"App\":{\"actions\":{\"read\":{\"appliesTo\":{\"principalTypes\":[\"App::Group\"],\"resourceTypes\":[\"App::File\"],\"context\":{\"type\":\"Record\",\"attributes\":{\"owner\":{\"type\":\"Entity\",\"name\":\"App::Group\"}}}}},\"empty\":{}}}}",
+  )
+  let decoder = ResolvedContextSchema::from_json(schema)
+  for
+    (principal, action, resource, owner, valid) in [
+      ("App::Group", "read", "App::File", "App::Group", true),
+      ("App::User", "read", "App::File", "App::Group", false),
+      ("App::Group", "read", "App::Other", "App::Group", false),
+      ("App::Group", "read", "App::File", "App::User", false),
+      ("App::Group", "empty", "App::File", "App::Group", false),
+      ("App::Group", "missing", "App::File", "App::Group", false),
+    ] {
+    let input = parse_json(
+      "{\"principal\":{\"type\":\"" +
+      principal +
+      "\",\"id\":\"a\"},\"action\":{\"type\":\"App::Action\",\"id\":\"" +
+      action +
+      "\"},\"resource\":{\"type\":\"" +
+      resource +
+      "\",\"id\":\"f\"},\"context\":{\"owner\":{\"type\":\"" +
+      owner +
+      "\",\"id\":\"a\"}}}",
+    )
+    let accepted = try {
+      let _ = decoder.request_from_json_with_action_types(input)
+      true
+    } catch {
+      _ => false
+    }
+    assert_true(
+      accepted == valid,
+      msg=principal + " / " + action + " / " + resource + " / " + owner,
+    )
+  }
+}
+
+///|
+test "request action types are snapshotted" {
+  let principals : Array[Json] = [Json::string("User")]
+  let applicability : Json = {
+    "principalTypes": Json::array(principals),
+    "resourceTypes": ["File"],
+  }
+  let schema : Json = {
+    "": { "actions": { "read": { "appliesTo": applicability } } },
+  }
+  let decoder = ResolvedContextSchema::from_json(schema)
+  principals.clear()
+  let input = parse_json(
+    "{\"principal\":{\"type\":\"User\",\"id\":\"a\"},\"action\":{\"type\":\"Action\",\"id\":\"read\"},\"resource\":{\"type\":\"File\",\"id\":\"f\"},\"context\":{}}",
+  )
+  assert_true(
+    decoder.request_from_json_with_action_types(input).principal.kind == "User",
+  )
+}

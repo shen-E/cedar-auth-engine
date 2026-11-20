@@ -155,9 +155,15 @@ priv struct TestCase {
 fn decode_request(
   item : Json,
   schema : @engine.ResolvedContextSchema?,
+  check_types : Bool,
 ) -> @engine.Request raise {
   match schema {
-    Some(schema) => schema.request_from_json(item)
+    Some(schema) =>
+      if check_types {
+        schema.request_from_json_with_action_types(item)
+      } else {
+        schema.request_from_json(item)
+      }
     None => @engine.request_from_json(item)
   }
 }
@@ -166,6 +172,7 @@ fn decode_request(
 fn parse_test_case(
   item : Json,
   schema : @engine.ResolvedContextSchema?,
+  check_types : Bool,
 ) -> TestCase raise {
   let fields = match item {
     Object(fields) => fields
@@ -180,7 +187,7 @@ fn parse_test_case(
     }
   }
   let request = match fields.get("request") {
-    Some(request) => decode_request(request, schema)
+    Some(request) => decode_request(request, schema, check_types)
     None => raise CliError("test case missing request")
   }
   let expected = match fields.get("decision") {
@@ -218,7 +225,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine explain POLICY ENTITIES REQUEST [--strict] [--stages] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, explain, batch, enforce, enforce-batch and test: [--allow-entity-metadata] [--resolved-entity-schema FILE] [--resolved-context-schema FILE] [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine explain POLICY ENTITIES REQUEST [--strict] [--stages] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, explain, batch, enforce, enforce-batch and test: [--allow-entity-metadata] [--resolved-entity-schema FILE] [--resolved-context-schema FILE] [--check-request-types] [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
     )
     return 0
   }
@@ -258,6 +265,7 @@ fn run(args : Array[String]) -> Int32 raise {
   let mut allow_entity_metadata = false
   let mut resolved_entity_schema : String? = None
   let mut resolved_context_schema : String? = None
+  let mut check_request_types = false
   let inputs = policy_inputs()
   let mut i = required_count
   while i < args.length() {
@@ -292,6 +300,11 @@ fn run(args : Array[String]) -> Int32 raise {
       i + 1 < args.length() {
       resolved_context_schema = Some(args[i + 1])
       i += 2
+    } else if args[i] == "--check-request-types" &&
+      command != "check" &&
+      !check_request_types {
+      check_request_types = true
+      i += 1
     } else if args[i] == "--strict" &&
       (command == "authorize" || command == "batch" || command == "explain") &&
       !strict {
@@ -349,6 +362,9 @@ fn run(args : Array[String]) -> Int32 raise {
     }
     return 0
   }
+  if check_request_types && resolved_context_schema is None {
+    raise CliError("--check-request-types requires --resolved-context-schema")
+  }
   let entity_json = load_json(args[3])
   if allow_entity_metadata && resolved_entity_schema is Some(_) {
     raise CliError(
@@ -378,7 +394,7 @@ fn run(args : Array[String]) -> Int32 raise {
     if stages {
       return run_explain_stages(
         policies,
-        decode_request(input, context_schema),
+        decode_request(input, context_schema, check_request_types),
         entities,
         json,
         strict,
@@ -386,7 +402,7 @@ fn run(args : Array[String]) -> Int32 raise {
     }
     return run_explain(
       policies,
-      decode_request(input, context_schema),
+      decode_request(input, context_schema, check_request_types),
       entities,
       json,
       strict,
@@ -395,7 +411,7 @@ fn run(args : Array[String]) -> Int32 raise {
   if command == "authorize" || command == "enforce" {
     let response = @engine.authorize_with_tags(
       policies,
-      decode_request(input, context_schema),
+      decode_request(input, context_schema, check_request_types),
       entities,
     )
     if json {
@@ -439,7 +455,7 @@ fn run(args : Array[String]) -> Int32 raise {
     }
     let requests = []
     for item in items {
-      requests.push(decode_request(item, context_schema))
+      requests.push(decode_request(item, context_schema, check_request_types))
     }
     if summary_only {
       let summary = @engine.authorize_batch_summary_with_tags(
@@ -510,7 +526,9 @@ fn run(args : Array[String]) -> Int32 raise {
   }
   let parsed_cases = []
   for item in cases {
-    parsed_cases.push(parse_test_case(item, context_schema))
+    parsed_cases.push(
+      parse_test_case(item, context_schema, check_request_types),
+    )
   }
   let responses : Array[@engine.Response] = []
   let mut start = 0

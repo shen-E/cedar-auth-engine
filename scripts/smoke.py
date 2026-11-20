@@ -1325,7 +1325,7 @@ def main():
         item = {"principal": uid, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {"source": "10.0.0.1", "owner": uid}}
         request.write_text(json.dumps(item), encoding="utf-8")
         shape = {"type": "Record", "attributes": {"source": {"type": "ipaddr"}, "owner": {"type": "Entity", "name": "User"}}}
-        schema.write_text(json.dumps({"": {"actions": {"read": {"appliesTo": {"context": shape}}}}}), encoding="utf-8")
+        schema.write_text(json.dumps({"": {"actions": {"read": {"appliesTo": {"principalTypes": ["User"], "resourceTypes": ["File"], "context": shape}}}}}), encoding="utf-8")
         flags = ("--resolved-context-schema", schema, "--format", "json")
         assert json.loads(run("authorize", policy, entities, request, *flags).stdout)["decision"] == "Allow"
         combined = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, *flags)
@@ -1344,6 +1344,21 @@ def main():
             assert result.returncode == 2 and not result.stdout
         duplicate = run("authorize", policy, entities, request, *flags, "--resolved-context-schema", schema)
         assert duplicate.returncode == 2 and not duplicate.stdout
+        checked_flags = ("--resolved-context-schema", schema, "--check-request-types", "--format", "json")
+        assert run("authorize", policy, entities, request, *checked_flags).returncode == 0
+        no_schema = run("authorize", policy, entities, request, "--check-request-types")
+        assert no_schema.returncode == 2 and not no_schema.stdout
+        for invalid in ({**item, "principal": {"type": "Group", "id": "alice"}},
+                        {**item, "resource": {"type": "Other", "id": "report"}},
+                        {**item, "context": {**item["context"], "owner": {"type": "Group", "id": "alice"}}}):
+            request.write_text(json.dumps(invalid), encoding="utf-8")
+            assert run("authorize", policy, entities, request, *flags).returncode == 0
+            bad = run("authorize", policy, entities, request, *checked_flags)
+            assert bad.returncode == 2 and not bad.stdout
+        batch.write_text(json.dumps([item, invalid]), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            bad = run(command, policy, entities, batch, *checked_flags)
+            assert bad.returncode == 2 and not bad.stdout
         checks += 1
     print("CLI checks passed:", checks)
 

@@ -112,6 +112,13 @@ principal or resource applicability. For library use, create
 `ResolvedContextSchema::from_json(schema)` once and call `request_from_json`
 on it for each request.
 
+Add `--check-request-types` with `--resolved-context-schema` to also check
+the principal and resource types against the action's declared applicability
+and check entity-reference types in context. Matching uses exact type names.
+These are partial checks: they do not validate the schema itself, enum entity
+IDs, entity hierarchies or policies. In the library, call
+`ResolvedContextSchema::request_from_json_with_action_types`.
+
 Resolved entity decoding shares a limit of 1,000,000 schema-field checks per
 entity input; context decoding has the same limit per request. Input and value
 limits remain in effect.

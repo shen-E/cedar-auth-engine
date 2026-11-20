@@ -283,6 +283,7 @@ pub struct ResolvedContextSchema {
 }
 pub fn ResolvedContextSchema::from_json(Json) -> Self raise PolicyError
 pub fn ResolvedContextSchema::request_from_json(Self, Json) -> Request raise PolicyError
+pub fn ResolvedContextSchema::request_from_json_with_action_types(Self, Json) -> Request raise PolicyError
 
 pub(all) struct Response {
   decision : Decision
