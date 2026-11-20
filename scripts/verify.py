@@ -1269,7 +1269,8 @@ def main():
             if ref.returncode == 0 or got.returncode != 2:
                 mismatches.append({"case": source, "reference_status": ref.returncode, "actual_status": got.returncode})
         # Compare batch graph queries with Cedar's policy-level entity membership.
-        entities = ROOT / "examples" / "sharing" / "entities.json"
+        entities = temp / "sharing-entities.json"
+        entities.write_bytes((ROOT / "examples" / "sharing" / "entities.json").read_bytes())
         query_file = temp / "membership.json"
         alice = {"type": "User", "id": "alice"}
         bob = {"type": "User", "id": "bob"}
@@ -1461,6 +1462,37 @@ def main():
                     mismatches.append({"case": "schema tags " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "schema tags " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Decode context using the resolved action type, including implicit values.
+        schema.write_text('entity User; entity File; action "read" appliesTo { principal: User, resource: File, context: { source: ipaddr, owner: User } }; action "empty";', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        policy.write_text('permit(principal, action, resource);', encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        alice = {"type": "User", "id": "alice"}
+        valid_ctx = {"source": "10.0.0.1", "owner": alice}
+        ctx_cases = (
+            ("implicit", "read", valid_ctx, True),
+            ("explicit", "read", {"source": {"__extn": {"fn": "ip", "arg": "10.0.0.1"}}, "owner": {"__entity": alice}}, True),
+            ("invalid ip", "read", {**valid_ctx, "source": "bad"}, False),
+            ("other entity type", "read", {**valid_ctx, "owner": {"type": "Group", "id": "x"}}, True),
+            ("unknown field", "read", {**valid_ctx, "extra": True}, False),
+            ("empty action", "empty", {}, True),
+            ("unknown action", "unknown", {}, False),
+        )
+        for label, action, context, valid in ctx_cases:
+            req = {"principal": alice, "action": {"type": "Action", "id": action}, "resource": {"type": "File", "id": "report"}, "context": context}
+            ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": context}), encoding="utf-8")
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-context-schema", resolved_schema, "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "schema context " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "schema context " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

@@ -7,6 +7,17 @@ fn decode_resolved_value(
   depth : Int32,
   count : Ref[Int32],
 ) -> Value raise PolicyError {
+  decode_resolved_value_impl(value, spec, depth, count, true)
+}
+
+///|
+fn decode_resolved_value_impl(
+  value : Json,
+  spec : Json,
+  depth : Int32,
+  count : Ref[Int32],
+  enforce_entity_type : Bool,
+) -> Value raise PolicyError {
   if depth > 64 || count.val >= 524288 {
     raise PolicyError("resolved schema value limit exceeded")
   }
@@ -29,7 +40,7 @@ fn decode_resolved_value(
         _ => value
       }
       let uid = entity_id(raw)
-      if uid.kind != expected {
+      if enforce_entity_type && uid.kind != expected {
         raise PolicyError("entity type does not match resolved schema")
       }
       count.val += 1
@@ -44,7 +55,15 @@ fn decode_resolved_value(
       let element = required(fields, "element")
       let result = []
       for item in items {
-        result.push(decode_resolved_value(item, element, depth + 1, count))
+        result.push(
+          decode_resolved_value_impl(
+            item,
+            element,
+            depth + 1,
+            count,
+            enforce_entity_type,
+          ),
+        )
       }
       SetValue(result)
     }
@@ -61,7 +80,13 @@ fn decode_resolved_value(
           Some(spec) => spec
           None => raise PolicyError("attribute not declared in resolved schema")
         }
-        result[key] = decode_resolved_value(item, attribute, depth + 1, count)
+        result[key] = decode_resolved_value_impl(
+          item,
+          attribute,
+          depth + 1,
+          count,
+          enforce_entity_type,
+        )
       }
       RecordValue(result)
     }

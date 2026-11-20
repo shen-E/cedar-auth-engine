@@ -60,6 +60,7 @@ jobs:
           echo "23d358ef38edad8ade629a09f6a7359ecbd1761c9ff82e9fd0a5c5bce36b8c79  $RUNNER_TEMP/cedar.tar.xz" | sha256sum -c -
           tar -xJf "$RUNNER_TEMP/cedar.tar.xz" -C "$RUNNER_TEMP"
           python scripts/verify.py --cedar "$RUNNER_TEMP/cedar-policy-cli-x86_64-unknown-linux-gnu/cedar" --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe
+          git diff --exit-code -- examples/sharing/entities.json
       - name: Measure handwritten integration coverage
         if: runner.os == 'Linux'
         shell: bash

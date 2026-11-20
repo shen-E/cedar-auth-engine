@@ -278,6 +278,12 @@ pub(all) struct Request {
 pub fn Request::to_repr(Self) -> @debug.Repr
 pub fn Request::validate(Self) -> Unit raise PolicyError
 
+pub struct ResolvedContextSchema {
+  // private fields
+}
+pub fn ResolvedContextSchema::from_json(Json) -> Self raise PolicyError
+pub fn ResolvedContextSchema::request_from_json(Self, Json) -> Request raise PolicyError
+
 pub(all) struct Response {
   decision : Decision
   reasons : Array[String]

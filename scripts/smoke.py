@@ -1316,6 +1316,35 @@ def main():
         mixed = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, "--allow-entity-metadata")
         assert duplicate.returncode == mixed.returncode == 2 and not duplicate.stdout and not mixed.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request, schema, batch, cases = (path / name for name in ("p.cedar", "e.json", "r.json", "s.json", "batch.json", "cases.json"))
+        policy.write_text('permit(principal, action, resource) when { context.source.isIpv4() && context.owner == principal };', encoding="utf-8")
+        entities.write_text("[]", encoding="utf-8")
+        uid = {"type": "User", "id": "alice"}
+        item = {"principal": uid, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {"source": "10.0.0.1", "owner": uid}}
+        request.write_text(json.dumps(item), encoding="utf-8")
+        shape = {"type": "Record", "attributes": {"source": {"type": "ipaddr"}, "owner": {"type": "Entity", "name": "User"}}}
+        schema.write_text(json.dumps({"": {"actions": {"read": {"appliesTo": {"context": shape}}}}}), encoding="utf-8")
+        flags = ("--resolved-context-schema", schema, "--format", "json")
+        assert json.loads(run("authorize", policy, entities, request, *flags).stdout)["decision"] == "Allow"
+        combined = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, *flags)
+        assert combined.returncode == 0 and json.loads(combined.stdout)["decision"] == "Allow"
+        assert json.loads(run("authorize", policy, entities, request, "--format", "json").stdout)["decision"] == "Deny"
+        for command in ("explain", "enforce"):
+            assert run(command, policy, entities, request, *flags).returncode == 0
+        batch.write_text(json.dumps([item]), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            assert run(command, policy, entities, batch, *flags).returncode == 0
+        cases.write_text(json.dumps([{"request": item, "decision": "Allow"}]), encoding="utf-8")
+        assert run("test", policy, entities, cases, *flags).returncode == 0
+        batch.write_text(json.dumps([item, {**item, "context": {"source": "bad", "owner": uid}}]), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            result = run(command, policy, entities, batch, *flags)
+            assert result.returncode == 2 and not result.stdout
+        duplicate = run("authorize", policy, entities, request, *flags, "--resolved-context-schema", schema)
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

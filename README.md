@@ -100,6 +100,16 @@ and does not decode context using the schema. It cannot be combined
 with `--allow-entity-metadata`. The library equivalent is
 `tagged_entities_from_json_with_resolved_schema`.
 
+`--resolved-context-schema FILE` separately decodes request contexts according
+to the resolved schema's action declarations. It can be combined with
+`--resolved-entity-schema FILE`. The CLI indexes the action types once for a
+batch. Undeclared actions and context fields, primitive or extension type
+mismatches and unsupported types are rejected. Entity-reference types are not
+validated. This decodes values; it does not validate policies, required fields,
+principal or resource applicability. For library use, create
+`ResolvedContextSchema::from_json(schema)` once and call `request_from_json`
+on it for each request.
+
 `check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
 pairs against one entity snapshot. Each query has `child` and `ancestor`
 objects with `type` and `id` strings; see
