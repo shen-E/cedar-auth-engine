@@ -6,8 +6,9 @@ fn decode_resolved_value(
   spec : Json,
   depth : Int32,
   count : Ref[Int32],
+  work : Ref[Int32],
 ) -> Value raise PolicyError {
-  decode_resolved_value_impl(value, spec, depth, count, true)
+  decode_resolved_value_impl(value, spec, depth, count, work, true)
 }
 
 ///|
@@ -16,6 +17,7 @@ fn decode_resolved_value_impl(
   spec : Json,
   depth : Int32,
   count : Ref[Int32],
+  work : Ref[Int32],
   enforce_entity_type : Bool,
 ) -> Value raise PolicyError {
   if depth > 64 || count.val >= 524288 {
@@ -61,6 +63,7 @@ fn decode_resolved_value_impl(
             element,
             depth + 1,
             count,
+            work,
             enforce_entity_type,
           ),
         )
@@ -74,6 +77,21 @@ fn decode_resolved_value_impl(
         "schema attributes",
       )
       let input = object(value, "record")
+      for key, attribute in attributes {
+        if work.val <= 0 {
+          raise PolicyError("resolved schema field work limit exceeded")
+        }
+        work.val -= 1
+        let definition = object(attribute, "schema attribute")
+        let mandatory = match definition.get("required") {
+          None | Some(True) => true
+          Some(False) => false
+          _ => raise PolicyError("schema required must be a boolean")
+        }
+        if mandatory && !input.contains(key) {
+          raise PolicyError("required schema field missing: \{key}")
+        }
+      }
       let result : Map[String, Value] = Map([])
       for key, item in input {
         let attribute = match attributes.get(key) {
@@ -85,6 +103,7 @@ fn decode_resolved_value_impl(
           attribute,
           depth + 1,
           count,
+          work,
           enforce_entity_type,
         )
       }
@@ -183,6 +202,7 @@ pub fn tagged_entities_from_json_with_resolved_schema(
     _ => raise PolicyError("entities must be an array")
   }
   let count = Ref(0)
+  let work = Ref(1000000)
   let (shapes, tag_types, action_ids) = resolved_schema_index(schema)
   let result : Array[TaggedEntity] = []
   for i in 0..<entities.length() {
@@ -198,7 +218,7 @@ pub fn tagged_entities_from_json_with_resolved_schema(
         }
     }
     let attrs = match
-      decode_resolved_value(required(input, "attrs"), shape, 0, count) {
+      decode_resolved_value(required(input, "attrs"), shape, 0, count, work) {
       RecordValue(attrs) => attrs
       _ => raise PolicyError("entity schema shape must be a record")
     }
@@ -212,7 +232,7 @@ pub fn tagged_entities_from_json_with_resolved_schema(
             None => raise PolicyError("entity type does not declare tags")
           }
           for key, item in input_tags {
-            tags[key] = decode_resolved_value(item, tag_spec, 0, count)
+            tags[key] = decode_resolved_value(item, tag_spec, 0, count, work)
           }
         }
       }

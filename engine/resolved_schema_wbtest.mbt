@@ -175,6 +175,7 @@ test "resolved schema decodes implicit and explicit extension values" {
     parse_json("{\"type\":\"Set\",\"element\":{\"type\":\"duration\"}}"),
     0,
     Ref(0),
+    Ref(1000000),
   )
   assert_true(
     nested ==

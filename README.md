@@ -94,8 +94,9 @@ Cedar JSON schema for `authorize`, `explain`, `batch`, `enforce`,
 `translate-schema --direction cedar-to-json-with-resolved-types`. The decoder
 supports entity references, records, sets, booleans, integers, strings and
 IP, decimal, datetime and duration values in implicit or explicit JSON form;
-unsupported value types and tags on types without a tag declaration are rejected. It does not
-validate policies, requests, required fields, parent constraints or the schema,
+unsupported value types and tags on types without a tag declaration are rejected.
+Resolved records check required fields, including nested records and optional
+fields. These checks do not validate policies, requests, parent constraints or the schema,
 and does not decode context using the schema. It cannot be combined
 with `--allow-entity-metadata`. The library equivalent is
 `tagged_entities_from_json_with_resolved_schema`.
@@ -105,10 +106,15 @@ to the resolved schema's action declarations. It can be combined with
 `--resolved-entity-schema FILE`. The CLI indexes the action types once for a
 batch. Undeclared actions and context fields, primitive or extension type
 mismatches and unsupported types are rejected. Entity-reference types are not
-validated. This decodes values; it does not validate policies, required fields,
+validated. Resolved records check required and optional fields. This decodes
+values; it does not validate policies,
 principal or resource applicability. For library use, create
 `ResolvedContextSchema::from_json(schema)` once and call `request_from_json`
 on it for each request.
+
+Resolved entity decoding shares a limit of 1,000,000 schema-field checks per
+entity input; context decoding has the same limit per request. Input and value
+limits remain in effect.
 
 `check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
 pairs against one entity snapshot. Each query has `child` and `ancestor`

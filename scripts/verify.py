@@ -1493,6 +1493,38 @@ def main():
                     mismatches.append({"case": "schema context " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "schema context " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Required and optional record fields apply during schema-guided decoding.
+        schema.write_text('entity User; entity File = { owner: User, detail: { enabled: Bool }, note?: String }; action "read" appliesTo { principal: User, resource: File, context: { source: ipaddr, extra?: String } };', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        policy.write_text('permit(principal, action, resource);', encoding="utf-8")
+        alice = {"type": "User", "id": "alice"}
+        resource = {"type": "File", "id": "report"}
+        attrs = {"owner": alice, "detail": {"enabled": True}}
+        context = {"source": "10.0.0.1"}
+        required_cases = (
+            ("optional absent", attrs, context, True),
+            ("optional present", {**attrs, "note": "ok"}, {**context, "extra": "ok"}, True),
+            ("missing entity field", {"detail": {"enabled": True}}, context, False),
+            ("missing nested field", {**attrs, "detail": {}}, context, False),
+            ("missing context field", attrs, {}, False),
+            ("optional wrong type", {**attrs, "note": True}, context, False),
+        )
+        for label, entity_attrs, ctx, valid in required_cases:
+            req = {"principal": alice, "action": {"type": "Action", "id": "read"}, "resource": resource, "context": ctx}
+            entities.write_text(json.dumps([{"uid": resource, "attrs": entity_attrs, "parents": []}]), encoding="utf-8")
+            ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": ctx}), encoding="utf-8")
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--resolved-context-schema", resolved_schema, "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "schema required " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "schema required " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

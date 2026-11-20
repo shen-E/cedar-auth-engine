@@ -1,6 +1,6 @@
 ///|
 /// Resolved action context types for decoding requests. This does not validate
-/// the schema, required fields, principal/resource types, or policies.
+/// the schema, principal/resource types, or policies.
 pub struct ResolvedContextSchema {
   priv contexts : Map[String, Json]
 }
@@ -86,6 +86,7 @@ pub fn ResolvedContextSchema::request_from_json(
       shape,
       0,
       Ref(0),
+      Ref(1000000),
       false,
     ) {
     RecordValue(context) => context
