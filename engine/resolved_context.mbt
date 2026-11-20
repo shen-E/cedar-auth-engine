@@ -4,6 +4,7 @@
 pub struct ResolvedContextSchema {
   priv contexts : Map[String, Json]
   priv applicability : Map[String, Json]
+  priv enum_ids : Map[String, Map[String, Bool]]
 }
 
 ///|
@@ -42,9 +43,38 @@ pub fn ResolvedContextSchema::from_json(
 ) -> ResolvedContextSchema raise PolicyError {
   let contexts : Map[String, Json] = Map([])
   let applicability : Map[String, Json] = Map([])
+  let enum_ids : Map[String, Map[String, Bool]] = Map([])
   let count = Ref(0)
   for ns, body in object(schema, "resolved schema") {
     let fields = object(body, "schema namespace")
+    let types = match fields.get("entityTypes") {
+      Some(value) => object(value, "schema entity types")
+      None => Map([])
+    }
+    for name, definition in types {
+      let entity = object(definition, "schema entity type")
+      match entity.get("enum") {
+        Some(value) => {
+          let items = match copy_context_schema(value, 0, count) {
+            Array(items) => items
+            _ => raise PolicyError("schema enum must be an array")
+          }
+          let ids : Map[String, Bool] = Map([])
+          for item in items {
+            match item {
+              String(id) => ids[id] = true
+              _ => raise PolicyError("schema enum must contain strings")
+            }
+          }
+          let qualified = if ns == "" { name } else { ns + "::" + name }
+          if enum_ids.contains(qualified) || enum_ids.length() >= 16384 {
+            raise PolicyError("duplicate or excessive schema enum types")
+          }
+          enum_ids[qualified] = ids
+        }
+        None => ()
+      }
+    }
     let actions = match fields.get("actions") {
       Some(value) => object(value, "schema actions")
       None => Map([])
@@ -69,7 +99,40 @@ pub fn ResolvedContextSchema::from_json(
       }
     }
   }
-  { contexts, applicability, }
+  { contexts, applicability, enum_ids, }
+}
+
+///|
+fn ResolvedContextSchema::check_enum_id(
+  self : ResolvedContextSchema,
+  uid : EntityId,
+) -> Unit raise PolicyError {
+  match self.enum_ids.get(uid.kind) {
+    Some(ids) =>
+      if !ids.contains(uid.id) {
+        raise PolicyError("entity ID is not declared in schema enum")
+      }
+    None => ()
+  }
+}
+
+///|
+fn ResolvedContextSchema::check_enum_value(
+  self : ResolvedContextSchema,
+  value : Value,
+) -> Unit raise PolicyError {
+  match value {
+    EntityValue(uid) => self.check_enum_id(uid)
+    SetValue(values) =>
+      for item in values {
+        self.check_enum_value(item)
+      }
+    RecordValue(fields) =>
+      for _, item in fields {
+        self.check_enum_value(item)
+      }
+    _ => ()
+  }
 }
 
 ///|
@@ -104,7 +167,8 @@ fn resolved_type_allowed(
 }
 
 ///|
-/// Decode and check action applicability and context entity-reference types.
+/// Decode and check action applicability, context entity-reference types and
+/// enumerated entity IDs in the principal, resource and context.
 /// This is a partial check, not full schema or request validation.
 pub fn ResolvedContextSchema::request_from_json_with_action_types(
   self : ResolvedContextSchema,
@@ -133,6 +197,8 @@ fn ResolvedContextSchema::decode_request(
         "request entity types do not match action applicability",
       )
     }
+    self.check_enum_id(request.principal)
+    self.check_enum_id(request.resource)
   }
   let fields = object(value, "request")
   let context = match
@@ -146,6 +212,11 @@ fn ResolvedContextSchema::decode_request(
     ) {
     RecordValue(context) => context
     _ => raise PolicyError("action context schema must be a record")
+  }
+  if check_types {
+    for _, value in context {
+      self.check_enum_value(value)
+    }
   }
   { ..request, context, }
 }

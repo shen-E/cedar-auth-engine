@@ -1359,6 +1359,20 @@ def main():
         for command in ("batch", "enforce-batch"):
             bad = run(command, policy, entities, batch, *checked_flags)
             assert bad.returncode == 2 and not bad.stdout
+        schema.write_text(json.dumps({"": {"entityTypes": {"User": {"enum": ["alice"]}, "File": {"enum": ["report"]}}, "actions": {"read": {"appliesTo": {"principalTypes": ["User"], "resourceTypes": ["File"], "context": shape}}}}}), encoding="utf-8")
+        request.write_text(json.dumps(item), encoding="utf-8")
+        assert run("authorize", policy, entities, request, *checked_flags).returncode == 0
+        for invalid in ({**item, "principal": {"type": "User", "id": "unknown"}},
+                        {**item, "resource": {"type": "File", "id": "unknown"}},
+                        {**item, "context": {**item["context"], "owner": {"type": "User", "id": "unknown"}}}):
+            request.write_text(json.dumps(invalid), encoding="utf-8")
+            assert run("authorize", policy, entities, request, *flags).returncode == 0
+            bad = run("authorize", policy, entities, request, *checked_flags)
+            assert bad.returncode == 2 and not bad.stdout
+        batch.write_text(json.dumps([item, invalid]), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            bad = run(command, policy, entities, batch, *checked_flags)
+            assert bad.returncode == 2 and not bad.stdout
         checks += 1
     print("CLI checks passed:", checks)
 

@@ -1553,6 +1553,29 @@ def main():
                     mismatches.append({"case": "request types " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "request types " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Enum entity IDs are checked in request slots and nested context.
+        schema.write_text('entity Role enum ["Admin", "Reader"]; entity File enum ["report"]; action "read" appliesTo { principal: Role, resource: File, context: { owners: Set<{ role: Role }> } };', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        for label, principal_id, resource_id, owner_id, valid in (
+            ("allowed", "Admin", "report", "Reader", True),
+            ("principal", "Other", "report", "Reader", False),
+            ("resource", "Admin", "other", "Reader", False),
+            ("nested context", "Admin", "report", "Other", False),
+        ):
+            req = {"principal": {"type": "Role", "id": principal_id}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": resource_id}, "context": {"owners": [{"role": {"type": "Role", "id": owner_id}}]}}
+            ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": req["context"]}), encoding="utf-8")
+            engine_request.write_text(json.dumps(req), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "true", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-context-schema", resolved_schema, "--check-request-types", "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "request enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "request enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

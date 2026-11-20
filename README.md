@@ -115,8 +115,9 @@ on it for each request.
 Add `--check-request-types` with `--resolved-context-schema` to also check
 the principal and resource types against the action's declared applicability
 and check entity-reference types in context. Matching uses exact type names.
-These are partial checks: they do not validate the schema itself, enum entity
-IDs, entity hierarchies or policies. In the library, call
+The check also rejects undeclared IDs for enum entities in the principal,
+resource and nested context. These are partial checks: they do not validate
+the schema itself, entity hierarchies or policies. In the library, call
 `ResolvedContextSchema::request_from_json_with_action_types`.
 
 Resolved entity decoding shares a limit of 1,000,000 schema-field checks per

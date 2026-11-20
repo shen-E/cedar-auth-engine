@@ -152,3 +152,60 @@ test "request action types are snapshotted" {
     decoder.request_from_json_with_action_types(input).principal.kind == "User",
   )
 }
+
+///|
+test "request type checks validate enum IDs in nested context" {
+  let schema = parse_json(
+    (
+      #|{"App":{"entityTypes":{"Role":{"enum":["Admin","Reader"]},"File":{}},"actions":{"read":{"appliesTo":{"principalTypes":["App::Role"],"resourceTypes":["App::File"],"context":{"type":"Record","attributes":{"owners":{"type":"Set","element":{"type":"Record","attributes":{"role":{"type":"Entity","name":"App::Role"}}}}}}}}}}}
+    ),
+  )
+  let decoder = ResolvedContextSchema::from_json(schema)
+  for
+    (principal, owner, valid) in [
+      ("Admin", "Reader", true),
+      ("Unknown", "Reader", false),
+      ("Admin", "Unknown", false),
+    ] {
+    let input = parse_json(
+      "{\"principal\":{\"type\":\"App::Role\",\"id\":\"" +
+      principal +
+      "\"},\"action\":{\"type\":\"App::Action\",\"id\":\"read\"},\"resource\":{\"type\":\"App::File\",\"id\":\"f\"},\"context\":{\"owners\":[{\"role\":{\"type\":\"App::Role\",\"id\":\"" +
+      owner +
+      "\"}}]}}",
+    )
+    let accepted = try {
+      let _ = decoder.request_from_json_with_action_types(input)
+      true
+    } catch {
+      _ => false
+    }
+    assert_true(accepted == valid)
+    let _ = decoder.request_from_json(input)
+  }
+}
+
+///|
+test "request enum IDs are snapshotted" {
+  let ids : Array[Json] = [Json::string("Admin")]
+  let schema : Json = {
+    "": {
+      "entityTypes": { "Role": { "enum": Json::array(ids) } },
+      "actions": {
+        "read": {
+          "appliesTo": { "principalTypes": ["Role"], "resourceTypes": ["File"] },
+        },
+      },
+    },
+  }
+  let decoder = ResolvedContextSchema::from_json(schema)
+  ids.clear()
+  let input = parse_json(
+    (
+      #|{"principal":{"type":"Role","id":"Admin"},"action":{"type":"Action","id":"read"},"resource":{"type":"File","id":"f"},"context":{}}
+    ),
+  )
+  assert_true(
+    decoder.request_from_json_with_action_types(input).principal.id == "Admin",
+  )
+}
