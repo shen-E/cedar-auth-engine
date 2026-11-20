@@ -1388,6 +1388,16 @@ def main():
                 count += 1
                 if stage["outcome"] != expected:
                     mismatches.append({"case": "stage prefix", "request": case, "expected": expected, "actual": stage})
+        # Top-level entity metadata is ignored only in the opt-in CLI mode.
+        policy.write_text('permit(principal, action, resource) when { principal.active };', encoding="utf-8")
+        metadata_request = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}
+        for metadata in (None, True, 42, "source", {"directory": [1, 2]}):
+            entities.write_text(json.dumps([{"uid": metadata_request["principal"], "attrs": {"active": True}, "parents": [], "metadata": metadata}]), encoding="utf-8")
+            ref = reference(args.cedar, policy, entities, metadata_request, temp)
+            got = actual(args.engine, policy, entities, metadata_request, temp, ("--allow-entity-metadata",))
+            count += 1
+            if ref != got:
+                mismatches.append({"case": "entity metadata", "reference": ref, "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

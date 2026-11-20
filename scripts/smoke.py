@@ -1272,6 +1272,35 @@ def main():
         duplicate = run("explain", policy, entities, request, "--strict", "--strict")
         assert duplicate.returncode == 2 and not duplicate.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request = (path / name for name in ("p.cedar", "e.json", "r.json"))
+        policy.write_text('permit(principal, action, resource) when { principal.active };', encoding="utf-8")
+        value = {"uid": {"type": "User", "id": "alice"}, "attrs": {"active": True}, "parents": [], "metadata": {"source": "directory"}}
+        entities.write_text(json.dumps([value]), encoding="utf-8")
+        request.write_text(json.dumps({"principal": value["uid"], "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}), encoding="utf-8")
+        strict = run("authorize", policy, entities, request, "--format", "json")
+        allowed = run("authorize", policy, entities, request, "--allow-entity-metadata", "--format", "json")
+        assert strict.returncode == 2 and not strict.stdout
+        assert allowed.returncode == 0 and json.loads(allowed.stdout)["decision"] == "Allow"
+        for command in ("explain", "enforce"):
+            result = run(command, policy, entities, request, "--allow-entity-metadata", "--format", "json")
+            assert result.returncode == 0
+        batch = path / "batch.json"
+        batch.write_text(json.dumps([json.loads(request.read_text(encoding="utf-8"))]), encoding="utf-8")
+        for command in ("batch", "enforce-batch"):
+            result = run(command, policy, entities, batch, "--allow-entity-metadata", "--format", "json")
+            assert result.returncode == 0
+        cases = path / "cases.json"
+        cases.write_text(json.dumps([{"request": json.loads(request.read_text(encoding="utf-8")), "decision": "Allow"}]), encoding="utf-8")
+        assert run("test", policy, entities, cases, "--allow-entity-metadata").returncode == 0
+        duplicate = run("authorize", policy, entities, request, "--allow-entity-metadata", "--allow-entity-metadata")
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        value["uid"]["extra"] = True
+        entities.write_text(json.dumps([value]), encoding="utf-8")
+        invalid = run("authorize", policy, entities, request, "--allow-entity-metadata")
+        assert invalid.returncode == 2 and not invalid.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

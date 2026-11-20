@@ -256,6 +256,23 @@ pub fn request_from_json(value : Json) -> Request raise PolicyError {
 pub fn tagged_entities_from_json(
   value : Json,
 ) -> Array[TaggedEntity] raise PolicyError {
+  tagged_entities_from_json_impl(value, false)
+}
+
+///|
+/// Parse entities while ignoring unknown top-level entity fields. This does
+/// not validate a schema or alter attributes, tags, UIDs, or parent objects.
+pub fn tagged_entities_from_json_with_metadata(
+  value : Json,
+) -> Array[TaggedEntity] raise PolicyError {
+  tagged_entities_from_json_impl(value, true)
+}
+
+///|
+fn tagged_entities_from_json_impl(
+  value : Json,
+  allow_metadata : Bool,
+) -> Array[TaggedEntity] raise PolicyError {
   let items = match value {
     Array(items) => items
     _ => raise PolicyError("entities must be an array")
@@ -268,7 +285,9 @@ pub fn tagged_entities_from_json(
   let mut edges = 0
   for item in items {
     let fields = object(item, "entity")
-    check_fields(fields, ["uid", "attrs", "parents", "tags"], "entity")
+    if !allow_metadata {
+      check_fields(fields, ["uid", "attrs", "parents", "tags"], "entity")
+    }
     let parents = match required(fields, "parents") {
       Array(items) => {
         if items.length() > 131072 - edges {

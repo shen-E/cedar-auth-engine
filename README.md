@@ -82,6 +82,12 @@ still exits 0 by default; add `--require-closed` to exit 1 when parents are
 missing. Equivalent duplicate entities count once; conflicting duplicates,
 invalid entity input or cycles exit 2 without a report.
 
+For `authorize`, `explain`, `batch`, `enforce`, `enforce-batch` and `test`,
+`--allow-entity-metadata` ignores unknown top-level fields in entity objects.
+The default rejects them. Entity UIDs, parents, attributes and tags keep their
+existing checks; this option does not enable Cedar schema validation. The
+library equivalent is `tagged_entities_from_json_with_metadata`.
+
 `check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
 pairs against one entity snapshot. Each query has `child` and `ancestor`
 objects with `type` and `id` strings; see
