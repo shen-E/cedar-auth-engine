@@ -88,6 +88,17 @@ The default rejects them. Entity UIDs, parents, attributes and tags keep their
 existing checks; this option does not enable Cedar schema validation. The
 library equivalent is `tagged_entities_from_json_with_metadata`.
 
+`--resolved-entity-schema FILE` decodes entity attributes using a resolved
+Cedar JSON schema for `authorize`, `explain`, `batch`, `enforce`,
+`enforce-batch` and `test`. Supply the JSON produced by Cedar 4.13.0's
+`translate-schema --direction cedar-to-json-with-resolved-types`. The decoder
+supports entity references, records, sets, booleans, integers and strings;
+unsupported value types and schema tag declarations are rejected. It does not
+validate policies, requests, required fields, parent constraints or the schema,
+and does not decode context or tags using the schema. It cannot be combined
+with `--allow-entity-metadata`. The library equivalent is
+`tagged_entities_from_json_with_resolved_schema`.
+
 `check-membership ENTITIES QUERIES` evaluates up to 16,384 child/ancestor
 pairs against one entity snapshot. Each query has `child` and `ancestor`
 objects with `type` and `id` strings; see

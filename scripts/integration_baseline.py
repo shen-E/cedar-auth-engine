@@ -47,11 +47,12 @@ def decision(result):
             "errors": sorted(re.findall(r"error while evaluating policy `([^`]+)`", output))}
 
 
-def compare(root, engine, cedar):
+def compare(root, engine, cedar, probe_resolved_schema=False):
     cases = []
     counts = collections.Counter()
     with tempfile.TemporaryDirectory(prefix="cedar-integration-") as temp:
         request_path = pathlib.Path(temp) / "request.json"
+        resolved_path = pathlib.Path(temp) / "resolved-schema.json"
         for name, data in fixtures(root):
             policy = fixture_path(root, data["policies"])
             entities = fixture_path(root, data["entities"])
@@ -72,6 +73,7 @@ def compare(root, engine, cedar):
                     "schema_format": schema_format,
                     "schema": {"fixture": schema_fixture, "reference": schema_reference,
                                "engine": "unsupported"}, "requests": []}
+            resolved = None
             for index, item in enumerate(data["requests"]):
                 counts["requests_total"] += 1
                 actual = None
@@ -110,6 +112,28 @@ def compare(root, engine, cedar):
                 counts["requests_" + status] += 1
                 detail = {"index": index, "status": status,
                           "reference_matches_fixture": fixture_match}
+                if probe_resolved_schema and status == "mismatch" and schema_format == "cedar":
+                    if resolved is None:
+                        converted = run([cedar, "translate-schema", "--schema", schema,
+                                         "--direction", "cedar-to-json-with-resolved-types"])
+                        resolved = converted.returncode == 0
+                        if resolved:
+                            resolved_path.write_text(converted.stdout, encoding="utf-8")
+                    if resolved:
+                        probe = run([engine, "authorize", policy, entities, request_path,
+                                     "--format", "json", "--resolved-entity-schema", resolved_path])
+                        if probe.returncode == 0:
+                            output = json.loads(probe.stdout)
+                            parsed = {"decision": output["decision"],
+                                      "reasons": sorted(output["reasons"]),
+                                      "errors": sorted(error["policy_id"] for error in output["errors"])}
+                            result = "pass" if parsed == reference else "mismatch"
+                        else:
+                            result = "input_error"
+                    else:
+                        result = "translation_error"
+                    detail["resolved_entity_schema"] = result
+                    counts["resolved_schema_" + result] += 1
                 if status == "mismatch" or fixture_match is False:
                     detail.update({"fixture": expected, "reference": reference,
                                    "engine": actual})
@@ -126,6 +150,7 @@ def main():
     parser.add_argument("--cedar", required=True, type=pathlib.Path)
     parser.add_argument("--engine", required=True, type=pathlib.Path)
     parser.add_argument("--require-complete", action="store_true")
+    parser.add_argument("--probe-resolved-schema", action="store_true")
     args = parser.parse_args()
     revision = run(["git", "-C", args.fixtures, "rev-parse", "HEAD"])
     if revision.returncode != 0 or revision.stdout.strip() != FIXTURE_REVISION:
@@ -133,7 +158,7 @@ def main():
     version = run([args.cedar, "--version"])
     if version.returncode != 0 or version.stdout.strip() != REFERENCE_VERSION:
         parser.error("expected cedar-policy-cli 4.13.0")
-    report = compare(args.fixtures, args.engine, args.cedar)
+    report = compare(args.fixtures, args.engine, args.cedar, args.probe_resolved_schema)
     print(json.dumps(report, indent=2, ensure_ascii=False))
     counts = report["counts"]
     if report["cases_total"] == 0 or counts.get("requests_total", 0) == 0:

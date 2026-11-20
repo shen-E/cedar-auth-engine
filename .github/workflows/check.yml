@@ -66,7 +66,7 @@ jobs:
         run: |
           git clone --quiet --no-checkout https://github.com/cedar-policy/cedar-integration-tests.git "$RUNNER_TEMP/cedar-fixtures"
           git -C "$RUNNER_TEMP/cedar-fixtures" checkout --quiet --detach f64ff16c8a5c2473e0db9391997d10ceae9bb2f2
-          python scripts/integration_baseline.py --fixtures "$RUNNER_TEMP/cedar-fixtures" --cedar "$RUNNER_TEMP/cedar-policy-cli-x86_64-unknown-linux-gnu/cedar" --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe > "$RUNNER_TEMP/cedar-integration-baseline.json"
+          python scripts/integration_baseline.py --fixtures "$RUNNER_TEMP/cedar-fixtures" --cedar "$RUNNER_TEMP/cedar-policy-cli-x86_64-unknown-linux-gnu/cedar" --engine _build/native/debug/build/cmd/cedar-auth-engine/cedar-auth-engine.exe --probe-resolved-schema > "$RUNNER_TEMP/cedar-integration-baseline.json"
       - name: Upload integration baseline
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4

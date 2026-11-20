@@ -1301,6 +1301,21 @@ def main():
         invalid = run("authorize", policy, entities, request, "--allow-entity-metadata")
         assert invalid.returncode == 2 and not invalid.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request, schema = (path / name for name in ("policy.cedar", "entities.json", "request.json", "schema.json"))
+        policy.write_text('permit(principal, action, resource) when { resource.owner == principal };', encoding="utf-8")
+        entities.write_text(json.dumps([{"uid": {"type": "File", "id": "report"}, "attrs": {"owner": {"type": "User", "id": "alice"}}, "parents": []}]), encoding="utf-8")
+        request.write_text(json.dumps({"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "report"}, "context": {}}), encoding="utf-8")
+        schema.write_text(json.dumps({"": {"entityTypes": {"File": {"shape": {"type": "Record", "attributes": {"owner": {"type": "Entity", "name": "User"}}}}}, "actions": {}}}), encoding="utf-8")
+        normal = run("authorize", policy, entities, request, "--format", "json")
+        resolved = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, "--format", "json")
+        assert json.loads(normal.stdout)["decision"] == "Deny"
+        assert resolved.returncode == 0 and json.loads(resolved.stdout)["decision"] == "Allow"
+        duplicate = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, "--resolved-entity-schema", schema)
+        mixed = run("authorize", policy, entities, request, "--resolved-entity-schema", schema, "--allow-entity-metadata")
+        assert duplicate.returncode == mixed.returncode == 2 and not duplicate.stdout and not mixed.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

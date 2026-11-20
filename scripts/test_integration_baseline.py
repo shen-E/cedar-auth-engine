@@ -84,6 +84,34 @@ class IntegrationBaselineTest(unittest.TestCase):
             self.assertEqual(report["counts"]["requests_reference_differs_from_fixture"], 1)
             self.assertEqual(report["counts"]["requests_mismatch"], 1)
 
+    def test_resolved_schema_probe_keeps_original_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            (root / "tests").mkdir()
+            for name in ("policy", "entities", "schema"):
+                (root / name).write_text("{}", encoding="utf-8")
+            uid = {"type": "T", "id": "x"}
+            case = {"policies": "policy", "entities": "entities", "schema": "schema",
+                    "shouldValidate": True, "requests": [{"principal": uid, "action": uid,
+                    "resource": uid, "context": {}, "decision": "deny", "reason": [], "errors": []}]}
+            (root / "tests" / "case.json").write_text(json.dumps(case), encoding="utf-8")
+
+            def fake_run(args):
+                if args[1] == "validate":
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                if args[1] == "translate-schema":
+                    return SimpleNamespace(returncode=0, stdout="{}", stderr="")
+                if args[0] == "cedar":
+                    return SimpleNamespace(returncode=0, stdout="DENY\n", stderr="")
+                decision = "Deny" if "--resolved-entity-schema" in args else "Allow"
+                return SimpleNamespace(returncode=0, stdout=json.dumps({"decision": decision, "reasons": [], "errors": []}), stderr="")
+
+            with patch.object(baseline, "run", side_effect=fake_run):
+                report = baseline.compare(root, "engine", "cedar", True)
+            self.assertEqual(report["counts"]["requests_mismatch"], 1)
+            self.assertEqual(report["counts"]["resolved_schema_pass"], 1)
+            self.assertEqual(report["counts"]["schema_unsupported"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
