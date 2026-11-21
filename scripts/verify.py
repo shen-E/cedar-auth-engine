@@ -1674,6 +1674,29 @@ def main():
             expected_status = 0 if got["decision"] == "Allow" else 2
             if ref.returncode != expected_status or ref.stdout.strip().title() != got["decision"] or got["reasons"] != reasons or got["errors"]:
                 mismatches.append({"case": "different schema compare " + side, "reference_status": ref.returncode, "reference_decision": ref.stdout.strip(), "actual": got})
+        # Decode the same context JSON under two different resolved schemas.
+        schema.write_text('entity User; entity File; action "read" appliesTo { principal: User, resource: File, context: { owner: User } };', encoding="utf-8")
+        after_schema.write_text('entity User; entity File; action "read" appliesTo { principal: User, resource: File, context: { owner: { "type": String, id: String } } };', encoding="utf-8")
+        for source, destination in ((schema, resolved_schema), (after_schema, after_resolved)):
+            translated = run([args.cedar, "translate-schema", "--schema", source, "--direction", "cedar-to-json-with-resolved-types"])
+            if translated.returncode != 0:
+                raise RuntimeError("reference context schema translation failed")
+            destination.write_text(translated.stdout, encoding="utf-8")
+        policy.write_text('@id("owner") permit(principal, action, resource) when { context.owner == principal };', encoding="utf-8")
+        req["context"] = {"owner": {"type": "User", "id": "a"}}
+        ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": req["context"]}), encoding="utf-8")
+        compare_requests.write_text(json.dumps([req]), encoding="utf-8")
+        comparison = run([args.engine, "compare", policy, policy, entities, compare_requests, "--resolved-context-schema", resolved_schema, "--after-resolved-context-schema", after_resolved, "--check-request-types", "--format", "json"])
+        if comparison.returncode != 0:
+            raise RuntimeError("different context schema compare failed: " + comparison.stderr)
+        case = json.loads(comparison.stdout)["cases"][0]
+        for side, reference_schema, reasons in (("before", schema, ["owner"]), ("after", after_schema, [])):
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", reference_schema, "--request-json", ref_path, "--request-validation", "true", "--error-format", "plain"])
+            got = case[side]
+            count += 1
+            expected_status = 0 if got["decision"] == "Allow" else 2
+            if ref.returncode != expected_status or ref.stdout.strip().title() != got["decision"] or got["reasons"] != reasons or got["errors"]:
+                mismatches.append({"case": "different context compare " + side, "reference_status": ref.returncode, "reference_decision": ref.stdout.strip(), "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

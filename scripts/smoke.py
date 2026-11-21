@@ -1516,6 +1516,42 @@ def main():
         invalid = run("compare", policy, policy, entities, requests, "--resolved-entity-schema", before_schema, "--after-resolved-entity-schema", after_schema, "--check-entity-enums")
         assert invalid.returncode == 2 and not invalid.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, requests, single, before_schema, after_schema = (path / name for name in ("p.cedar", "e.json", "requests.json", "request.json", "before.json", "after.json"))
+        policy.write_text('permit(principal, action, resource) when { context.owner == principal };', encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        item = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {"owner": {"type": "User", "id": "alice"}}}
+        single.write_text(json.dumps(item), encoding="utf-8")
+        requests.write_text(json.dumps([item]), encoding="utf-8")
+        def context_schema(owner):
+            return {"": {"entityTypes": {"User": {}, "File": {}}, "actions": {"read": {"appliesTo": {"principalTypes": ["User"], "resourceTypes": ["File"], "context": {"type": "Record", "attributes": {"owner": owner}}}}}}}
+        before_schema.write_text(json.dumps(context_schema({"type": "Entity", "name": "User"})), encoding="utf-8")
+        after_schema.write_text(json.dumps(context_schema({"type": "Record", "attributes": {"type": {"type": "String"}, "id": {"type": "String"}}})), encoding="utf-8")
+        flags = ("--resolved-context-schema", before_schema, "--after-resolved-context-schema", after_schema, "--check-request-types", "--format", "json")
+        result = run("compare", policy, policy, entities, requests, *flags)
+        assert result.returncode == 0
+        case = json.loads(result.stdout)["cases"][0]
+        for side, schema, decision in (("before", before_schema, "Allow"), ("after", after_schema, "Deny")):
+            single_result = run("authorize", policy, entities, single, "--resolved-context-schema", schema, "--check-request-types", "--format", "json")
+            assert single_result.returncode == 0 and json.loads(single_result.stdout) == case[side]
+            assert case[side]["decision"] == decision
+        assert case["decision_revoked"]
+        combined = run("compare", policy, policy, entities, requests, *flags, "--resolved-entity-schema", before_schema, "--after-resolved-entity-schema", after_schema)
+        assert combined.returncode == 0 and json.loads(combined.stdout)["cases"][0] == case
+        summary = run("compare", policy, policy, entities, requests, *flags, "--summary", "--fail-on-decision-revoke")
+        assert summary.returncode == 1 and json.loads(summary.stdout)["decision_revocations"] == 1
+        unchanged = run("compare", policy, policy, entities, requests, "--resolved-context-schema", before_schema, "--format", "json")
+        assert unchanged.returncode == 0 and json.loads(unchanged.stdout)["changed"] == 0
+        missing = run("compare", policy, policy, entities, requests, "--after-resolved-context-schema", after_schema)
+        assert missing.returncode == 2 and not missing.stdout
+        duplicate = run("compare", policy, policy, entities, requests, *flags, "--after-resolved-context-schema", after_schema)
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        after_schema.write_text(json.dumps(context_schema({"type": "String"})), encoding="utf-8")
+        for extra in ((), ("--summary",)):
+            bad = run("compare", policy, policy, entities, requests, *flags, *extra)
+            assert bad.returncode == 2 and not bad.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

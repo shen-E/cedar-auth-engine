@@ -1,5 +1,5 @@
 ///|
-/// Responses to the same request under two policy sets.
+/// Responses for the before and after sides of a comparison.
 pub(all) struct AuthorizationComparison {
   before : Response
   after : Response
@@ -130,16 +130,34 @@ pub fn EntityStore::compare_with_entities(
   after : PolicySet,
   requests : Array[Request],
 ) -> Array[AuthorizationComparison] raise PolicyError {
-  if requests.length() > 32768 {
+  self.compare_request_pairs(after_entities, before, after, requests, requests)
+}
+
+///|
+/// Compare corresponding requests using separate entity snapshots and policy
+/// sets. The request arrays must have equal lengths and contain at most 32,768
+/// elements each.
+pub fn EntityStore::compare_request_pairs(
+  self : EntityStore,
+  after_entities : EntityStore,
+  before : PolicySet,
+  after : PolicySet,
+  before_requests : Array[Request],
+  after_requests : Array[Request],
+) -> Array[AuthorizationComparison] raise PolicyError {
+  if before_requests.length() != after_requests.length() {
+    raise PolicyError("comparison request counts do not match")
+  }
+  if before_requests.length() > 32768 {
     raise PolicyError("request batch limit exceeded")
   }
   let before_context = EvaluationContext::new(self.graph)
   let after_context = EvaluationContext::new(after_entities.graph)
   let comparisons = []
-  for request in requests {
+  for i in 0..<before_requests.length() {
     comparisons.push({
-      before: authorize_in_context(before, request, before_context),
-      after: authorize_in_context(after, request, after_context),
+      before: authorize_in_context(before, before_requests[i], before_context),
+      after: authorize_in_context(after, after_requests[i], after_context),
     })
   }
   comparisons

@@ -193,6 +193,8 @@ pub fn EntityStore::authorize_details_checked(Self, PolicySet, Request) -> Autho
 pub fn EntityStore::authorize_trace(Self, PolicySet, Request) -> AuthorizationTrace
 pub fn EntityStore::authorize_trace_checked(Self, PolicySet, Request) -> AuthorizationTrace raise PolicyError
 pub fn EntityStore::compare(Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
+pub fn EntityStore::compare_request_pairs(Self, Self, PolicySet, PolicySet, Array[Request], Array[Request]) -> Array[AuthorizationComparison] raise PolicyError
+pub fn EntityStore::compare_request_pairs_summary(Self, Self, PolicySet, PolicySet, Array[Request], Array[Request]) -> ComparisonSummary raise PolicyError
 pub fn EntityStore::compare_summary(Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
 pub fn EntityStore::compare_summary_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> ComparisonSummary raise PolicyError
 pub fn EntityStore::compare_with_entities(Self, Self, PolicySet, PolicySet, Array[Request]) -> Array[AuthorizationComparison] raise PolicyError

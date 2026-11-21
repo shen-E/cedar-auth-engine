@@ -40,7 +40,25 @@ pub fn EntityStore::compare_summary_with_entities(
   after : PolicySet,
   requests : Array[Request],
 ) -> ComparisonSummary raise PolicyError {
-  if requests.length() > 32768 {
+  self.compare_request_pairs_summary(
+    after_entities, before, after, requests, requests,
+  )
+}
+
+///|
+/// Summarize corresponding request pairs without retaining their responses.
+pub fn EntityStore::compare_request_pairs_summary(
+  self : EntityStore,
+  after_entities : EntityStore,
+  before : PolicySet,
+  after : PolicySet,
+  before_requests : Array[Request],
+  after_requests : Array[Request],
+) -> ComparisonSummary raise PolicyError {
+  if before_requests.length() != after_requests.length() {
+    raise PolicyError("comparison request counts do not match")
+  }
+  if before_requests.length() > 32768 {
     raise PolicyError("request batch limit exceeded")
   }
   let before_context = EvaluationContext::new(self.graph)
@@ -55,10 +73,10 @@ pub fn EntityStore::compare_summary_with_entities(
   let mut enforcement_grants = 0
   let mut enforcement_revocations = 0
   let mut after_error_requests = 0
-  for request in requests {
+  for i in 0..<before_requests.length() {
     let item : AuthorizationComparison = {
-      before: authorize_in_context(before, request, before_context),
-      after: authorize_in_context(after, request, after_context),
+      before: authorize_in_context(before, before_requests[i], before_context),
+      after: authorize_in_context(after, after_requests[i], after_context),
     }
     let decisions = item.decision_changed()
     let reasons = item.reasons_changed()
@@ -95,7 +113,7 @@ pub fn EntityStore::compare_summary_with_entities(
     }
   }
   {
-    total: requests.length(),
+    total: before_requests.length(),
     changed,
     decisions_changed,
     enforcement_changed,

@@ -241,10 +241,15 @@ entity schema and selected checks apply to both snapshots, including
 check the after snapshot against a different resolved schema; this requires
 `--resolved-entity-schema` for the before snapshot. If after entities are
 omitted, the same input is decoded separately for each schema. With
-`--schema-actions`, each side uses its own action hierarchy. The context schema
-and request checks remain shared; this compares authorization results, not
-schema definitions or policy validation. An invalid snapshot or request aborts
-the whole comparison without a partial report.
+`--schema-actions`, each side uses its own action hierarchy. Similarly,
+`--after-resolved-context-schema FILE` selects a different context schema for
+the after side and requires `--resolved-context-schema` for the before side.
+Each request JSON is decoded independently under both schemas; optional request
+type checks apply on both sides. Without an after schema, the before schema is
+reused. This compares authorization results, not schema definitions or policy
+validation. An invalid snapshot or request on either side aborts the whole
+comparison without a partial report. The library provides `compare_request_pairs`
+and `compare_request_pairs_summary` for corresponding, already decoded requests.
 
 For example, evaluate the existing sharing policies before and after applying
 the [policy update](examples/policy-update/):

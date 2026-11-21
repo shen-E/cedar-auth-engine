@@ -62,6 +62,85 @@ test "compare decisions and fail-closed enforcement independently" {
 }
 
 ///|
+test "comparison pairs use each request and reject different lengths" {
+  let policies = @engine.parse_policies(
+    "@id(\"owner\") permit(principal, action, resource) when { context.owner == principal };",
+  )
+  let user : @engine.EntityId = { kind: "User", id: "alice", }
+  let before : @engine.Request = {
+    principal: user,
+    action: { kind: "Action", id: "read", },
+    resource: { kind: "File", id: "f", },
+    context: { "owner": @engine.EntityValue(user) },
+  }
+  let after = {
+    ..before,
+    context: {
+      "owner": @engine.RecordValue({
+        "type": @engine.StringValue("User"),
+        "id": @engine.StringValue("alice"),
+      }),
+    },
+  }
+  let store = @engine.EntityStore::new([])
+  let pairs = store.compare_request_pairs(store, policies, policies, [before], [
+    after,
+  ])
+  assert_true(pairs.length() == 1 && pairs[0].decision_revoked())
+  let summary = store.compare_request_pairs_summary(
+    store,
+    policies,
+    policies,
+    [before],
+    [after],
+  )
+  assert_true(summary.total == 1 && summary.decision_revocations == 1)
+  let unchanged = store.compare_request_pairs(
+    store,
+    policies,
+    policies,
+    [before],
+    [before],
+  )
+  assert_false(unchanged[0].changed())
+  for summarize in [false, true] {
+    let rejected = try {
+      if summarize {
+        let _ = store.compare_request_pairs_summary(
+          store,
+          policies,
+          policies,
+          [before],
+          [],
+        )
+      } else {
+        let _ = store.compare_request_pairs(
+          store,
+          policies,
+          policies,
+          [before],
+          [],
+        )
+      }
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+  }
+  let excessive = Array::make(32769, before)
+  let rejected = try {
+    let _ = store.compare_request_pairs(
+      store, policies, policies, excessive, excessive,
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
+
+///|
 test "comparison ignores ordering but detects error messages and multiplicity" {
   let base = @engine.Response::{
     decision: @engine.Allow,

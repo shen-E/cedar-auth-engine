@@ -43,6 +43,7 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   let mut entity_schema_path : String? = None
   let mut after_entity_schema_path : String? = None
   let mut context_schema_path : String? = None
+  let mut after_context_schema_path : String? = None
   let mut check_enums = false
   let mut check_parents = false
   let mut schema_actions = false
@@ -99,6 +100,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       context_schema_path is None &&
       i + 1 < args.length() {
       context_schema_path = Some(args[i + 1])
+      i += 2
+    } else if args[i] == "--after-resolved-context-schema" &&
+      after_context_schema_path is None &&
+      i + 1 < args.length() {
+      after_context_schema_path = Some(args[i + 1])
       i += 2
     } else if args[i] == "--check-entity-enums" && !check_enums {
       check_enums = true
@@ -164,6 +170,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   if check_request_types && context_schema_path is None {
     raise CliError("--check-request-types requires --resolved-context-schema")
   }
+  if after_context_schema_path is Some(_) && context_schema_path is None {
+    raise CliError(
+      "--after-resolved-context-schema requires --resolved-context-schema",
+    )
+  }
   let before = before_inputs.load(args[2])
   let after = after_inputs.load(args[3])
   let entity_schema = match entity_schema_path {
@@ -190,6 +201,19 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   for item in items {
     requests.push(decode_request(item, context_schema, check_request_types))
   }
+  let after_requests = match after_context_schema_path {
+    None => requests
+    Some(path) => {
+      let schema = Some(
+        @engine.ResolvedContextSchema::from_json(load_json(path)),
+      )
+      let decoded = []
+      for item in items {
+        decoded.push(decode_request(item, schema, check_request_types))
+      }
+      decoded
+    }
+  }
   let store = @engine.EntityStore::new_with_tags(entities)
   let after_store = match (after_entities_path, after_entity_schema_path) {
     (None, None) => store
@@ -210,8 +234,8 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     }
   }
   if summary_only {
-    let summary = store.compare_summary_with_entities(
-      after_store, before, after, requests,
+    let summary = store.compare_request_pairs_summary(
+      after_store, before, after, requests, after_requests,
     )
     print_comparison_summary(summary, json)
     return if (fail_on_change && summary.changed > 0) ||
@@ -225,8 +249,8 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       0
     }
   }
-  let comparisons = store.compare_with_entities(
-    after_store, before, after, requests,
+  let comparisons = store.compare_request_pairs(
+    after_store, before, after, requests, after_requests,
   )
   let cases : Array[Json] = []
   let mut changed = 0
