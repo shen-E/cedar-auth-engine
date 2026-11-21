@@ -1655,6 +1655,25 @@ def main():
             expected_status = 0 if got["decision"] == "Allow" else 2
             if ref.returncode != expected_status or ref.stdout.strip().title() != got["decision"] or got["reasons"] != [reason] or got["errors"]:
                 mismatches.append({"case": "schema compare " + side, "reference_status": ref.returncode, "reference_decision": ref.stdout.strip(), "actual": got})
+        # Compare the same input under two different action hierarchies.
+        after_schema = temp / "compare-after.cedarschema"
+        after_schema.write_text('entity User; entity File; action "all"; action "view" in ["all"]; action "read" appliesTo { principal: User, resource: File };', encoding="utf-8")
+        after_resolved = temp / "compare-after-schema.json"
+        translated = run([args.cedar, "translate-schema", "--schema", after_schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference after schema translation failed")
+        after_resolved.write_text(translated.stdout, encoding="utf-8")
+        comparison = run([args.engine, "compare", policy, policy, entities, compare_requests, "--resolved-entity-schema", resolved_schema, "--after-resolved-entity-schema", after_resolved, "--schema-actions", "--format", "json"])
+        if comparison.returncode != 0:
+            raise RuntimeError("different schema compare failed: " + comparison.stderr)
+        case = json.loads(comparison.stdout)["cases"][0]
+        for side, reference_schema, reasons in (("before", schema, ["before"]), ("after", after_schema, [])):
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", reference_schema, "--request-json", ref_path, "--request-validation", "true", "--error-format", "plain"])
+            got = case[side]
+            count += 1
+            expected_status = 0 if got["decision"] == "Allow" else 2
+            if ref.returncode != expected_status or ref.stdout.strip().title() != got["decision"] or got["reasons"] != reasons or got["errors"]:
+                mismatches.append({"case": "different schema compare " + side, "reference_status": ref.returncode, "reference_decision": ref.stdout.strip(), "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

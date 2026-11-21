@@ -1465,6 +1465,57 @@ def main():
         bad = run("compare", policy, policy, entities, requests, *flags)
         assert bad.returncode == 2 and not bad.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, after_entities, requests, request, before_schema, after_schema = (path / name for name in ("p.cedar", "e.json", "after.json", "requests.json", "request.json", "before-schema.json", "after-schema.json"))
+        policy.write_text('permit(principal, action in Action::"all", resource);', encoding="utf-8")
+        item = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {}}
+        requests.write_text(json.dumps([item]), encoding="utf-8")
+        request.write_text(json.dumps(item), encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        after_entities.write_text('[]', encoding="utf-8")
+        def action_schema(parents):
+            return {"": {"entityTypes": {"User": {}, "File": {}}, "actions": {"all": {}, "read": {"memberOf": [{"type": "Action", "id": p} for p in parents]}}}}
+        before_schema.write_text(json.dumps(action_schema(["all"])), encoding="utf-8")
+        after_schema.write_text(json.dumps(action_schema([])), encoding="utf-8")
+        flags = ("--resolved-entity-schema", before_schema, "--after-resolved-entity-schema", after_schema, "--schema-actions", "--format", "json")
+        for extra in ((), ("--after-entities", after_entities)):
+            result = run("compare", policy, policy, entities, requests, *flags, *extra)
+            assert result.returncode == 0
+            case = json.loads(result.stdout)["cases"][0]
+            for side, source, decision in (("before", before_schema, "Allow"), ("after", after_schema, "Deny")):
+                actual = run("authorize", policy, entities, request, "--resolved-entity-schema", source, "--schema-actions", "--format", "json")
+                assert actual.returncode == 0 and json.loads(actual.stdout) == case[side]
+                assert case[side]["decision"] == decision
+            assert case["decision_revoked"]
+        summary = run("compare", policy, policy, entities, requests, *flags, "--summary", "--fail-on-decision-revoke")
+        assert summary.returncode == 1 and json.loads(summary.stdout)["decision_revocations"] == 1
+        missing = run("compare", policy, policy, entities, requests, "--after-resolved-entity-schema", after_schema)
+        assert missing.returncode == 2 and not missing.stdout
+        duplicate = run("compare", policy, policy, entities, requests, *flags, "--after-resolved-entity-schema", after_schema)
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        after_schema.write_text(json.dumps(action_schema(["missing"])), encoding="utf-8")
+        for extra in ((), ("--summary",)):
+            invalid = run("compare", policy, policy, entities, requests, *flags, *extra)
+            assert invalid.returncode == 2 and not invalid.stdout
+        # One JSON value decodes as an entity on one side and a record on the other.
+        policy.write_text('permit(principal, action, resource) when { resource.owner == principal };', encoding="utf-8")
+        field_types = {"type": {"type": "String"}, "id": {"type": "String"}}
+        def shape_schema(owner_type):
+            return {"": {"entityTypes": {"User": {}, "File": {"shape": {"type": "Record", "attributes": {"owner": owner_type}}}}, "actions": {}}}
+        before_schema.write_text(json.dumps(shape_schema({"type": "Entity", "name": "User"})), encoding="utf-8")
+        after_schema.write_text(json.dumps(shape_schema({"type": "Record", "attributes": field_types})), encoding="utf-8")
+        entities.write_text(json.dumps([{"uid": {"type": "File", "id": "f"}, "attrs": {"owner": {"type": "User", "id": "alice"}}, "parents": []}]), encoding="utf-8")
+        changed = run("compare", policy, policy, entities, requests, "--resolved-entity-schema", before_schema, "--after-resolved-entity-schema", after_schema, "--format", "json")
+        assert changed.returncode == 0
+        case = json.loads(changed.stdout)["cases"][0]
+        assert case["before"]["decision"] == "Allow" and case["after"]["decision"] == "Deny"
+        before_schema.write_text(json.dumps({"": {"entityTypes": {"User": {"enum": ["alice"]}}, "actions": {}}}), encoding="utf-8")
+        after_schema.write_text(json.dumps({"": {"entityTypes": {"User": {"enum": ["bob"]}}, "actions": {}}}), encoding="utf-8")
+        entities.write_text(json.dumps([{"uid": {"type": "User", "id": "alice"}, "attrs": {}, "parents": []}]), encoding="utf-8")
+        invalid = run("compare", policy, policy, entities, requests, "--resolved-entity-schema", before_schema, "--after-resolved-entity-schema", after_schema, "--check-entity-enums")
+        assert invalid.returncode == 2 and not invalid.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

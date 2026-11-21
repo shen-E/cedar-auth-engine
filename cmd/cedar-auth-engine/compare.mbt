@@ -41,6 +41,7 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   let mut fail_after_error = false
   let mut after_entities_path : String? = None
   let mut entity_schema_path : String? = None
+  let mut after_entity_schema_path : String? = None
   let mut context_schema_path : String? = None
   let mut check_enums = false
   let mut check_parents = false
@@ -88,6 +89,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       entity_schema_path is None &&
       i + 1 < args.length() {
       entity_schema_path = Some(args[i + 1])
+      i += 2
+    } else if args[i] == "--after-resolved-entity-schema" &&
+      after_entity_schema_path is None &&
+      i + 1 < args.length() {
+      after_entity_schema_path = Some(args[i + 1])
       i += 2
     } else if args[i] == "--resolved-context-schema" &&
       context_schema_path is None &&
@@ -146,6 +152,11 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   before_inputs.validate()
   after_inputs.validate()
+  if after_entity_schema_path is Some(_) && entity_schema_path is None {
+    raise CliError(
+      "--after-resolved-entity-schema requires --resolved-entity-schema",
+    )
+  }
   if (check_enums || check_parents || schema_actions) &&
     entity_schema_path is None {
     raise CliError("entity schema checks require --resolved-entity-schema")
@@ -164,12 +175,9 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       Some(@engine.ResolvedContextSchema::from_json(load_json(path)))
     None => None
   }
+  let entity_input = load_json(args[4])
   let entities = compare_entities(
-    load_json(args[4]),
-    entity_schema,
-    check_enums,
-    check_parents,
-    schema_actions,
+    entity_input, entity_schema, check_enums, check_parents, schema_actions,
   )
   let items = match load_json(args[5]) {
     Array(items) => items
@@ -183,18 +191,23 @@ fn run_compare(args : Array[String]) -> Int32 raise {
     requests.push(decode_request(item, context_schema, check_request_types))
   }
   let store = @engine.EntityStore::new_with_tags(entities)
-  let after_store = match after_entities_path {
-    None => store
-    Some(path) =>
+  let after_store = match (after_entities_path, after_entity_schema_path) {
+    (None, None) => store
+    (after_path, schema_path) => {
+      let after_input = match after_path {
+        Some(path) => load_json(path)
+        None => entity_input
+      }
+      let after_schema = match schema_path {
+        Some(path) => Some(load_json(path))
+        None => entity_schema
+      }
       @engine.EntityStore::new_with_tags(
         compare_entities(
-          load_json(path),
-          entity_schema,
-          check_enums,
-          check_parents,
-          schema_actions,
+          after_input, after_schema, check_enums, check_parents, schema_actions,
         ),
       )
+    }
   }
   if summary_only {
     let summary = store.compare_summary_with_entities(
