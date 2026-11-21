@@ -1596,6 +1596,26 @@ def main():
                     mismatches.append({"case": "entity enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "entity enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Non-action entity parents may use transitive memberOfTypes.
+        schema.write_text('namespace App { entity User in [Group]; entity Group in [Org]; entity Org; entity File; action "read" appliesTo { principal: User, resource: File }; }', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        req = {"principal": {"type": "App::User", "id": "a"}, "action": {"type": "App::Action", "id": "read"}, "resource": {"type": "App::File", "id": "f"}, "context": {}}
+        ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": {}}), encoding="utf-8")
+        engine_request.write_text(json.dumps(req), encoding="utf-8")
+        for child, parent, valid in (("User", "Group", True), ("User", "Org", True), ("Group", "Org", True), ("User", "User", False), ("User", "File", False), ("File", "Org", False)):
+            data = [{"uid": {"type": "App::" + child, "id": "a"}, "attrs": {}, "parents": [{"type": "App::" + parent, "id": "b"}]}]
+            entities.write_text(json.dumps(data), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--check-parent-types", "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "parent types " + child + "/" + parent, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "parent types " + child + "/" + parent, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

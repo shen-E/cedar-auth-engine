@@ -20,6 +20,8 @@ pub fn authorize_trace_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Aut
 
 pub fn authorize_with_tags(PolicySet, Request, Array[TaggedEntity]) -> Response raise PolicyError
 
+pub fn check_entity_parent_types(Array[TaggedEntity], Json) -> Unit raise PolicyError
+
 pub fn entities_from_json(Json) -> Array[Entity] raise PolicyError
 
 pub fn parse_json(String) -> Json raise PolicyError

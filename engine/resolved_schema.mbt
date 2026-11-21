@@ -266,3 +266,91 @@ pub fn tagged_entities_from_json_with_checked_enums(
   }
   entities
 }
+
+///|
+/// Check non-action entity parent types against the transitive memberOfTypes
+/// declarations in a resolved schema. Action entities are not checked. This
+/// does not validate the schema, entity IDs or graph cycles.
+pub fn check_entity_parent_types(
+  entities : Array[TaggedEntity],
+  schema : Json,
+) -> Unit raise PolicyError {
+  let graph : Map[String, Array[String]] = Map([])
+  let mut edge_count = 0
+  for ns, body in object(schema, "resolved schema") {
+    let fields = object(body, "schema namespace")
+    let types = match fields.get("entityTypes") {
+      Some(types) => object(types, "schema entity types")
+      None => Map([])
+    }
+    for name, definition in types {
+      let kind = if ns == "" { name } else { ns + "::" + name }
+      if graph.contains(kind) || graph.length() >= 16384 {
+        raise PolicyError("duplicate or excessive schema entity types")
+      }
+      let entity = object(definition, "schema entity type")
+      let parents = match entity.get("memberOfTypes") {
+        None => []
+        Some(Array(items)) => items
+        _ => raise PolicyError("memberOfTypes must be an array")
+      }
+      let list : Array[String] = []
+      for parent in parents {
+        edge_count += 1
+        if edge_count > 131072 {
+          raise PolicyError("schema parent type limit exceeded")
+        }
+        match parent {
+          String(value) => list.push(value)
+          _ => raise PolicyError("memberOfTypes must contain strings")
+        }
+      }
+      graph[kind] = list
+    }
+  }
+  let (_, _, action_ids) = resolved_schema_index(schema)
+  let cache : Map[String, Map[String, Bool]] = Map([])
+  let mut work = 0
+  for tagged in entities {
+    let uid = tagged.entity.uid
+    if !action_ids.contains(entity_key(uid)) &&
+      !tagged.entity.parents.is_empty() {
+      if !graph.contains(uid.kind) {
+        raise PolicyError("entity type not declared in resolved schema")
+      }
+      let allowed = match cache.get(uid.kind) {
+        Some(cached) => cached
+        None => {
+          let found : Map[String, Bool] = Map([])
+          let queue : Array[String] = [uid.kind]
+          let mut i = 0
+          while i < queue.length() {
+            let current = queue[i]
+            i += 1
+            match graph.get(current) {
+              Some(parents) =>
+                for parent in parents {
+                  work += 1
+                  if work > 1000000 {
+                    raise PolicyError("schema parent type work limit exceeded")
+                  }
+                  if !found.contains(parent) {
+                    found[parent] = true
+                    queue.push(parent)
+                  }
+                }
+              None => ()
+            }
+          }
+          cache[uid.kind] = found
+          found
+        }
+      }
+      for parent in tagged.entity.parents {
+        if !allowed.contains(parent.kind) {
+          raise PolicyError("entity parent type is not allowed by schema")
+        }
+      }
+    }
+  }
+}

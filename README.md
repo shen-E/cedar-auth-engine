@@ -106,6 +106,13 @@ undeclared enum IDs in entity identifiers, parents, attributes and tags.
 The library equivalent is `tagged_entities_from_json_with_checked_enums`.
 This does not check parent type constraints or validate the schema.
 
+Add `--check-parent-types` with `--resolved-entity-schema` to check non-action
+entities' parent types against the transitive `memberOfTypes` declarations.
+It can be combined with `--check-entity-enums`. Action entity parent
+relationships and schema validity are not checked by this option. The library
+equivalent is `check_entity_parent_types`. The check limits schema parent
+declarations to 131,072 and traversal work to 1,000,000 edges per input.
+
 `--resolved-context-schema FILE` separately decodes request contexts according
 to the resolved schema's action declarations. It can be combined with
 `--resolved-entity-schema FILE`. The CLI indexes the action types once for a

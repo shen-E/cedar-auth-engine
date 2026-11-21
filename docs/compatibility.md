@@ -9,7 +9,7 @@ at commit `324d3c09fc94ab91464ec340eb81e4b167deb6f5`.
 | --- | --- |
 | Text policies, templates and expression evaluation | Supported profile documented in the README; full language coverage unverified. |
 | Policy JSON | Not supported as a policy input. |
-| Schema-guided entity and request parsing | Opt-in resolved JSON schema decoders handle entity attributes, tags and action-specific request contexts, including required/optional record fields, entity references, records, sets, primitive and IP/decimal/datetime/duration extension types. Optional partial checks cover action applicability, context entity-reference types and enum IDs in requests and entity data; full schema and request validation remain unsupported. |
+| Schema-guided entity and request parsing | Opt-in resolved JSON schema decoders handle entity attributes, tags and action-specific request contexts, including required/optional record fields, entity references, records, sets, primitive and IP/decimal/datetime/duration extension types. Optional partial checks cover action applicability, context entity-reference types, enum IDs and non-action entity parent types; full schema and request validation remain unsupported. |
 | Extra entity fields | An opt-in decoder ignores unknown top-level entity fields. Other nested input checks remain strict. |
 | Duplicate entities | Equivalent entries are coalesced; conflicting entries are rejected. Comparison and input limits still apply. |
 | Cedar and JSON schemas, policy and request validation | Not supported. Syntax and input checks are not schema validation. |

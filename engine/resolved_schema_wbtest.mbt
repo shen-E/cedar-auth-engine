@@ -29,6 +29,83 @@ test "resolved schema decodes implicit references in records and sets" {
 }
 
 ///|
+test "parent types use transitive resolved schema declarations" {
+  let schema = parse_json(
+    (
+      #|{"App":{"entityTypes":{"User":{"memberOfTypes":["App::Group"]},"Group":{"memberOfTypes":["App::Org"]},"Org":{},"File":{}},"actions":{"read":{}}}}
+    ),
+  )
+  for
+    (child, parent, valid) in [
+      ("User", "Group", true),
+      ("User", "Org", true),
+      ("Group", "Org", true),
+      ("User", "User", false),
+      ("User", "File", false),
+      ("File", "Org", false),
+    ] {
+    let input = parse_json(
+      "[{\"uid\":{\"type\":\"App::" +
+      child +
+      "\",\"id\":\"a\"},\"attrs\":{},\"parents\":[{\"type\":\"App::" +
+      parent +
+      "\",\"id\":\"b\"}]}]",
+    )
+    let entities = tagged_entities_from_json_with_resolved_schema(input, schema)
+    let accepted = try {
+      check_entity_parent_types(entities, schema)
+      true
+    } catch {
+      _ => false
+    }
+    assert_true(accepted == valid, msg=child + " / " + parent)
+  }
+  // Declared action entities are outside the scope of this check.
+  let action = parse_json(
+    (
+      #|[{"uid":{"type":"App::Action","id":"read"},"attrs":{},"parents":[{"type":"App::File","id":"f"}]}]
+    ),
+  )
+  check_entity_parent_types(
+    tagged_entities_from_json_with_resolved_schema(action, schema),
+    schema,
+  )
+}
+
+///|
+test "parent type traversal handles cycles and malformed declarations" {
+  let input = parse_json(
+    (
+      #|[{"uid":{"type":"A","id":"a"},"attrs":{},"parents":[{"type":"B","id":"b"}]}]
+    ),
+  )
+  let entities = tagged_entities_from_json(input)
+  let cyclic = parse_json(
+    (
+      #|{"":{"entityTypes":{"A":{"memberOfTypes":["B"]},"B":{"memberOfTypes":["A"]}}}}
+    ),
+  )
+  check_entity_parent_types(entities, cyclic)
+  for
+    bad in [
+      (
+        #|{"":{"entityTypes":{"A":{"memberOfTypes":"B"}}}}
+      ),
+      (
+        #|{"":{"entityTypes":{"A":{"memberOfTypes":[1]}}}}
+      ),
+    ] {
+    let rejected = try {
+      check_entity_parent_types(entities, parse_json(bad))
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+  }
+}
+
+///|
 test "entity enum checks cover IDs parents attributes and tags" {
   let schema = parse_json(
     (
