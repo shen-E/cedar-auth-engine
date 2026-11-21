@@ -24,6 +24,8 @@ pub fn check_entity_parent_types(Array[TaggedEntity], Json) -> Unit raise Policy
 
 pub fn entities_from_json(Json) -> Array[Entity] raise PolicyError
 
+pub fn entities_with_schema_actions(Array[TaggedEntity], Json) -> Array[TaggedEntity] raise PolicyError
+
 pub fn parse_json(String) -> Json raise PolicyError
 
 pub fn parse_policies(String) -> PolicySet raise PolicyError

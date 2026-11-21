@@ -1616,6 +1616,27 @@ def main():
                     mismatches.append({"case": "parent types " + child + "/" + parent, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "parent types " + child + "/" + parent, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Schema actions are supplied implicitly and explicit definitions must match.
+        schema.write_text('entity User; entity File; action "all"; action "view" in ["all"]; action "read" in ["view"] appliesTo { principal: User, resource: File };', encoding="utf-8")
+        policy.write_text('permit(principal, action in Action::"all", resource);', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        req = {"principal": {"type": "User", "id": "a"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {}}
+        ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": {}}), encoding="utf-8")
+        engine_request.write_text(json.dumps(req), encoding="utf-8")
+        for label, parents, valid in (("implicit", None, True), ("matching", ["view", "all"], True), ("direct only", ["view"], False), ("ancestor only", ["all"], False), ("empty", [], False)):
+            data = [] if parents is None else [{"uid": {"type": "Action", "id": "read"}, "attrs": {}, "parents": [{"type": "Action", "id": parent} for parent in parents]}]
+            entities.write_text(json.dumps(data), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--schema-actions", "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or ref.stdout.strip() != "ALLOW" or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "schema actions " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "schema actions " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

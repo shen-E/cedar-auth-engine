@@ -354,3 +354,121 @@ pub fn check_entity_parent_types(
     }
   }
 }
+
+///|
+/// Add schema-declared actions and their transitive ancestors to an entity
+/// snapshot. Explicit action entities must match the schema definition.
+/// This does not validate the schema or non-action entities.
+pub fn entities_with_schema_actions(
+  entities : Array[TaggedEntity],
+  schema : Json,
+) -> Array[TaggedEntity] raise PolicyError {
+  let actions : Map[String, EntityId] = Map([])
+  let graph : Map[String, Array[EntityId]] = Map([])
+  let action_kinds : Map[String, Bool] = Map([])
+  let mut edges = 0
+  for ns, body in object(schema, "resolved schema") {
+    let fields = object(body, "schema namespace")
+    let declared = match fields.get("actions") {
+      Some(value) => object(value, "schema actions")
+      None => Map([])
+    }
+    let kind = if ns == "" { "Action" } else { ns + "::Action" }
+    action_kinds[kind] = true
+    for id, value in declared {
+      let uid : EntityId = { kind, id, }
+      let key = entity_key(uid)
+      if actions.contains(key) || actions.length() >= 16384 {
+        raise PolicyError("duplicate or excessive schema actions")
+      }
+      let definition = object(value, "schema action")
+      let members = match definition.get("memberOf") {
+        None => []
+        Some(Array(items)) => items
+        _ => raise PolicyError("action memberOf must be an array")
+      }
+      let parents : Array[EntityId] = []
+      for parent_item in members {
+        edges += 1
+        if edges > 131072 {
+          raise PolicyError("schema action parent limit exceeded")
+        }
+        let fields = object(parent_item, "action parent")
+        let parent_kind = match fields.get("type") {
+          Some(String(value)) => value
+          None => kind
+          _ => raise PolicyError("action parent type must be a string")
+        }
+        parents.push({ kind: parent_kind, id: string_field(fields, "id"), })
+      }
+      actions[key] = uid
+      graph[key] = parents
+    }
+  }
+  let expanded : Map[String, Array[EntityId]] = Map([])
+  let mut work = 0
+  for key, uid in actions {
+    let found : Map[String, Bool] = Map([])
+    let queue : Array[EntityId] = [uid]
+    let parents : Array[EntityId] = []
+    let mut i = 0
+    while i < queue.length() {
+      let current = queue[i]
+      i += 1
+      let current_key = entity_key(current)
+      match graph.get(current_key) {
+        Some(members) =>
+          for parent_item in members {
+            work += 1
+            if work > 1000000 {
+              raise PolicyError("schema action traversal limit exceeded")
+            }
+            let parent_key = entity_key(parent_item)
+            if !actions.contains(parent_key) {
+              raise PolicyError("action parent is not declared in schema")
+            }
+            if parent_key == key {
+              raise PolicyError("schema action hierarchy contains a cycle")
+            }
+            if !found.contains(parent_key) {
+              found[parent_key] = true
+              parents.push(parent_item)
+              queue.push(parent_item)
+            }
+          }
+        None => raise PolicyError("action parent is not declared in schema")
+      }
+    }
+    expanded[key] = parents
+  }
+  let seen : Map[String, Bool] = Map([])
+  let result : Array[TaggedEntity] = []
+  for tagged in entities {
+    let key = entity_key(tagged.entity.uid)
+    match expanded.get(key) {
+      Some(parents) => {
+        if !same_parents(tagged.entity.parents, parents) ||
+          !tagged.entity.attrs.is_empty() ||
+          !tagged.tags.is_empty() {
+          raise PolicyError("action entity does not match schema declaration")
+        }
+        seen[key] = true
+      }
+      None =>
+        if action_kinds.contains(tagged.entity.uid.kind) {
+          raise PolicyError("action entity is not declared in schema")
+        }
+    }
+    result.push(tagged)
+  }
+  for key, uid in actions {
+    if !seen.contains(key) {
+      result.push({
+        entity: { uid, attrs: {}, parents: expanded[key], },
+        tags: {},
+      })
+    }
+  }
+  let _ = build_entity_graph(result)
+  result
+}

@@ -1412,6 +1412,24 @@ def main():
         duplicate = run("authorize", policy, entities, request, *flags, "--check-parent-types")
         assert duplicate.returncode == 2 and not duplicate.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request, schema = (path / name for name in ("p.cedar", "e.json", "r.json", "s.json"))
+        policy.write_text('permit(principal, action in Action::"all", resource);', encoding="utf-8")
+        schema.write_text(json.dumps({"": {"entityTypes": {"User": {}, "File": {}}, "actions": {"all": {}, "view": {"memberOf": [{"type": "Action", "id": "all"}]}, "read": {"memberOf": [{"type": "Action", "id": "view"}]}}}}), encoding="utf-8")
+        request.write_text(json.dumps({"principal": {"type": "User", "id": "a"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {}}), encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        flags = ("--resolved-entity-schema", schema, "--schema-actions", "--check-parent-types", "--format", "json")
+        assert json.loads(run("authorize", policy, entities, request, *flags).stdout)["decision"] == "Allow"
+        assert json.loads(run("authorize", policy, entities, request, "--resolved-entity-schema", schema, "--format", "json").stdout)["decision"] == "Deny"
+        entities.write_text(json.dumps([{"uid": {"type": "Action", "id": "read"}, "attrs": {}, "parents": [{"type": "Action", "id": "view"}]}]), encoding="utf-8")
+        bad = run("authorize", policy, entities, request, *flags)
+        assert bad.returncode == 2 and not bad.stdout
+        missing = run("authorize", policy, entities, request, "--schema-actions")
+        assert missing.returncode == 2 and not missing.stdout
+        duplicate = run("authorize", policy, entities, request, *flags, "--schema-actions")
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

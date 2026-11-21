@@ -106,6 +106,91 @@ test "parent type traversal handles cycles and malformed declarations" {
 }
 
 ///|
+test "schema actions provide transitive membership and check explicit definitions" {
+  let schema = parse_json(
+    (
+      #|{"App":{"entityTypes":{"User":{},"File":{}},"actions":{"all":{},"view":{"memberOf":[{"type":"App::Action","id":"all"}]},"read":{"memberOf":[{"type":"App::Action","id":"view"}]}}}}
+    ),
+  )
+  let policy = parse_policies(
+    (
+      #|permit(principal, action in App::Action::"all", resource);
+    ),
+  )
+  let request : Request = {
+    principal: { kind: "App::User", id: "u", },
+    action: { kind: "App::Action", id: "read", },
+    resource: { kind: "App::File", id: "f", },
+    context: {},
+  }
+  let merged = entities_with_schema_actions([], schema)
+  assert_true(merged.length() == 3)
+  assert_true(authorize_with_tags(policy, request, merged).decision == Allow)
+  assert_true(authorize_with_tags(policy, request, []).decision == Deny)
+  for
+    (parents, valid) in [
+      (
+        "[{\"type\":\"App::Action\",\"id\":\"view\"},{\"type\":\"App::Action\",\"id\":\"all\"}]",
+        true,
+      ),
+      ("[{\"type\":\"App::Action\",\"id\":\"view\"}]", false),
+      ("[]", false),
+    ] {
+    let input = parse_json(
+      "[{\"uid\":{\"type\":\"App::Action\",\"id\":\"read\"},\"attrs\":{},\"parents\":" +
+      parents +
+      "}]",
+    )
+    let result = try {
+      let _ = entities_with_schema_actions(
+        tagged_entities_from_json(input),
+        schema,
+      )
+      true
+    } catch {
+      _ => false
+    }
+    assert_true(result == valid)
+  }
+  let unknown = parse_json(
+    (
+      #|[{"uid":{"type":"App::Action","id":"unknown"},"attrs":{},"parents":[]}]
+    ),
+  )
+  let rejected = try {
+    let _ = entities_with_schema_actions(
+      tagged_entities_from_json(unknown),
+      schema,
+    )
+    false
+  } catch {
+    _ => true
+  }
+  assert_true(rejected)
+}
+
+///|
+test "schema actions reject missing ancestors and cycles" {
+  for
+    source in [
+      (
+        #|{"":{"actions":{"a":{"memberOf":[{"type":"Action","id":"missing"}]}}}}
+      ),
+      (
+        #|{"":{"actions":{"a":{"memberOf":[{"type":"Action","id":"b"}]},"b":{"memberOf":[{"type":"Action","id":"a"}]}}}}
+      ),
+    ] {
+    let rejected = try {
+      let _ = entities_with_schema_actions([], parse_json(source))
+      false
+    } catch {
+      _ => true
+    }
+    assert_true(rejected)
+  }
+}
+
+///|
 test "entity enum checks cover IDs parents attributes and tags" {
   let schema = parse_json(
     (

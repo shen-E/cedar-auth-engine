@@ -113,6 +113,14 @@ relationships and schema validity are not checked by this option. The library
 equivalent is `check_entity_parent_types`. The check limits schema parent
 declarations to 131,072 and traversal work to 1,000,000 edges per input.
 
+Add `--schema-actions` with `--resolved-entity-schema` to include declared
+actions and their transitive ancestors in authorization. Explicit action
+entities must match the schema's complete ancestor set and have no attributes
+or tags. Missing action declarations and action hierarchy cycles are rejected.
+The library equivalent is `entities_with_schema_actions`. Action traversal is
+limited to 1,000,000 edges; the usual entity and parent limits apply to the
+merged snapshot. This is not full schema validation.
+
 `--resolved-context-schema FILE` separately decodes request contexts according
 to the resolved schema's action declarations. It can be combined with
 `--resolved-entity-schema FILE`. The CLI indexes the action types once for a
