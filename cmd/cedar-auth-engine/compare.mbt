@@ -1,4 +1,32 @@
 ///|
+fn compare_entities(
+  value : Json,
+  schema : Json?,
+  check_enums : Bool,
+  check_parents : Bool,
+  schema_actions : Bool,
+) -> Array[@engine.TaggedEntity] raise {
+  match schema {
+    None => @engine.tagged_entities_from_json(value)
+    Some(schema) => {
+      let decoded = if check_enums {
+        @engine.tagged_entities_from_json_with_checked_enums(value, schema)
+      } else {
+        @engine.tagged_entities_from_json_with_resolved_schema(value, schema)
+      }
+      if check_parents {
+        @engine.check_entity_parent_types(decoded, schema)
+      }
+      if schema_actions {
+        @engine.entities_with_schema_actions(decoded, schema)
+      } else {
+        decoded
+      }
+    }
+  }
+}
+
+///|
 fn run_compare(args : Array[String]) -> Int32 raise {
   if args.length() < 6 {
     raise CliError("invalid compare arguments; use --help")
@@ -12,6 +40,12 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   let mut fail_enforcement_revoke = false
   let mut fail_after_error = false
   let mut after_entities_path : String? = None
+  let mut entity_schema_path : String? = None
+  let mut context_schema_path : String? = None
+  let mut check_enums = false
+  let mut check_parents = false
+  let mut schema_actions = false
+  let mut check_request_types = false
   let before_inputs = policy_inputs()
   let after_inputs = policy_inputs()
   let mut i = 6
@@ -50,6 +84,28 @@ fn run_compare(args : Array[String]) -> Int32 raise {
       i + 1 < args.length() {
       after_entities_path = Some(args[i + 1])
       i += 2
+    } else if args[i] == "--resolved-entity-schema" &&
+      entity_schema_path is None &&
+      i + 1 < args.length() {
+      entity_schema_path = Some(args[i + 1])
+      i += 2
+    } else if args[i] == "--resolved-context-schema" &&
+      context_schema_path is None &&
+      i + 1 < args.length() {
+      context_schema_path = Some(args[i + 1])
+      i += 2
+    } else if args[i] == "--check-entity-enums" && !check_enums {
+      check_enums = true
+      i += 1
+    } else if args[i] == "--check-parent-types" && !check_parents {
+      check_parents = true
+      i += 1
+    } else if args[i] == "--schema-actions" && !schema_actions {
+      schema_actions = true
+      i += 1
+    } else if args[i] == "--check-request-types" && !check_request_types {
+      check_request_types = true
+      i += 1
     } else if args[i] == "--before-template" && i + 1 < args.length() {
       before_inputs.templates.push(args[i + 1])
       i += 2
@@ -90,9 +146,31 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   before_inputs.validate()
   after_inputs.validate()
+  if (check_enums || check_parents || schema_actions) &&
+    entity_schema_path is None {
+    raise CliError("entity schema checks require --resolved-entity-schema")
+  }
+  if check_request_types && context_schema_path is None {
+    raise CliError("--check-request-types requires --resolved-context-schema")
+  }
   let before = before_inputs.load(args[2])
   let after = after_inputs.load(args[3])
-  let entities = @engine.tagged_entities_from_json(load_json(args[4]))
+  let entity_schema = match entity_schema_path {
+    Some(path) => Some(load_json(path))
+    None => None
+  }
+  let context_schema = match context_schema_path {
+    Some(path) =>
+      Some(@engine.ResolvedContextSchema::from_json(load_json(path)))
+    None => None
+  }
+  let entities = compare_entities(
+    load_json(args[4]),
+    entity_schema,
+    check_enums,
+    check_parents,
+    schema_actions,
+  )
   let items = match load_json(args[5]) {
     Array(items) => items
     _ => raise CliError("compare requests must be an array")
@@ -102,14 +180,20 @@ fn run_compare(args : Array[String]) -> Int32 raise {
   }
   let requests = []
   for item in items {
-    requests.push(@engine.request_from_json(item))
+    requests.push(decode_request(item, context_schema, check_request_types))
   }
   let store = @engine.EntityStore::new_with_tags(entities)
   let after_store = match after_entities_path {
     None => store
     Some(path) =>
       @engine.EntityStore::new_with_tags(
-        @engine.tagged_entities_from_json(load_json(path)),
+        compare_entities(
+          load_json(path),
+          entity_schema,
+          check_enums,
+          check_parents,
+          schema_actions,
+        ),
       )
   }
   if summary_only {

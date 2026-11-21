@@ -233,6 +233,14 @@ base file, additions, template links, replacements and removals in that order;
 file order is preserved within additions and within replacements. Duplicate or
 unknown IDs and invalid input fail the entire comparison before output.
 
+The compare command also accepts `--resolved-entity-schema`,
+`--check-entity-enums`, `--check-parent-types`, `--schema-actions`,
+`--resolved-context-schema` and `--check-request-types`. The same entity
+schema and selected checks apply to both snapshots, including
+`--after-entities`; the context schema and request checks apply to every
+request. Schema changes themselves are not compared. An invalid snapshot or
+request aborts the whole comparison without a partial report.
+
 For example, evaluate the existing sharing policies before and after applying
 the [policy update](examples/policy-update/):
 

@@ -1430,6 +1430,41 @@ def main():
         duplicate = run("authorize", policy, entities, request, *flags, "--schema-actions")
         assert duplicate.returncode == 2 and not duplicate.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, after_entities, requests, single, schema = (path / name for name in ("p.cedar", "e.json", "after.json", "requests.json", "request.json", "s.json"))
+        policy.write_text('permit(principal, action in Action::"all", resource) when { resource.owner == principal && context.owner == principal };', encoding="utf-8")
+        shape = {"type": "Record", "attributes": {"owner": {"type": "Entity", "name": "User"}}}
+        schema.write_text(json.dumps({"": {"entityTypes": {"User": {"enum": ["alice", "bob"]}, "File": {"shape": shape}}, "actions": {"all": {}, "read": {"memberOf": [{"type": "Action", "id": "all"}], "appliesTo": {"principalTypes": ["User"], "resourceTypes": ["File"], "context": shape}}}}}), encoding="utf-8")
+        item = {"principal": {"type": "User", "id": "alice"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {"owner": {"type": "User", "id": "alice"}}}
+        single.write_text(json.dumps(item), encoding="utf-8")
+        requests.write_text(json.dumps([item]), encoding="utf-8")
+        def file_entity(owner):
+            return [{"uid": {"type": "File", "id": "f"}, "attrs": {"owner": {"type": "User", "id": owner}}, "parents": []}]
+        entities.write_text(json.dumps(file_entity("alice")), encoding="utf-8")
+        after_entities.write_text(json.dumps(file_entity("bob")), encoding="utf-8")
+        flags = ("--resolved-entity-schema", schema, "--check-entity-enums", "--check-parent-types", "--schema-actions", "--resolved-context-schema", schema, "--check-request-types", "--format", "json")
+        compared = run("compare", policy, policy, entities, requests, "--after-entities", after_entities, *flags)
+        assert compared.returncode == 0
+        case = json.loads(compared.stdout)["cases"][0]
+        for side, entity_file, decision in (("before", entities, "Allow"), ("after", after_entities, "Deny")):
+            single_result = run("authorize", policy, entity_file, single, *flags)
+            assert single_result.returncode == 0 and json.loads(single_result.stdout) == case[side]
+            assert case[side]["decision"] == decision
+        assert case["decision_revoked"]
+        for option in ("--schema-actions", "--check-parent-types", "--check-entity-enums", "--check-request-types"):
+            missing = run("compare", policy, policy, entities, requests, option)
+            assert missing.returncode == 2 and not missing.stdout
+        duplicate = run("compare", policy, policy, entities, requests, *flags, "--schema-actions")
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        after_entities.write_text(json.dumps(file_entity("unknown")), encoding="utf-8")
+        for extra in ((), ("--summary",)):
+            bad = run("compare", policy, policy, entities, requests, "--after-entities", after_entities, *flags, *extra)
+            assert bad.returncode == 2 and not bad.stdout
+        requests.write_text(json.dumps([item, {**item, "principal": {"type": "User", "id": "unknown"}}]), encoding="utf-8")
+        bad = run("compare", policy, policy, entities, requests, *flags)
+        assert bad.returncode == 2 and not bad.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

@@ -1637,6 +1637,24 @@ def main():
                     mismatches.append({"case": "schema actions " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "schema actions " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Compare each side against Cedar with the same schema action hierarchy.
+        policy.write_text('@id("before") permit(principal, action in Action::"all", resource);', encoding="utf-8")
+        after_policy = temp / "schema-compare-after.cedar"
+        after_policy.write_text('@id("after") forbid(principal, action in Action::"all", resource);', encoding="utf-8")
+        entities.write_text('[]', encoding="utf-8")
+        compare_requests = temp / "schema-compare-requests.json"
+        compare_requests.write_text(json.dumps([req]), encoding="utf-8")
+        comparison = run([args.engine, "compare", policy, after_policy, entities, compare_requests, "--resolved-entity-schema", resolved_schema, "--schema-actions", "--resolved-context-schema", resolved_schema, "--check-request-types", "--format", "json"])
+        if comparison.returncode != 0:
+            raise RuntimeError("schema compare failed: " + comparison.stderr)
+        case = json.loads(comparison.stdout)["cases"][0]
+        for side, source, reason in (("before", policy, "before"), ("after", after_policy, "after")):
+            ref = run([args.cedar, "authorize", "--policies", source, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "true", "--error-format", "plain"])
+            got = case[side]
+            count += 1
+            expected_status = 0 if got["decision"] == "Allow" else 2
+            if ref.returncode != expected_status or ref.stdout.strip().title() != got["decision"] or got["reasons"] != [reason] or got["errors"]:
+                mismatches.append({"case": "schema compare " + side, "reference_status": ref.returncode, "reference_decision": ref.stdout.strip(), "actual": got})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 
