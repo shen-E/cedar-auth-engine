@@ -225,7 +225,7 @@ fn decision_label(response : @engine.Response) -> String {
 fn run(args : Array[String]) -> Int32 raise {
   if args.length() < 2 || args[1] == "--help" {
     println(
-      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine explain POLICY ENTITIES REQUEST [--strict] [--stages] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, explain, batch, enforce, enforce-batch and test: [--allow-entity-metadata] [--resolved-entity-schema FILE] [--resolved-context-schema FILE] [--check-request-types] [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
+      "cedar-auth-engine check POLICY [--format json]\ncedar-auth-engine check-entities ENTITIES [--require-closed] [--format json]\ncedar-auth-engine check-membership ENTITIES QUERIES [--format json]\ncedar-auth-engine compare BEFORE AFTER ENTITIES REQUESTS [--after-entities FILE] [--summary] [--format json] [--fail-on-change] [--fail-on-decision-grant] [--fail-on-decision-revoke] [--fail-on-enforcement-grant] [--fail-on-enforcement-revoke] [--fail-on-after-error]\ncedar-auth-engine authorize POLICY ENTITIES REQUEST [--strict] [--format json]\ncedar-auth-engine explain POLICY ENTITIES REQUEST [--strict] [--stages] [--format json]\ncedar-auth-engine batch POLICY ENTITIES REQUESTS [--strict] [--summary] [--format json]\ncedar-auth-engine enforce POLICY ENTITIES REQUEST [--format json]\ncedar-auth-engine enforce-batch POLICY ENTITIES REQUESTS [--summary] [--format json]\ncedar-auth-engine test POLICY ENTITIES CASES [--format json]\nOptions for authorize, explain, batch, enforce, enforce-batch and test: [--allow-entity-metadata] [--resolved-entity-schema FILE] [--check-entity-enums] [--resolved-context-schema FILE] [--check-request-types] [--add-policies FILE]... [--template TEMPLATE --links LINKS]... [--replace-policies FILE]... [--remove-policy ID]...\nOptions for compare: [--before-add-policies FILE]... [--before-template TEMPLATE --before-links LINKS]... [--before-replace-policies FILE]... [--before-remove-policy ID]... and corresponding --after-* options",
     )
     return 0
   }
@@ -266,6 +266,7 @@ fn run(args : Array[String]) -> Int32 raise {
   let mut resolved_entity_schema : String? = None
   let mut resolved_context_schema : String? = None
   let mut check_request_types = false
+  let mut check_entity_enums = false
   let inputs = policy_inputs()
   let mut i = required_count
   while i < args.length() {
@@ -304,6 +305,11 @@ fn run(args : Array[String]) -> Int32 raise {
       command != "check" &&
       !check_request_types {
       check_request_types = true
+      i += 1
+    } else if args[i] == "--check-entity-enums" &&
+      command != "check" &&
+      !check_entity_enums {
+      check_entity_enums = true
       i += 1
     } else if args[i] == "--strict" &&
       (command == "authorize" || command == "batch" || command == "explain") &&
@@ -365,6 +371,9 @@ fn run(args : Array[String]) -> Int32 raise {
   if check_request_types && resolved_context_schema is None {
     raise CliError("--check-request-types requires --resolved-context-schema")
   }
+  if check_entity_enums && resolved_entity_schema is None {
+    raise CliError("--check-entity-enums requires --resolved-entity-schema")
+  }
   let entity_json = load_json(args[3])
   if allow_entity_metadata && resolved_entity_schema is Some(_) {
     raise CliError(
@@ -372,11 +381,18 @@ fn run(args : Array[String]) -> Int32 raise {
     )
   }
   let entities = match resolved_entity_schema {
-    Some(path) =>
-      @engine.tagged_entities_from_json_with_resolved_schema(
-        entity_json,
-        load_json(path),
-      )
+    Some(path) => {
+      let schema = load_json(path)
+      if check_entity_enums {
+        @engine.tagged_entities_from_json_with_checked_enums(
+          entity_json, schema,
+        )
+      } else {
+        @engine.tagged_entities_from_json_with_resolved_schema(
+          entity_json, schema,
+        )
+      }
+    }
     None =>
       if allow_entity_metadata {
         @engine.tagged_entities_from_json_with_metadata(entity_json)

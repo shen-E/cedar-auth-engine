@@ -29,6 +29,43 @@ test "resolved schema decodes implicit references in records and sets" {
 }
 
 ///|
+test "entity enum checks cover IDs parents attributes and tags" {
+  let schema = parse_json(
+    (
+      #|{"App":{"entityTypes":{"Role":{"enum":["Admin","Reader"]},"File":{"shape":{"type":"Record","attributes":{"owners":{"type":"Set","element":{"type":"Entity","name":"App::Role"}}}},"tags":{"type":"Entity","name":"App::Role"}}},"actions":{}}}
+    ),
+  )
+  for
+    (uid, parent, owner, tag, valid) in [
+      ("Admin", "Reader", "Admin", "Reader", true),
+      ("Bad", "Reader", "Admin", "Reader", false),
+      ("Admin", "Bad", "Admin", "Reader", false),
+      ("Admin", "Reader", "Bad", "Reader", false),
+      ("Admin", "Reader", "Admin", "Bad", false),
+    ] {
+    let input = parse_json(
+      "[{\"uid\":{\"type\":\"App::Role\",\"id\":\"" +
+      uid +
+      "\"},\"attrs\":{},\"parents\":[]},{\"uid\":{\"type\":\"App::File\",\"id\":\"f\"},\"attrs\":{\"owners\":[{\"type\":\"App::Role\",\"id\":\"" +
+      owner +
+      "\"}]},\"parents\":[{\"type\":\"App::Role\",\"id\":\"" +
+      parent +
+      "\"}],\"tags\":{\"role\":{\"type\":\"App::Role\",\"id\":\"" +
+      tag +
+      "\"}}}]",
+    )
+    let accepted = try {
+      let _ = tagged_entities_from_json_with_checked_enums(input, schema)
+      true
+    } catch {
+      _ => false
+    }
+    assert_true(accepted == valid)
+    let _ = tagged_entities_from_json_with_resolved_schema(input, schema)
+  }
+}
+
+///|
 test "resolved schema rejects unsupported and mismatched input" {
   let schema = parse_json(
     "{\"\":{\"entityTypes\":{\"File\":{\"shape\":{\"type\":\"Record\",\"attributes\":{\"owner\":{\"type\":\"Entity\",\"name\":\"User\"}}}}},\"actions\":{}}}",

@@ -1576,6 +1576,26 @@ def main():
                     mismatches.append({"case": "request enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
             elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
                 mismatches.append({"case": "request enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+        # Check enum IDs in entities against schema-guided Cedar entity parsing.
+        schema.write_text('entity Role enum ["Admin", "Reader"]; entity File in [Role] = { owner: Role } tags Role; action "read" appliesTo { principal: Role, resource: File, context: {} };', encoding="utf-8")
+        translated = run([args.cedar, "translate-schema", "--schema", schema, "--direction", "cedar-to-json-with-resolved-types"])
+        if translated.returncode != 0:
+            raise RuntimeError("reference schema translation failed")
+        resolved_schema.write_text(translated.stdout, encoding="utf-8")
+        req = {"principal": {"type": "Role", "id": "Admin"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "File", "id": "f"}, "context": {}}
+        ref_path.write_text(json.dumps({**{k: uid(req[k]) for k in ("principal", "action", "resource")}, "context": {}}), encoding="utf-8")
+        engine_request.write_text(json.dumps(req), encoding="utf-8")
+        for label, role, parent, owner, tag, valid in (("allowed", "Admin", "Reader", "Admin", "Reader", True), ("uid", "Bad", "Reader", "Admin", "Reader", False), ("parent", "Admin", "Bad", "Admin", "Reader", False), ("attribute", "Admin", "Reader", "Bad", "Reader", False), ("tag", "Admin", "Reader", "Admin", "Bad", False)):
+            data = [{"uid": {"type": "Role", "id": role}, "attrs": {}, "parents": []}, {"uid": {"type": "File", "id": "f"}, "attrs": {"owner": {"type": "Role", "id": owner}}, "parents": [{"type": "Role", "id": parent}], "tags": {"role": {"type": "Role", "id": tag}}}]
+            entities.write_text(json.dumps(data), encoding="utf-8")
+            ref = run([args.cedar, "authorize", "--policies", policy, "--entities", entities, "--schema", schema, "--request-json", ref_path, "--request-validation", "false", "--error-format", "plain"])
+            got = run([args.engine, "authorize", policy, entities, engine_request, "--resolved-entity-schema", resolved_schema, "--check-entity-enums", "--format", "json"])
+            count += 1
+            if valid:
+                if ref.returncode != 0 or got.returncode != 0 or json.loads(got.stdout)["decision"] != "Allow":
+                    mismatches.append({"case": "entity enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
+            elif ref.returncode == 0 or got.returncode != 2 or got.stdout.strip():
+                mismatches.append({"case": "entity enum " + label, "reference_status": ref.returncode, "actual_status": got.returncode})
     print(json.dumps({"cedar": version.stdout.strip(), "official_fixture_commit": "f64ff16c8a5c2473e0db9391997d10ceae9bb2f2", "comparisons": count, "invalid_syntax_checks": syntax_checks, "invalid_graph_checks": graph_checks, "entity_type_checks": entity_type_checks, "mismatches": mismatches}, indent=2))
     return 1 if mismatches else 0
 

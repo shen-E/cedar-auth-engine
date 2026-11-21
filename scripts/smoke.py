@@ -1374,6 +1374,25 @@ def main():
             bad = run(command, policy, entities, batch, *checked_flags)
             assert bad.returncode == 2 and not bad.stdout
         checks += 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = pathlib.Path(tmp)
+        policy, entities, request, schema = (path / name for name in ("p.cedar", "e.json", "r.json", "s.json"))
+        policy.write_text('permit(principal, action, resource);', encoding="utf-8")
+        schema.write_text(json.dumps({"": {"entityTypes": {"Role": {"enum": ["Admin"]}}, "actions": {}}}), encoding="utf-8")
+        request.write_text(json.dumps({"principal": {"type": "Role", "id": "Admin"}, "action": {"type": "Action", "id": "read"}, "resource": {"type": "Role", "id": "Admin"}, "context": {}}), encoding="utf-8")
+        flags = ("--resolved-entity-schema", schema, "--check-entity-enums", "--format", "json")
+        for name, valid in (("Admin", True), ("Bad", False)):
+            entities.write_text(json.dumps([{"uid": {"type": "Role", "id": name}, "attrs": {}, "parents": []}]), encoding="utf-8")
+            result = run("authorize", policy, entities, request, *flags)
+            assert result.returncode == (0 if valid else 2)
+            if not valid:
+                assert not result.stdout
+                assert run("authorize", policy, entities, request, "--resolved-entity-schema", schema).returncode == 0
+        missing = run("authorize", policy, entities, request, "--check-entity-enums")
+        assert missing.returncode == 2 and not missing.stdout
+        duplicate = run("authorize", policy, entities, request, *flags, "--check-entity-enums")
+        assert duplicate.returncode == 2 and not duplicate.stdout
+        checks += 1
     print("CLI checks passed:", checks)
 
 

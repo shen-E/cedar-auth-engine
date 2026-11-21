@@ -242,3 +242,27 @@ pub fn tagged_entities_from_json_with_resolved_schema(
   }
   result
 }
+
+///|
+/// Decode entities and check enum IDs in entity UIDs, parents, attributes and
+/// tags. This is a partial check, not full entity or schema validation.
+pub fn tagged_entities_from_json_with_checked_enums(
+  value : Json,
+  schema : Json,
+) -> Array[TaggedEntity] raise PolicyError {
+  let entities = tagged_entities_from_json_with_resolved_schema(value, schema)
+  let index = ResolvedContextSchema::from_json(schema)
+  for tagged in entities {
+    index.check_enum_id(tagged.entity.uid)
+    for parent in tagged.entity.parents {
+      index.check_enum_id(parent)
+    }
+    for _, value in tagged.entity.attrs {
+      index.check_enum_value(value)
+    }
+    for _, value in tagged.tags {
+      index.check_enum_value(value)
+    }
+  }
+  entities
+}

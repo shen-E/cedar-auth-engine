@@ -101,6 +101,11 @@ and does not decode context using the schema. It cannot be combined
 with `--allow-entity-metadata`. The library equivalent is
 `tagged_entities_from_json_with_resolved_schema`.
 
+Add `--check-entity-enums` with `--resolved-entity-schema` to reject
+undeclared enum IDs in entity identifiers, parents, attributes and tags.
+The library equivalent is `tagged_entities_from_json_with_checked_enums`.
+This does not check parent type constraints or validate the schema.
+
 `--resolved-context-schema FILE` separately decodes request contexts according
 to the resolved schema's action declarations. It can be combined with
 `--resolved-entity-schema FILE`. The CLI indexes the action types once for a
